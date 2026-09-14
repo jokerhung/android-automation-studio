@@ -4,7 +4,7 @@ from pydantic import ValidationError
 
 try:
     from admin_console.database.repositories.schedule_repository import schedule_repo
-    from admin_console.schemas.schedule_schema import ScheduleCreate, ScheduleRule
+    from admin_console.schemas.schedule_schema import EmailNotificationPolicy, ScheduleCreate, ScheduleRule
     from admin_console.services.schedule_recurrence import (
         next_occurrence,
         preview_occurrences,
@@ -13,7 +13,7 @@ try:
     from admin_console.services.task_admission_service import AdmissionConflict, admit_tasks
 except ImportError:
     from apps.admin_console.database.repositories.schedule_repository import schedule_repo
-    from apps.admin_console.schemas.schedule_schema import ScheduleCreate, ScheduleRule
+    from apps.admin_console.schemas.schedule_schema import EmailNotificationPolicy, ScheduleCreate, ScheduleRule
     from apps.admin_console.services.schedule_recurrence import (
         next_occurrence,
         preview_occurrences,
@@ -47,6 +47,7 @@ class ScheduleService:
         expected = changes.pop("expected_version")
         merged = {**current, **changes}
         rule = ScheduleRule.model_validate(merged)
+        EmailNotificationPolicy.model_validate(merged)
         now = self.clock()
         enabled = bool(merged["enabled"])
         reset = (not current["enabled"] and enabled) or (

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 
 try:
     from admin_console.database.repositories.schedule_repository import schedule_repo
@@ -14,6 +15,7 @@ try:
     from admin_console.services.schedule_recurrence import preview_occurrences, utc_now
     from admin_console.services.schedule_service import schedule_service
     from admin_console.services.scheduler_service import scheduler_service
+    from admin_console.services.email_notification_service import email_notification_service
 except ImportError:
     from apps.admin_console.database.repositories.schedule_repository import schedule_repo
     from apps.admin_console.schemas.schedule_schema import (
@@ -26,6 +28,7 @@ except ImportError:
     from apps.admin_console.services.schedule_recurrence import preview_occurrences, utc_now
     from apps.admin_console.services.schedule_service import schedule_service
     from apps.admin_console.services.scheduler_service import scheduler_service
+    from apps.admin_console.services.email_notification_service import email_notification_service
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
 
 
@@ -99,4 +102,27 @@ def runs(schedule_id: str, limit: int = Query(50, ge=1, le=200), offset: int = Q
     if not schedule_repo.get(schedule_id):
         raise HTTPException(404, "Schedule not found")
     values, total = schedule_repo.runs(schedule_id, limit, offset)
+    values = email_notification_service.attach_statuses(values)
     return {"runs": values, "total": total, "limit": limit, "offset": offset}
+
+
+@router.post("/{schedule_id}/runs/{run_id}/email/retry")
+def retry_email(schedule_id: str, run_id: str):
+    run = schedule_repo.get_run(run_id)
+    if not run or run["schedule_id"] != schedule_id:
+        raise HTTPException(404, "Schedule run not found")
+    try:
+        return email_notification_service.manual_retry(run_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.get("/{schedule_id}/runs/{run_id}/email/report")
+def email_report(schedule_id: str, run_id: str):
+    run = schedule_repo.get_run(run_id)
+    if not run or run["schedule_id"] != schedule_id:
+        raise HTTPException(404, "Schedule run not found")
+    report = email_notification_service.report_for_run(run_id)
+    if not report:
+        raise HTTPException(404, "Notification report not available")
+    return FileResponse(report["path"], media_type="text/plain; charset=utf-8", filename=report["filename"])

@@ -55,7 +55,7 @@ describe('Settings navigation', () => {
     const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
     const visiblePanels = () => root.querySelectorAll('.settings-panel:not([hidden])');
     expect(tabs.map(tab => tab.textContent?.trim())).toEqual([
-      'tuneGeneral', 'auto_awesomeAI Model', 'smartphoneAndroid Devices', 'computerSystem & Environment'
+      'tuneGeneral', 'auto_awesomeAI Model', 'mailEmail', 'smartphoneAndroid Devices', 'computerSystem & Environment'
     ]);
     expect(visiblePanels().length).toBe(1);
     expect(visiblePanels()[0].id).toBe('settings-panel-general');
@@ -65,10 +65,12 @@ describe('Settings navigation', () => {
     settings.geminiKeyInput.set('unsaved-test-value');
     settings.isGeminiKeyEdited.set(true);
     tabs[2].click(); harness.detectChanges();
+    expect(visiblePanels()[0].id).toBe('settings-panel-email');
+    tabs[3].click(); harness.detectChanges();
     expect(visiblePanels()[0].id).toBe('settings-panel-android');
     tabs[1].click(); harness.detectChanges();
     expect(settings.geminiKeyInput()).toBe('unsaved-test-value');
-    tabs[3].click(); harness.detectChanges();
+    tabs[4].click(); harness.detectChanges();
     expect(visiblePanels()[0].id).toBe('settings-panel-system');
     expect(root.querySelector('.settings-close')?.getAttribute('aria-label')).toBe('Close Settings');
   });
@@ -93,7 +95,7 @@ describe('Settings navigation', () => {
     const settings = await harness.navigateByUrl('/settings', HomeComponent);
     const ready = spyOn(settings, 'isReady').and.returnValue(true);
     const root = harness.routeNativeElement!;
-    for (const tab of ['general', 'models', 'android'] as const) {
+    for (const tab of ['general', 'models', 'email', 'android'] as const) {
       settings.settingsTab.set(tab);
       harness.detectChanges();
       expect(root.querySelector('.ready-banner-footer')).toBeNull();

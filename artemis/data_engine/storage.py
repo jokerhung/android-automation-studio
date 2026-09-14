@@ -227,6 +227,60 @@ class StorageManager:
                 CREATE TABLE IF NOT EXISTS task_scheduler_lease (lease_name TEXT PRIMARY KEY, owner TEXT NOT NULL, generation INTEGER NOT NULL, expires_at TEXT NOT NULL, heartbeat_at TEXT NOT NULL);
             """)
 
+            schedule_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(task_schedules)").fetchall()
+            }
+            for column, definition in (
+                ("email_enabled", "INTEGER NOT NULL DEFAULT 0"),
+                ("recipient_name", "TEXT"),
+                ("recipient_email", "TEXT"),
+                ("email_subject", "TEXT"),
+            ):
+                if column not in schedule_columns:
+                    conn.execute(f"ALTER TABLE task_schedules ADD COLUMN {column} {definition}")
+
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS email_settings (
+                    id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 0,
+                    smtp_host TEXT NOT NULL DEFAULT '', smtp_port INTEGER NOT NULL DEFAULT 587,
+                    security TEXT NOT NULL DEFAULT 'starttls', sender_email TEXT NOT NULL DEFAULT '',
+                    sender_name TEXT, smtp_username TEXT NOT NULL DEFAULT '', test_recipient TEXT,
+                    version INTEGER NOT NULL DEFAULT 1, last_tested_at TEXT,
+                    last_test_success INTEGER, last_test_error TEXT, updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS email_notification_outbox (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL,
+                    notification_type TEXT NOT NULL, recipient TEXT NOT NULL, subject TEXT NOT NULL,
+                    payload_json TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'pending',
+                    attempts INTEGER NOT NULL DEFAULT 0, max_attempts INTEGER NOT NULL DEFAULT 3,
+                    next_attempt_at REAL NOT NULL, lease_owner TEXT, lease_expires_at REAL,
+                    smtp_message_id TEXT, last_error TEXT, report_path TEXT,
+                    created_at REAL NOT NULL, updated_at REAL NOT NULL, accepted_at REAL,
+                    suppressed_at REAL, failed_at REAL, UNIQUE(run_id, notification_type)
+                );
+                CREATE INDEX IF NOT EXISTS email_notification_claim_idx
+                    ON email_notification_outbox(status, next_attempt_at, lease_expires_at, id);
+                CREATE TABLE IF NOT EXISTS task_email_notifications (
+                    id TEXT PRIMARY KEY, schedule_run_id TEXT NOT NULL, session_id TEXT NOT NULL,
+                    notification_type TEXT NOT NULL DEFAULT 'task_result',
+                    recipient_name TEXT, recipient_email TEXT NOT NULL,
+                    rendered_subject TEXT, rendered_body TEXT, report_path TEXT,
+                    report_sha256 TEXT, report_size_bytes INTEGER, report_complete INTEGER,
+                    smtp_config_version INTEGER NOT NULL, status TEXT NOT NULL,
+                    attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT,
+                    claim_owner TEXT, claim_expires_at TEXT, message_id TEXT NOT NULL,
+                    accepted_at TEXT, safe_error_code TEXT, safe_error_message TEXT,
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                    FOREIGN KEY(schedule_run_id) REFERENCES task_schedule_runs(id)
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_task_email_notification
+                    ON task_email_notifications(schedule_run_id, notification_type);
+                CREATE INDEX IF NOT EXISTS idx_task_email_claim
+                    ON task_email_notifications(status, next_attempt_at, claim_expires_at);
+                CREATE INDEX IF NOT EXISTS idx_task_email_session
+                    ON task_email_notifications(session_id);
+            """)
+
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS background_tasks (
                     task_id TEXT PRIMARY KEY,

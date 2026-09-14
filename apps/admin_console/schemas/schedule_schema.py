@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+from email.utils import parseaddr
+import re
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from dateutil.tz import gettz
@@ -9,6 +11,70 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 ScheduleType = Literal["interval", "daily", "weekly"]
+_EMAIL_RE = re.compile(r"^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$")
+_ALLOWED_SUBJECT_FIELDS = {"schedule_name", "status", "finished_at"}
+
+
+def _validate_mailbox(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value or any(ch in value for ch in "\r\n"):
+        raise ValueError("recipient_email must be a single valid email address")
+    _, address = parseaddr(value)
+    if address != value or not _EMAIL_RE.fullmatch(address) or len(value) > 320:
+        raise ValueError("recipient_email must be a single valid email address")
+    return value
+
+
+def _validate_header(value: str | None, field: str, max_length: int) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if any(ch in value for ch in "\r\n"):
+        raise ValueError(f"{field} cannot contain line breaks")
+    if len(value) > max_length:
+        raise ValueError(f"{field} is too long")
+    return value or None
+
+
+def _validate_subject_placeholders(value: str | None) -> str | None:
+    value = _validate_header(value, "email_subject", 500)
+    if value is None:
+        return None
+    fields = set(re.findall(r"(?<!{){([a-zA-Z_][a-zA-Z0-9_]*)}(?!})", value))
+    unknown = fields - _ALLOWED_SUBJECT_FIELDS
+    if unknown:
+        raise ValueError(f"unsupported email subject placeholder: {sorted(unknown)[0]}")
+    return value
+
+
+class EmailNotificationPolicy(BaseModel):
+    email_enabled: bool = False
+    recipient_name: str | None = Field(default=None, max_length=200)
+    recipient_email: str | None = Field(default=None, max_length=320)
+    email_subject: str | None = Field(default=None, max_length=500)
+
+    @field_validator("recipient_email")
+    @classmethod
+    def validate_recipient_email(cls, value: str | None) -> str | None:
+        return _validate_mailbox(value)
+
+    @field_validator("recipient_name")
+    @classmethod
+    def validate_recipient_name(cls, value: str | None) -> str | None:
+        return _validate_header(value, "recipient_name", 200)
+
+    @field_validator("email_subject")
+    @classmethod
+    def validate_email_subject(cls, value: str | None) -> str | None:
+        return _validate_subject_placeholders(value)
+
+    @model_validator(mode="after")
+    def validate_email_policy(self):
+        if self.email_enabled and (not self.recipient_email or not self.email_subject):
+            raise ValueError("recipient_email and email_subject are required when email is enabled")
+        return self
 
 
 class ScheduleRule(BaseModel):
@@ -91,7 +157,7 @@ class TaskSnapshot(BaseModel):
         return value
 
 
-class ScheduleCreate(ScheduleRule, TaskSnapshot):
+class ScheduleCreate(ScheduleRule, TaskSnapshot, EmailNotificationPolicy):
     name: str = Field(min_length=1, max_length=200)
     enabled: bool = True
 
@@ -122,6 +188,25 @@ class SchedulePatch(BaseModel):
     weekdays: list[int] | None = None
     timezone: str | None = None
     enabled: bool | None = None
+    email_enabled: bool | None = None
+    recipient_name: str | None = Field(default=None, max_length=200)
+    recipient_email: str | None = Field(default=None, max_length=320)
+    email_subject: str | None = Field(default=None, max_length=500)
+
+    @field_validator("recipient_email")
+    @classmethod
+    def validate_recipient_email(cls, value: str | None) -> str | None:
+        return _validate_mailbox(value)
+
+    @field_validator("recipient_name")
+    @classmethod
+    def validate_recipient_name(cls, value: str | None) -> str | None:
+        return _validate_header(value, "recipient_name", 200)
+
+    @field_validator("email_subject")
+    @classmethod
+    def validate_email_subject(cls, value: str | None) -> str | None:
+        return _validate_subject_placeholders(value)
 
 
 class SchedulePreview(ScheduleRule):

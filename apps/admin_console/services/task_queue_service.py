@@ -700,6 +700,11 @@ class TaskQueueService:
             new_status,
             __import__("datetime").datetime.now(__import__("datetime").UTC),
         )
+        try:
+            from admin_console.services.email_notification_service import email_notification_service
+        except ImportError:
+            from apps.admin_console.services.email_notification_service import email_notification_service
+        email_notification_service.create_for_session(str(sess_id), new_status)
         return new_status
 
     @classmethod
@@ -907,6 +912,19 @@ class TaskQueueService:
                     )
         finally:
             await cls._finish_output_forwarder(output_task)
+            if sess_id:
+                try:
+                    from admin_console.database.repositories.schedule_repository import schedule_repo
+                    from admin_console.services.email_notification_service import email_notification_service
+                except ImportError:
+                    from apps.admin_console.database.repositories.schedule_repository import schedule_repo
+                    from apps.admin_console.services.email_notification_service import email_notification_service
+                try:
+                    schedule_run = schedule_repo.get_run_by_session(str(sess_id))
+                    if schedule_run and schedule_run.get("status") in {"completed", "failed", "cancelled"}:
+                        email_notification_service.create_for_session(str(sess_id), schedule_run["status"])
+                except Exception:
+                    logger.exception("[QueueWorker] Could not persist email notification intent")
             # 5. Clean up the finished task and release this run's scheduling slot
             cls._release_run_slot(sess_id, run_key, proc)
 

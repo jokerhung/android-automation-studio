@@ -1,7 +1,7 @@
 # Plan: SMTP Settings và email kết quả task theo lịch
 
 Ngày: 2026-09-14  
-Trạng thái: Đề xuất, chưa triển khai; không cấu hình SMTP hay gửi email thật trong bước lập plan.
+Trạng thái: Đã triển khai MVP trong mã nguồn; chưa cấu hình SMTP hoặc gửi email thật.
 
 ## 1. Yêu cầu và cách hiểu
 
@@ -262,7 +262,7 @@ cấu hình rõ, nhưng chỉ kết nối đúng host/port đã lưu, không nh�
 
 - [ ] **P0 — Trace lifecycle:** xác định nguồn final summary Flash/Pro, complete log export,
   startup/end/flush ordering, cancelled/crashed behavior, secret store Windows và migration strategy.
-- [ ] **P1 — SMTP Settings:** schema/API/local boundary, secure secret persistence, Email tab,
+- [x] **P1 — SMTP Settings:** schema/API/local boundary, secure secret persistence, Email tab,
   Save/Test connection/Send test với lỗi inline và password write-only.
 - [ ] **P2 — Schedule form:** opt-in, recipient name/email, subject, validation,
   notification snapshot/version; không tái tạo Advanced task options.

@@ -20,6 +20,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AgentService } from '../../services/agent.service';
 import { SystemService } from '../../services/system.service';
 import { WindowsStartupComponent } from '../../components/windows-startup/windows-startup.component';
+import { EmailSettingsComponent } from '../../components/email-settings/email-settings.component';
 import {
   AdbServerConnectionResult,
   AdbServerDevice,
@@ -99,13 +100,13 @@ export interface TuningSliderVm {
 export type { AppReference, SmartSuggestion, SuggestionCategory };
 
 type AdbGuideTab = 'emulator' | 'usb' | 'wifi' | 'remote';
-type SettingsTab = 'general' | 'models' | 'android' | 'system';
+type SettingsTab = 'general' | 'models' | 'email' | 'android' | 'system';
 
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [FormsModule, WindowsStartupComponent],
+  imports: [FormsModule, WindowsStartupComponent, EmailSettingsComponent],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./home.component.scss', './settings-layout.scss']
@@ -125,6 +126,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   public settingsTabs: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'general', label: 'General', icon: 'tune' },
     { id: 'models', label: 'AI Model', icon: 'auto_awesome' },
+    { id: 'email', label: 'Email', icon: 'mail' },
     { id: 'android', label: 'Android Devices', icon: 'smartphone' },
     { id: 'system', label: 'System & Environment', icon: 'computer' }
   ];
@@ -561,6 +563,10 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    const requestedSettingsTab = this.route.snapshot.queryParamMap.get('tab');
+    if (this.settingsTabs.some(tab => tab.id === requestedSettingsTab)) {
+      this.settingsTab.set(requestedSettingsTab as SettingsTab);
+    }
 
     this.loadProTuningDefaults();
     // Initial fetch of system readiness & model configuration

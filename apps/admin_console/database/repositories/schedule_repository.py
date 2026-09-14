@@ -20,8 +20,30 @@ def iso(value: datetime | None) -> str | None:
 
 
 class ScheduleRepository:
+    _SNAPSHOT_FIELDS = (
+        "goal",
+        "profile",
+        "device_serial",
+        "expected_output",
+        "enable_outputter",
+        "verification_level",
+        "explorer_mode",
+        "locked_app_package",
+        "app_path",
+        "name",
+        "timezone",
+        "email_enabled",
+        "recipient_name",
+        "recipient_email",
+        "email_subject",
+    )
+
     def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or DB_PATH
+
+    @classmethod
+    def _snapshot(cls, schedule):
+        return {key: schedule.get(key) for key in cls._SNAPSHOT_FIELDS}
 
     @staticmethod
     def _row(row):
@@ -32,6 +54,8 @@ class ScheduleRepository:
             value["weekdays"] = json.loads(value.pop("weekdays_json") or "[]")
         if "enabled" in value:
             value["enabled"] = bool(value["enabled"])
+        if "email_enabled" in value:
+            value["email_enabled"] = bool(value["email_enabled"])
         if "task_snapshot_json" in value:
             value["task_snapshot"] = json.loads(value["task_snapshot_json"])
         return value
@@ -40,7 +64,7 @@ class ScheduleRepository:
         sid = str(uuid.uuid4())
         with db_session(self.db_path) as conn:
             conn.execute(
-                """INSERT INTO task_schedules (id,name,goal,profile,device_serial,expected_output,enable_outputter,verification_level,explorer_mode,locked_app_package,app_path,schedule_type,interval_minutes,time_of_day,weekdays_json,timezone,interval_anchor_at,enabled,version,next_run_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)""",
+                """INSERT INTO task_schedules (id,name,goal,profile,device_serial,expected_output,enable_outputter,verification_level,explorer_mode,locked_app_package,app_path,schedule_type,interval_minutes,time_of_day,weekdays_json,timezone,interval_anchor_at,enabled,email_enabled,recipient_name,recipient_email,email_subject,version,next_run_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)""",
                 (
                     sid,
                     data["name"],
@@ -60,6 +84,10 @@ class ScheduleRepository:
                     data["timezone"],
                     iso(anchor),
                     int(data["enabled"]),
+                    int(data.get("email_enabled", False)),
+                    data.get("recipient_name"),
+                    data.get("recipient_email"),
+                    data.get("email_subject"),
                     iso(next_run),
                     iso(now),
                     iso(now),
@@ -105,6 +133,10 @@ class ScheduleRepository:
             "interval_minutes",
             "time_of_day",
             "timezone",
+            "email_enabled",
+            "recipient_name",
+            "recipient_email",
+            "email_subject",
         ]
         values = [merged.get(f) for f in fields] + [
             json.dumps(merged.get("weekdays", [])),
@@ -146,20 +178,7 @@ class ScheduleRepository:
     def create_manual_run(self, s, key, now):
         run_id = str(uuid.uuid4())
         session_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"artemis:schedule:{s['id']}:manual:{key}"))
-        snap = {
-            k: s.get(k)
-            for k in (
-                "goal",
-                "profile",
-                "device_serial",
-                "expected_output",
-                "enable_outputter",
-                "verification_level",
-                "explorer_mode",
-                "locked_app_package",
-                "app_path",
-            )
-        }
+        snap = self._snapshot(s)
         try:
             with db_session(self.db_path) as conn:
                 conn.execute(
@@ -194,6 +213,22 @@ class ScheduleRepository:
             return self._row(
                 conn.execute("SELECT * FROM task_schedule_runs WHERE id=?", (rid,)).fetchone()
             )
+
+    def get_run_by_session(self, session_id):
+        with db_session(self.db_path) as conn:
+            return self._row(
+                conn.execute(
+                    "SELECT * FROM task_schedule_runs WHERE session_id=? ORDER BY created_at DESC LIMIT 1",
+                    (str(session_id),),
+                ).fetchone()
+            )
+
+    def terminal_email_runs_without_notification(self):
+        with db_session(self.db_path) as conn:
+            rows = conn.execute(
+                """SELECT r.* FROM task_schedule_runs r LEFT JOIN task_email_notifications n ON n.schedule_run_id=r.id AND n.notification_type='task_result' WHERE r.status IN ('completed','failed','cancelled') AND n.id IS NULL ORDER BY r.finished_at LIMIT 100"""
+            ).fetchall()
+            return [self._row(row) for row in rows]
 
     def update_run(self, rid, status, now, error_code=None, error_message=None):
         with db_session(self.db_path) as conn:
@@ -280,24 +315,68 @@ class ScheduleRepository:
     def claim_occurrence(self, schedule, due, next_run, now, owner, generation):
         """Atomically fence leader, persist an occurrence, and advance the schedule."""
         rid = str(uuid.uuid4())
-        session_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"artemis:schedule:{schedule['id']}:{iso(due)}"))
-        snap = {k: schedule.get(k) for k in ("goal", "profile", "device_serial", "expected_output", "enable_outputter", "verification_level", "explorer_mode", "locked_app_package", "app_path")}
+        session_id = str(
+            uuid.uuid5(uuid.NAMESPACE_URL, f"artemis:schedule:{schedule['id']}:{iso(due)}")
+        )
+        snap = self._snapshot(schedule)
         with db_session(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
-            lease = conn.execute("SELECT owner,generation,expires_at FROM task_scheduler_lease WHERE lease_name='scheduler'").fetchone()
-            current = conn.execute("SELECT version,enabled,next_run_at,deleted_at FROM task_schedules WHERE id=?", (schedule["id"],)).fetchone()
-            valid = lease and lease[0] == owner and lease[1] == generation and lease[2] > iso(now) and current and current[1] and current[3] is None and current[0] == schedule["version"] and current[2] == iso(due)
+            lease = conn.execute(
+                "SELECT owner,generation,expires_at FROM task_scheduler_lease WHERE lease_name='scheduler'"
+            ).fetchone()
+            current = conn.execute(
+                "SELECT version,enabled,next_run_at,deleted_at FROM task_schedules WHERE id=?",
+                (schedule["id"],),
+            ).fetchone()
+            valid = (
+                lease
+                and lease[0] == owner
+                and lease[1] == generation
+                and lease[2] > iso(now)
+                and current
+                and current[1]
+                and current[3] is None
+                and current[0] == schedule["version"]
+                and current[2] == iso(due)
+            )
             if not valid:
                 conn.rollback()
                 return None
-            active = conn.execute("SELECT 1 FROM task_schedule_runs WHERE schedule_id=? AND status IN ('dispatch_pending','claimed','queued','running','paused') LIMIT 1", (schedule["id"],)).fetchone()
-            status = "skipped_overlap" if active else ("skipped_misfire" if (now - due).total_seconds() > 60 else "dispatch_pending")
+            active = conn.execute(
+                "SELECT 1 FROM task_schedule_runs WHERE schedule_id=? AND status IN ('dispatch_pending','claimed','queued','running','paused') LIMIT 1",
+                (schedule["id"],),
+            ).fetchone()
+            status = (
+                "skipped_overlap"
+                if active
+                else ("skipped_misfire" if (now - due).total_seconds() > 60 else "dispatch_pending")
+            )
             try:
-                conn.execute("INSERT INTO task_schedule_runs(id,schedule_id,schedule_version,due_at,trigger,task_snapshot_json,status,session_id,claim_owner,claim_generation,created_at,updated_at,lateness_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", (rid,schedule["id"],schedule["version"],iso(due),"scheduled",json.dumps(snap),status,session_id,owner,generation,iso(now),iso(now),max(0,int((now-due).total_seconds()*1000))))
+                conn.execute(
+                    "INSERT INTO task_schedule_runs(id,schedule_id,schedule_version,due_at,trigger,task_snapshot_json,status,session_id,claim_owner,claim_generation,created_at,updated_at,lateness_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        rid,
+                        schedule["id"],
+                        schedule["version"],
+                        iso(due),
+                        "scheduled",
+                        json.dumps(snap),
+                        status,
+                        session_id,
+                        owner,
+                        generation,
+                        iso(now),
+                        iso(now),
+                        max(0, int((now - due).total_seconds() * 1000)),
+                    ),
+                )
             except sqlite3.IntegrityError:
                 conn.rollback()
                 return None
-            updated = conn.execute("UPDATE task_schedules SET next_run_at=?,updated_at=?,version=version+1 WHERE id=? AND version=? AND next_run_at=? AND enabled=1 AND deleted_at IS NULL", (iso(next_run),iso(now),schedule["id"],schedule["version"],iso(due)))
+            updated = conn.execute(
+                "UPDATE task_schedules SET next_run_at=?,updated_at=?,version=version+1 WHERE id=? AND version=? AND next_run_at=? AND enabled=1 AND deleted_at IS NULL",
+                (iso(next_run), iso(now), schedule["id"], schedule["version"], iso(due)),
+            )
             if updated.rowcount != 1:
                 conn.rollback()
                 return None
@@ -309,20 +388,7 @@ class ScheduleRepository:
     ):
         rid = str(uuid.uuid4())
         session_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"artemis:schedule:{s['id']}:{iso(due)}"))
-        snap = {
-            k: s.get(k)
-            for k in (
-                "goal",
-                "profile",
-                "device_serial",
-                "expected_output",
-                "enable_outputter",
-                "verification_level",
-                "explorer_mode",
-                "locked_app_package",
-                "app_path",
-            )
-        }
+        snap = self._snapshot(s)
         try:
             with db_session(self.db_path) as conn:
                 conn.execute(

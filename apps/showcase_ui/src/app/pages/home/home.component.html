@@ -63,6 +63,10 @@
         <app-windows-startup></app-windows-startup>
         </section>
 
+<section class="settings-panel" id="settings-panel-email" role="tabpanel" aria-labelledby="settings-tab-email" tabindex="0" [hidden]="settingsTab() !== 'email'">
+<app-email-settings></app-email-settings>
+</section>
+
 <section class="settings-panel" id="settings-panel-system" role="tabpanel" aria-labelledby="settings-tab-system" tabindex="0" [hidden]="settingsTab() !== 'system'">
 <h2>System & Environment</h2>
 <p class="settings-description">Check runtime dependencies and screen recording tools.</p>

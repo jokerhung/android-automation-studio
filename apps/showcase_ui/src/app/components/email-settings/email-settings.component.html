@@ -1,0 +1,47 @@
+<section class="email-settings" aria-labelledby="email-settings-heading">
+  <h2 id="email-settings-heading">Email</h2>
+  <p class="settings-description">Configure the saved SMTP account used for opt-in schedule result notifications.</p>
+
+  @if (loading()) {
+    <div class="email-loading" role="status">Loading email settings…</div>
+  } @else if (loadError()) {
+    <div class="inline-state error" role="alert">{{ loadError() }} <button type="button" (click)="load()">Retry</button></div>
+  } @else {
+    <form #emailForm="ngForm" (ngSubmit)="save(emailForm)" novalidate>
+      <section class="email-card">
+        <label class="switch-row"><span><strong>Email notifications</strong><small>Global kill switch. When off, pending schedule emails are suppressed without affecting tasks.</small></span><input type="checkbox" name="emailEnabled" [(ngModel)]="draft.enabled"></label>
+        <div class="field-grid">
+          <label>SMTP host<input name="smtpHost" [(ngModel)]="draft.smtp_host" required maxlength="255" pattern="^[a-zA-Z0-9.-]+$" placeholder="smtp.example.com"><small>Hostname or IP only; URLs and paths are not accepted.</small></label>
+          <label>SMTP port<input type="number" name="smtpPort" [(ngModel)]="draft.smtp_port" required min="1" max="65535"><small>Usually 587 for STARTTLS or 465 for SSL/TLS.</small></label>
+        </div>
+        <fieldset><legend>Security</legend><div class="security-options"><label><input type="radio" name="security" [(ngModel)]="draft.security" value="starttls">STARTTLS</label><label><input type="radio" name="security" [(ngModel)]="draft.security" value="ssl">SSL/TLS</label></div><small>TLS is required. ARTEMIS never falls back to plaintext SMTP.</small></fieldset>
+        <div class="field-grid">
+          <label>Sender email<input type="email" name="senderEmail" [(ngModel)]="draft.sender_email" required maxlength="254" placeholder="artemis@example.com"></label>
+          <label>Sender name<input name="senderName" [(ngModel)]="draft.sender_name" maxlength="120" placeholder="ARTEMIS"></label>
+        </div>
+        <label>SMTP username / email<input name="smtpUsername" [(ngModel)]="draft.smtp_username" required maxlength="254" placeholder="Defaults to the sender email"></label>
+        <div class="password-block">
+          <label>Password / App password<input type="password" name="smtpPassword" [(ngModel)]="draft.password" autocomplete="new-password" maxlength="1024" placeholder="{{ passwordConfigured() ? 'Leave blank to keep saved password' : 'Enter password or app password' }}"><small>This field is write-only. The saved password is never returned to this page. Leaving it blank keeps the current secret.</small></label>
+          <div class="password-status"><span [class.configured]="passwordConfigured()">{{ passwordConfigured() ? 'Password configured' : 'No password configured' }}</span><button type="button" class="danger-link" (click)="clearPassword()" [disabled]="!passwordConfigured() || busy()">{{ clearing() ? 'Clearing…' : 'Clear password' }}</button></div>
+        </div>
+      </section>
+
+      <div class="save-row"><button type="submit" class="primary" [disabled]="busy()">{{ saveState() === 'pending' ? 'Saving…' : 'Save' }}</button><span class="dirty-note" [class.visible]="dirty()">Unsaved changes</span></div>
+      @if (saveMessage()) { <div class="inline-state" [class.success]="saveState() === 'success'" [class.error]="saveState() === 'error'" [attr.role]="saveState() === 'error' ? 'alert' : 'status'">{{ saveMessage() }}</div> }
+
+      <section class="email-card test-card">
+        <div><h3>Verify saved settings</h3><p>Connection test checks TCP, TLS, and authentication only. It never sends email.</p></div>
+        <button type="button" (click)="testConnection()" [disabled]="busy()">{{ connectionState() === 'pending' ? 'Testing connection…' : 'Test connection' }}</button>
+        @if (connectionMessage()) { <div class="inline-state full" [class.success]="connectionState() === 'success'" [class.error]="connectionState() === 'error'" [attr.role]="connectionState() === 'error' ? 'alert' : 'status'">{{ connectionMessage() }}</div> }
+        @if (lastTestedAt()) { <small class="full last-test">Last tested {{ lastTestedAt() | date:'medium' }}@if (lastTestError()) { · {{ lastTestError() }} }</small> }
+      </section>
+
+      <section class="email-card test-card">
+        <div><h3>Send a test email</h3><p>Sends only a harmless test message. It never includes a task summary or execution log.</p></div>
+        <label class="recipient">Test recipient<input type="email" name="testRecipient" [(ngModel)]="draft.test_recipient" maxlength="254" placeholder="recipient@example.com"></label>
+        <button type="button" (click)="sendTestEmail()" [disabled]="busy()">{{ sendState() === 'pending' ? 'Sending test…' : 'Send test email' }}</button>
+        @if (sendMessage()) { <div class="inline-state full" [class.success]="sendState() === 'success'" [class.error]="sendState() === 'error'" [attr.role]="sendState() === 'error' ? 'alert' : 'status'">{{ sendMessage() }}</div> }
+      </section>
+    </form>
+  }
+</section>

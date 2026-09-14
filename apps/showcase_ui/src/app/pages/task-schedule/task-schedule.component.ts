@@ -1,11 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router } from '@angular/router';
 import { finalize, forkJoin } from 'rxjs';
 import { ScheduleDevice, ScheduleRun, ScheduleStatus, ScheduleType, TaskSchedule, TaskScheduleDraft } from '../../core/models/schedule.model';
 import { AgentService } from '../../services/agent.service';
 import { ScheduleService } from '../../services/schedule.service';
+import { EmailSettingsService } from '../../services/email-settings.service';
 
 const WEEKDAYS = [{ value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' }, { value: 4, label: 'Thu' }, { value: 5, label: 'Fri' }, { value: 6, label: 'Sat' }, { value: 7, label: 'Sun' }];
 
@@ -13,8 +14,8 @@ const WEEKDAYS = [{ value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { valu
 export class TaskScheduleComponent implements OnInit {
   private readonly schedulesApi = inject(ScheduleService);
   private readonly agentService = inject(AgentService);
+  private readonly emailSettingsApi = inject(EmailSettingsService);
   private readonly router = inject(Router);
-  private readonly destroyRef = inject(DestroyRef);
   readonly weekdays = WEEKDAYS;
   readonly schedules = signal<TaskSchedule[]>([]);
   readonly devices = signal<ScheduleDevice[]>([]);
@@ -22,6 +23,9 @@ export class TaskScheduleComponent implements OnInit {
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly actionId = signal<string | null>(null);
+  readonly emailActionRunId = signal<string | null>(null);
+  readonly smtpReady = signal(false);
+  readonly smtpReadinessKnown = signal(false);
   readonly error = signal<string | null>(null);
   readonly formError = signal<string | null>(null);
   readonly message = signal<string | null>(null);
@@ -36,8 +40,16 @@ export class TaskScheduleComponent implements OnInit {
   readonly activeSchedules = computed(() => this.schedules().filter(item => item.enabled));
   readonly pausedSchedules = computed(() => this.schedules().filter(item => !item.enabled));
   draft: TaskScheduleDraft = this.emptyDraft();
+  private subjectCustomized = false;
 
-  ngOnInit(): void { this.refresh(); }
+  ngOnInit(): void { this.refresh(); this.loadEmailReadiness(); }
+
+  private loadEmailReadiness(): void {
+    this.emailSettingsApi.get().subscribe({
+      next: settings => { this.smtpReady.set(Boolean(settings.enabled && settings.smtp_host && settings.sender_email && settings.smtp_username && settings.password_configured)); this.smtpReadinessKnown.set(true); },
+      error: () => { this.smtpReady.set(false); this.smtpReadinessKnown.set(true); }
+    });
+  }
 
   refresh(): void {
     this.loading.set(true); this.error.set(null);
@@ -48,15 +60,22 @@ export class TaskScheduleComponent implements OnInit {
       });
   }
 
-  newSchedule(): void { this.editing.set(null); this.draft = this.emptyDraft(); this.preview.set([]); this.previewError.set(null); this.formOpen.set(true); this.clearNotices(); }
+  newSchedule(): void { this.editing.set(null); this.draft = this.emptyDraft(); this.subjectCustomized = false; this.preview.set([]); this.previewError.set(null); this.formOpen.set(true); this.clearNotices(); }
   edit(schedule: TaskSchedule): void {
     this.editing.set(schedule);
-    this.draft = { name: schedule.name, goal: schedule.goal, profile: schedule.profile, device_serial: schedule.device_serial, expected_output: schedule.expected_output ?? '', enable_outputter: schedule.enable_outputter ?? false, verification_level: schedule.verification_level ?? '', explorer_mode: schedule.explorer_mode ?? '', schedule_type: schedule.schedule_type, interval_minutes: schedule.interval_minutes ?? 15, time_of_day: this.normalizeTime(schedule.time_of_day), weekdays: [...(schedule.weekdays ?? [])], timezone: schedule.timezone, enabled: schedule.enabled };
+    this.draft = { name: schedule.name, goal: schedule.goal, profile: schedule.profile, device_serial: schedule.device_serial, expected_output: schedule.expected_output ?? '', enable_outputter: schedule.enable_outputter ?? false, verification_level: schedule.verification_level ?? '', explorer_mode: schedule.explorer_mode ?? '', schedule_type: schedule.schedule_type, interval_minutes: schedule.interval_minutes ?? 15, time_of_day: this.normalizeTime(schedule.time_of_day), weekdays: [...(schedule.weekdays ?? [])], timezone: schedule.timezone, enabled: schedule.enabled, email_enabled: schedule.email_enabled ?? false, recipient_name: schedule.recipient_name ?? '', recipient_email: schedule.recipient_email ?? '', email_subject: schedule.email_subject ?? this.suggestedSubject(schedule.name) };
+    this.subjectCustomized = Boolean(schedule.email_subject && schedule.email_subject !== this.suggestedSubject(schedule.name));
     this.preview.set([]); this.previewError.set(null); this.formOpen.set(true); this.clearNotices();
   }
   closeForm(): void { if (!this.saving()) { this.formOpen.set(false); this.formError.set(null); this.previewError.set(null); } }
   setScheduleType(type: ScheduleType): void { this.draft.schedule_type = type; this.preview.set([]); this.previewError.set(null); }
   toggleWeekday(day: number, selected: boolean): void { const values = new Set(this.draft.weekdays ?? []); selected ? values.add(day) : values.delete(day); this.draft.weekdays = [...values].sort(); this.preview.set([]); this.previewError.set(null); }
+  onScheduleNameChange(): void { if (!this.subjectCustomized) this.draft.email_subject = this.suggestedSubject(this.draft.name); }
+  onEmailToggle(): void { if (this.draft.email_enabled && !this.draft.email_subject) { this.draft.email_subject = this.suggestedSubject(this.draft.name); this.subjectCustomized = false; } }
+  onSubjectChange(): void { this.subjectCustomized = this.draft.email_subject !== this.suggestedSubject(this.draft.name); }
+  useSuggestedSubject(): void { this.draft.email_subject = this.suggestedSubject(this.draft.name); this.subjectCustomized = false; }
+  suggestedSubject(name = this.draft.name): string { return 'ARTEMIS — ' + (name.trim() || '{schedule_name}') + ' — {status}'; }
+  openEmailSettings(): void { void this.router.navigate(['/settings'], { queryParams: { tab: 'email' } }); }
 
   requestPreview(form: NgForm): void {
     this.clearNotices();
@@ -92,6 +111,21 @@ export class TaskScheduleComponent implements OnInit {
   openHistory(schedule: TaskSchedule): void { this.historySchedule.set(schedule); this.history.set([]); this.historyLoading.set(true); this.schedulesApi.runs(schedule.id).pipe(finalize(() => this.historyLoading.set(false))).subscribe({ next: runs => this.history.set(runs), error: error => this.error.set(this.errorText(error, 'Unable to load schedule history.')) }); }
   closeHistory(): void { this.historySchedule.set(null); this.history.set([]); }
   openSession(sessionId: string): void { this.agentService.selectSession(sessionId); void this.router.navigate(['/workspace']); }
+  notification(run: ScheduleRun) { return run.email_notification ?? run.notification ?? (run.email_status ? { status: run.email_status } : null); }
+  notificationLabel(status: string): string { return ({ pending: 'Pending', retry: 'Retry scheduled', sending: 'Sending', accepted_by_smtp: 'Accepted by SMTP', failed: 'Failed', delivery_unknown: 'Unknown', suppressed: 'Suppressed', report_incomplete: 'Report incomplete', attachment_too_large: 'Attachment too large' } as Record<string, string>)[status] ?? status.replaceAll('_', ' '); }
+  canRetryEmail(run: ScheduleRun): boolean { const note = this.notification(run); return Boolean(note?.can_retry || ['failed', 'delivery_unknown', 'report_incomplete', 'attachment_too_large'].includes(note?.status ?? '')); }
+  canReviewReport(run: ScheduleRun): boolean { const note = this.notification(run); return Boolean(note?.report_available || note?.status === 'accepted_by_smtp'); }
+  retryEmail(run: ScheduleRun): void {
+    const schedule = this.historySchedule(); if (!schedule || this.emailActionRunId()) return;
+    const note = this.notification(run);
+    if (note?.status === 'delivery_unknown' && !window.confirm('SMTP may already have accepted this message. Retry anyway? A duplicate email is possible.')) return;
+    this.emailActionRunId.set(run.id);
+    this.schedulesApi.retryEmail(schedule.id, run.id).pipe(finalize(() => this.emailActionRunId.set(null))).subscribe({
+      next: updated => { this.history.update(items => items.map(item => item.id === run.id ? { ...item, email_notification: { ...(this.notification(item) ?? {}), status: updated.status, can_retry: false } } : item)); this.message.set('Email retry queued. The task will not run again.'); },
+      error: error => this.error.set(this.errorText(error, 'Unable to retry this email.'))
+    });
+  }
+  reviewReport(run: ScheduleRun): void { const schedule = this.historySchedule(); if (schedule) window.open(this.schedulesApi.emailReportUrl(schedule.id, run.id), '_blank', 'noopener'); }
 
   ruleText(schedule: TaskSchedule): string {
     if (schedule.schedule_type === 'interval') return 'Every ' + schedule.interval_minutes + ' minute' + (schedule.interval_minutes === 1 ? '' : 's');
@@ -107,10 +141,11 @@ export class TaskScheduleComponent implements OnInit {
     const error = target === 'preview' ? this.previewError : this.formError;
     if (form.invalid) { form.control.markAllAsTouched(); error.set('Complete all required fields and correct the highlighted values.'); return false; }
     if (this.draft.schedule_type === 'weekly' && !(this.draft.weekdays?.length)) { error.set('Select at least one weekday.'); return false; }
+    if (target === 'form' && this.draft.email_enabled && !this.smtpReady()) { error.set('Configure and enable SMTP in Settings → Email before saving an email-enabled schedule.'); return false; }
     return true;
   }
-  private payload(): TaskScheduleDraft { return { ...this.draft, name: this.draft.name.trim(), goal: this.draft.goal.trim(), expected_output: this.draft.expected_output?.trim() || null, enable_outputter: Boolean(this.draft.enable_outputter), verification_level: this.draft.verification_level?.trim() || null, explorer_mode: this.draft.explorer_mode?.trim() || null, interval_minutes: this.draft.schedule_type === 'interval' ? Number(this.draft.interval_minutes) : null, time_of_day: this.draft.schedule_type === 'interval' ? null : this.normalizeTime(this.draft.time_of_day), weekdays: this.draft.schedule_type === 'weekly' ? this.draft.weekdays : [] }; }
-  private emptyDraft(): TaskScheduleDraft { let timezone = 'UTC'; try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch {} return { name: '', goal: '', profile: 'flash', device_serial: '', expected_output: '', enable_outputter: false, verification_level: '', explorer_mode: '', schedule_type: 'interval', interval_minutes: 15, time_of_day: '08:30:00', weekdays: [1], timezone, enabled: true }; }
+  private payload(): TaskScheduleDraft { return { ...this.draft, name: this.draft.name.trim(), goal: this.draft.goal.trim(), expected_output: this.draft.expected_output?.trim() || null, enable_outputter: Boolean(this.draft.enable_outputter), verification_level: this.draft.verification_level?.trim() || null, explorer_mode: this.draft.explorer_mode?.trim() || null, interval_minutes: this.draft.schedule_type === 'interval' ? Number(this.draft.interval_minutes) : null, time_of_day: this.draft.schedule_type === 'interval' ? null : this.normalizeTime(this.draft.time_of_day), weekdays: this.draft.schedule_type === 'weekly' ? this.draft.weekdays : [], email_enabled: Boolean(this.draft.email_enabled), recipient_name: this.draft.email_enabled ? this.draft.recipient_name?.trim() || null : null, recipient_email: this.draft.email_enabled ? this.draft.recipient_email?.trim() || null : null, email_subject: this.draft.email_enabled ? this.draft.email_subject?.trim() || null : null }; }
+  private emptyDraft(): TaskScheduleDraft { let timezone = 'UTC'; try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch {} return { name: '', goal: '', profile: 'flash', device_serial: '', expected_output: '', enable_outputter: false, verification_level: '', explorer_mode: '', schedule_type: 'interval', interval_minutes: 15, time_of_day: '08:30:00', weekdays: [1], timezone, enabled: true, email_enabled: false, recipient_name: '', recipient_email: '', email_subject: this.suggestedSubject('') }; }
   private normalizeTime(value?: string | null): string { const parts = (value || '00:00:00').split(':'); return [parts[0] || '00', parts[1] || '00', parts[2] || '00'].map(part => part.padStart(2, '0')).join(':'); }
   private upsert(schedule: TaskSchedule): void { this.schedules.update(items => { const index = items.findIndex(item => item.id === schedule.id); return index < 0 ? [schedule, ...items] : items.map(item => item.id === schedule.id ? schedule : item); }); }
   private perform<T>(schedule: TaskSchedule, request: import('rxjs').Observable<T>, done: (value: T) => void): void { this.clearNotices(); this.actionId.set(schedule.id); request.pipe(finalize(() => this.actionId.set(null))).subscribe({ next: done, error: error => this.error.set(this.errorText(error, 'Schedule action failed.')) }); }
