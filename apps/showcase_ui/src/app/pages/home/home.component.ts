@@ -19,6 +19,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AgentService } from '../../services/agent.service';
 import { SystemService } from '../../services/system.service';
+import { ModelSettingsComponent } from '../../components/model-settings/model-settings.component';
 import { WindowsStartupComponent } from '../../components/windows-startup/windows-startup.component';
 import { EmailSettingsComponent } from '../../components/email-settings/email-settings.component';
 import {
@@ -106,7 +107,7 @@ type SettingsTab = 'general' | 'models' | 'email' | 'android' | 'system';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [FormsModule, WindowsStartupComponent, EmailSettingsComponent],
+  imports: [FormsModule, WindowsStartupComponent, EmailSettingsComponent, ModelSettingsComponent],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./home.component.scss', './settings-layout.scss']

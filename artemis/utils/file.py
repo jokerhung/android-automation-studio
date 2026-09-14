@@ -18,9 +18,16 @@ from typing import IO
 
 
 def strip_json_comments(text: str) -> str:
-    text = re.sub(r"//.*?$", "", text, flags=re.MULTILINE)
-    text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
-    return text
+    # Match quoted strings first so https:// and escaped quotes are preserved.
+    return re.sub(
+        r'"(?:\\.|[^"\\])*"|//[^\r\n]*|/\*[\s\S]*?\*/',
+        lambda match: (
+            match.group()
+            if match.group().startswith('"')
+            else re.sub(r"[^\r\n]", " ", match.group())
+        ),
+        text,
+    )
 
 
 def load_jsonc(file: IO) -> dict:

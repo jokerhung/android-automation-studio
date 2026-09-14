@@ -9,7 +9,13 @@
   } @else {
     <form #emailForm="ngForm" (ngSubmit)="save(emailForm)" novalidate>
       <section class="email-card">
-        <label class="switch-row"><span><strong>Email notifications</strong><small>Global kill switch. When off, pending schedule emails are suppressed without affecting tasks.</small></span><input type="checkbox" name="emailEnabled" [(ngModel)]="draft.enabled"></label>
+        <label class="switch-row">
+          <span><strong>Email notifications</strong><small>Global kill switch. When off, pending schedule emails are suppressed without affecting tasks.</small></span>
+          <span class="email-switch" [attr.title]="draft.enabled ? 'On' : 'Off'">
+            <input type="checkbox" role="switch" aria-label="Email notifications" name="emailEnabled" [(ngModel)]="draft.enabled">
+            <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+          </span>
+        </label>
         <div class="field-grid">
           <label>SMTP host<input name="smtpHost" [(ngModel)]="draft.smtp_host" required maxlength="255" pattern="^[a-zA-Z0-9.-]+$" placeholder="smtp.example.com"><small>Hostname or IP only; URLs and paths are not accepted.</small></label>
           <label>SMTP port<input type="number" name="smtpPort" [(ngModel)]="draft.smtp_port" required min="1" max="65535"><small>Usually 587 for STARTTLS or 465 for SSL/TLS.</small></label>

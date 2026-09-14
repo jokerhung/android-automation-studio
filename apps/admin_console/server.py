@@ -258,6 +258,11 @@ app.include_router(schedules.router)
 app.include_router(email_settings.router)
 app.include_router(replay.router)
 app.include_router(system.router)
+try:
+    from admin_console.routers import model_settings
+except ImportError:
+    from apps.admin_console.routers import model_settings
+app.include_router(model_settings.router)
 
 # Mount cloud gateway router for Frappe / Cloud integration if present
 try:

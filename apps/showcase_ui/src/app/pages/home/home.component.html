@@ -283,6 +283,9 @@
 <section class="settings-panel" id="settings-panel-models" role="tabpanel" aria-labelledby="settings-tab-models" tabindex="0" [hidden]="settingsTab() !== 'models'">
 <h2>AI Model</h2>
 <p class="settings-description">Manage model providers, API credentials and OCR configuration.</p>
+<app-model-settings></app-model-settings>
+<details class="model-diagnostics">
+<summary>OCR & provider diagnostics</summary>
 <div class="guide-card" [class.card-pass]="isCredentialsReady()" [class.card-warn]="!isCredentialsReady()">
 
   <div class="guide-card-header">
@@ -659,6 +662,7 @@
         <!-- =================================================================== -->
         <!-- STEP 3: ANDROID DEVICE & EMULATOR CONNECTION                        -->
         <!-- =================================================================== -->
+        </details>
         </section>
         <section class="settings-panel" id="settings-panel-android" role="tabpanel" aria-labelledby="settings-tab-android" tabindex="0" [hidden]="settingsTab() !== 'android'">
         <h2>Android Devices</h2>

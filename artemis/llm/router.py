@@ -327,6 +327,7 @@ class ModelFactory:
                 "temperature": endpoint.temperature,
                 "api_key": api_key,
                 "timeout": endpoint.timeout_seconds,
+                "base_url": endpoint.api_base,
             }
             budget = endpoint.thinking_budget
             if not budget and endpoint.reasoning_effort:

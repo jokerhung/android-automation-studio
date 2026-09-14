@@ -1,8 +1,8 @@
 {
-  "pid": 11916,
+  "pid": 11620,
   "port": 8009,
   "host": "127.0.0.1",
-  "started_at": 1789379254.5533612,
+  "started_at": 1789381469.7019575,
   "workspace": "C:\\hungnm\\artemis",
   "workspace_id": "acf284f3369bd348",
   "cwd": "C:\\hungnm\\artemis",
@@ -16,6 +16,6 @@
     "--port",
     "8009"
   ],
-  "process_create_time": 1789379252.2535014,
-  "lifecycle_token": "u4UZXqMpAf44qXrQX2IIWjDykRQ6wmlaqS9jqG8Yylg"
+  "process_create_time": 1789381467.4208207,
+  "lifecycle_token": "X_HngH2m1MSNHhkS8z1b_DStjiHyoK2ve9BDMJx9jZk"
 }
