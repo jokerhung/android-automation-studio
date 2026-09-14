@@ -33,19 +33,19 @@ interface StartupStatus { supported: boolean; enabled: boolean; port: number | n
   `,
   styles: [`
     :host { display:block; margin-bottom:22px; }
-    section { background:#fff; border:1px solid #dce4ed; border-radius:16px; padding:22px; }
+    section { background:var(--theme-bg-surface); border:1px solid var(--theme-border); border-radius:16px; padding:22px; }
     .setting-row { display:flex; align-items:center; gap:24px; justify-content:space-between; }
-    h3 { margin:0 0 8px; color:#172033; } p { margin:8px 0 0; color:#64748b; font-size:13px; line-height:1.5; }
+    h3 { margin:0 0 8px; color:var(--theme-text-primary); } p { margin:8px 0 0; color:var(--theme-text-muted); font-size:13px; line-height:1.5; }
     .startup-switch { position:relative; display:inline-flex; width:64px; height:36px; flex:0 0 64px; cursor:pointer; }
     .startup-switch input { position:absolute; inset:0; width:100%; height:100%; opacity:0; margin:0; z-index:1; cursor:inherit; }
-    .switch-track { display:block; width:100%; height:100%; box-sizing:border-box; border:2px solid #fff; border-radius:999px; background:#cbd5e1; transition:background .18s ease; }
-    .switch-thumb { display:block; width:32px; height:32px; border-radius:50%; background:#fff; box-shadow:0 2px 4px rgba(15,23,42,.22),0 0 1px rgba(15,23,42,.12); transition:transform .18s ease; }
+    .switch-track { display:block; width:100%; height:100%; box-sizing:border-box; border:2px solid var(--theme-bg-surface); border-radius:999px; background:var(--theme-border-strong); transition:background .18s ease; }
+    .switch-thumb { display:block; width:32px; height:32px; border-radius:50%; background:var(--theme-switch-thumb); box-shadow:0 2px 4px rgba(15,23,42,.22),0 0 1px rgba(15,23,42,.12); transition:transform .18s ease; }
     input:checked + .switch-track { background:#43d05c; }
     input:checked + .switch-track .switch-thumb { transform:translateX(28px); }
-    input:focus-visible + .switch-track { outline:3px solid #93c5fd; outline-offset:3px; }
+    input:focus-visible + .switch-track { outline:3px solid var(--theme-focus); outline-offset:3px; }
     .startup-switch.is-disabled { cursor:not-allowed; opacity:.5; }
     @media (prefers-reduced-motion: reduce) { .switch-track,.switch-thumb { transition:none; } }
-    .error { color:#b91c1c; } .hint { font-size:12px; }
+    .error { color:var(--theme-error); } .hint { font-size:12px; }
     button { margin-left:8px; cursor:pointer; }
   `]
 })

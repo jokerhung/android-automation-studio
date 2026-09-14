@@ -37,7 +37,7 @@ describe('Model settings editor', () => {
     const style = getComputedStyle(input);
     expect(style.fontSize).toBe('14px');
     expect(style.fontWeight).toBe('400');
-    expect(style.color).toBe('rgb(15, 23, 42)');
+    expect(style.color).toBe('rgb(23, 32, 51)');
     expect(style.borderTopWidth).toBe('1px');
     expect(style.borderTopColor).toBe('rgb(148, 163, 184)');
     expect(style.opacity).toBe('1');

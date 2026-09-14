@@ -57,21 +57,21 @@ interface ModelSettings {
     </section>
   `,
   styles: [`
-    :host { display:block; margin-bottom:28px; } .model-editor { border:1px solid #e2e8f0; border-radius:12px; padding:22px; background:white; }
-    h3 { margin:0 0 10px; } p { font-size:13px; line-height:1.6; color:#64748b; }
-    fieldset { border:0; padding:0; margin:0; min-width:0; } label { display:flex; flex-direction:column; gap:7px; margin:16px 0; font-size:13px; font-weight:600; color:#334155; }
-    input,select { box-sizing:border-box; width:100%; min-width:0; min-height:42px; font-family:'Segoe UI',Arial,sans-serif; font-size:14px; font-weight:400; line-height:20px; padding:10px 12px; border:1px solid #94a3b8; border-radius:8px; background:#fff; color:#0f172a; caret-color:#0f172a; opacity:1; text-shadow:none; }
-    input::placeholder { color:#64748b; opacity:1; font-weight:400; }
-    input:hover:not(:disabled),select:hover:not(:disabled) { border-color:#64748b; }
-    input:focus,select:focus { border-color:#1a73e8; outline:2px solid #bfdbfe; outline-offset:1px; }
-    input:disabled,select:disabled { background:#f1f5f9; color:#64748b; cursor:wait; }
-    input.ng-invalid.ng-touched { border-color:#dc2626; } .row { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
-    .hint,.paths { font-size:12px; font-weight:400; overflow-wrap:anywhere; } .error { color:#b91c1c; padding:12px; background:#fff1f2; border-radius:8px; margin-top:12px; }
-    button { padding:9px 15px; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer; background:#f8fafc; color:#172033; font:inherit; }
-    button[type=submit],.buttons button:last-child { background:#1a73e8; border-color:#1a73e8; color:white; } button:disabled { opacity:.5; cursor:wait; }
-    .status { color:#1769d2; } .warning { color:#92400e; } .confirm-backdrop { position:fixed; inset:0; background:#0f172a80; display:flex; align-items:center; justify-content:center; z-index:2100; padding:20px; }
-    .confirm-dialog { background:white; padding:24px; border-radius:14px; max-width:480px; } .buttons { display:flex; justify-content:flex-end; gap:12px; margin-top:20px; }
-    :focus-visible { outline:2px solid #93c5fd; outline-offset:2px; } @media(max-width:700px) { .row { grid-template-columns:1fr; gap:0; } }
+    :host { display:block; margin-bottom:28px; } .model-editor { border:1px solid var(--theme-border); border-radius:12px; padding:22px; background:var(--theme-bg-surface); }
+    h3 { margin:0 0 10px; } p { font-size:13px; line-height:1.6; color:var(--theme-text-muted); }
+    fieldset { border:0; padding:0; margin:0; min-width:0; } label { display:flex; flex-direction:column; gap:7px; margin:16px 0; font-size:13px; font-weight:600; color:var(--theme-text-secondary); }
+    input,select { box-sizing:border-box; width:100%; min-width:0; min-height:42px; font-family:'Segoe UI',Arial,sans-serif; font-size:14px; font-weight:400; line-height:20px; padding:10px 12px; border:1px solid var(--theme-input-border); border-radius:8px; background:var(--theme-input-bg); color:var(--theme-input-text); caret-color:var(--theme-input-text); opacity:1; text-shadow:none; }
+    input::placeholder { color:var(--theme-text-muted); opacity:1; font-weight:400; }
+    input:hover:not(:disabled),select:hover:not(:disabled) { border-color:var(--theme-text-muted); }
+    input:focus,select:focus { border-color:var(--theme-accent); outline:2px solid var(--theme-focus-ring); outline-offset:1px; }
+    input:disabled,select:disabled { background:var(--theme-bg-surface-muted); color:var(--theme-text-muted); cursor:wait; }
+    input.ng-invalid.ng-touched { border-color:var(--theme-error); } .row { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    .hint,.paths { font-size:12px; font-weight:400; overflow-wrap:anywhere; } .error { color:var(--theme-error); padding:12px; background:var(--theme-error-bg); border-radius:8px; margin-top:12px; }
+    button { padding:9px 15px; border-radius:8px; border:1px solid var(--theme-border-strong); cursor:pointer; background:var(--theme-bg-surface-subtle); color:var(--theme-text-primary); font:inherit; }
+    button[type=submit],.buttons button:last-child { background:var(--theme-accent); border-color:var(--theme-accent); color:var(--theme-on-accent); } button:disabled { opacity:.5; cursor:wait; }
+    .status { color:var(--theme-info); } .warning { color:var(--theme-warning); } .confirm-backdrop { position:fixed; inset:0; background:#0f172a80; display:flex; align-items:center; justify-content:center; z-index:2100; padding:20px; }
+    .confirm-dialog { background:var(--theme-bg-surface); padding:24px; border-radius:14px; max-width:480px; } .buttons { display:flex; justify-content:flex-end; gap:12px; margin-top:20px; }
+    :focus-visible { outline:2px solid var(--theme-focus); outline-offset:2px; } @media(max-width:700px) { .row { grid-template-columns:1fr; gap:0; } }
   `]
 })
 export class ModelSettingsComponent implements OnInit {

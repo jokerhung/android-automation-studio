@@ -15,6 +15,7 @@
  */
 
 @use './styles/theme-tokens';
+@use './styles/dark-surfaces';
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700&family=Roboto:wght@400;500;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
@@ -138,6 +139,51 @@ body {
     .video-loading-state, .empty-video-fallback { background: var(--theme-bg-surface-raised) !important; border-color: var(--theme-border) !important; color: var(--theme-text-primary) !important; }
     .header-title, .time-display { color: var(--theme-text-primary) !important; }
     .header-btn, .ctrl-btn, .mode-toggle-group, .mode-switcher-group, .speed-pill-group { background: var(--theme-bg-surface-muted) !important; border-color: var(--theme-border) !important; color: var(--theme-text-secondary) !important; }
+  }
+
+  /* Nested diagnostic controls still use legacy palette values. Scope these
+     to Settings chrome, never to screenshots or video/canvas content. */
+  .settings-page .settings-detail {
+    .choice-card, .inspector-card, .env-key-row, .api-key-input-container,
+    .install-command-bar, .ready-banner-footer, .connection-card,
+    .env-item-card, .inspector-card-header, .device-hero-card, .connected-device-panel,
+    .avd-card-item, .flow-step-card, .method-nav-card, .method-details-panel,
+    .ocr-enhancement-card, .ocr-card-toggle-bar, .code-box, .one-click-install-bar,
+    .device-card, .emulator-card, .adb-guide-tabs, .model-choice-cards-row,
+    .guide-card details, .guide-card pre {
+      background: var(--theme-bg-surface) !important;
+      border-color: var(--theme-border) !important;
+      color: var(--theme-text-secondary) !important;
+    }
+    .guide-card p, .guide-card label, .guide-card legend,
+    .guide-card summary, .guide-card .inspector-title,
+    .guide-card .env-key-name { color: var(--theme-text-secondary); }
+    .guide-card button, .ready-banner-footer button {
+      background: var(--theme-bg-surface-muted);
+      color: var(--theme-text-secondary);
+      border-color: var(--theme-border-strong);
+    }
+    .guide-card button:hover { background: var(--theme-hover); }
+    .guide-card button.active, .guide-card .choice-card.selected {
+      background: var(--theme-accent-subtle) !important;
+      color: var(--theme-accent) !important;
+      border-color: var(--theme-accent-border) !important;
+    }
+    .guide-card code { background: var(--theme-bg-surface-muted); color: var(--theme-text-secondary); }
+  }
+
+  app-task-schedule {
+    .preview, .segmented, .password-block { background: var(--theme-bg-surface-subtle) !important; border-color: var(--theme-border) !important; }
+    button, .weekday-grid label { background: var(--theme-bg-surface-raised); color: var(--theme-text-secondary); border-color: var(--theme-border-strong); }
+    label, legend, .schedule-card dd { color: var(--theme-text-secondary); }
+    .segmented label:has(input:checked), .weekday-grid label:has(input:checked) { background: var(--theme-accent-subtle) !important; color: var(--theme-accent) !important; }
+    .primary { background: var(--theme-accent); color: var(--theme-on-accent); }
+    .notice.error, .preview-error { background: var(--theme-error-bg); color: var(--theme-error); border-color: var(--theme-error-border); }
+  }
+
+  app-floating-video-player .floating-video-wrapper {
+    background: var(--theme-bg-surface-raised);
+    border-color: var(--theme-border);
   }
 
   * { scrollbar-color: var(--theme-scrollbar) transparent; }

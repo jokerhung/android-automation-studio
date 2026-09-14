@@ -4,6 +4,7 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { WindowsStartupComponent } from './windows-startup.component';
 
 describe('Start with Windows setting', () => {
+  beforeEach(() => { document.documentElement.dataset['theme'] = 'light'; });
   function setup(supported = true) {
     TestBed.configureTestingModule({ imports: [WindowsStartupComponent], providers: [provideHttpClient(), provideHttpClientTesting()] });
     const fixture = TestBed.createComponent(WindowsStartupComponent);
