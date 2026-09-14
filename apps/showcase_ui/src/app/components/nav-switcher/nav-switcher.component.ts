@@ -30,10 +30,10 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
         [routerLinkActiveOptions]="{exact: true}"
         class="nav-tab-btn"
         title="Return to Home Launcher to start a new task"
-        aria-label="New task or home"
+        aria-label="Home"
       >
         <span class="material-symbols-outlined tab-icon">add_task</span>
-        <span class="tab-label">New / Home</span>
+        <span class="tab-label">Home</span>
       </a>
       <a 
         routerLink="/workspace" 
@@ -54,6 +54,16 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
       >
         <span class="material-symbols-outlined tab-icon" aria-hidden="true">calendar_clock</span>
         <span class="tab-label">Task Schedule</span>
+      </a>
+      <a
+        routerLink="/settings"
+        routerLinkActive="active"
+        class="nav-tab-btn"
+        title="Open Settings"
+        aria-label="Open Settings"
+      >
+        <span class="material-symbols-outlined tab-icon" aria-hidden="true">settings</span>
+        <span class="tab-label">Settings</span>
       </a>
     </nav>
   `,

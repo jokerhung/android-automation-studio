@@ -16,7 +16,7 @@
 
 import { Component, signal, computed, effect, inject, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AgentService } from '../../services/agent.service';
 import { SystemService } from '../../services/system.service';
 import {
@@ -113,9 +113,12 @@ export class HomeComponent implements OnInit, OnDestroy {
   public systemService = inject(SystemService);
   public taskRecService = inject(TaskRecommendationService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   // High-level navigation mode: 'diagnostics' (System Setup Guide) vs 'launcher' (Task Execution)
-  public activeTab = signal<'diagnostics' | 'launcher'>('launcher');
+  public activeTab = signal<'diagnostics' | 'launcher'>(
+    this.route.snapshot.data['homeView'] === 'diagnostics' ? 'diagnostics' : 'launcher'
+  );
 
   // Interactive guide sub-tab inside the ADB section
   public activeAdbGuideTab = signal<AdbGuideTab>('emulator');
@@ -560,11 +563,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   public setTab(tab: 'diagnostics' | 'launcher'): void {
-    this.activeTab.set(tab);
-    if (tab === 'diagnostics') {
-      this.systemService.fetchReadiness().subscribe();
-      this.systemService.fetchModelConfigEnv().subscribe();
-    }
+    void this.router.navigate([tab === 'diagnostics' ? '/settings' : '/']);
   }
 
   public setSelectedOs(os: 'linux' | 'darwin' | 'windows'): void {
@@ -1063,7 +1062,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
 
   public proceedToLauncher(): void {
-    this.activeTab.set('launcher');
+    this.setTab('launcher');
   }
 
   public runTask(): void {
@@ -1074,8 +1073,8 @@ export class HomeComponent implements OnInit, OnDestroy {
     }
 
     if (!this.isReady()) {
-      this.errorMessage.set('System prerequisites are not satisfied. Please review System Setup first.');
-      this.activeTab.set('diagnostics');
+      this.errorMessage.set('System prerequisites are not satisfied. Please review Settings first.');
+      this.setTab('diagnostics');
       return;
     }
 

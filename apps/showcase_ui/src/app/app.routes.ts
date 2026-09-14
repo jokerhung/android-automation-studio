@@ -21,9 +21,10 @@ import { LegacyWorkspaceComponent } from './pages/legacy-workspace/legacy-worksp
 import { TaskScheduleComponent } from './pages/task-schedule/task-schedule.component';
 
 export const routes: Routes = [
-  { path: '', component: HomeComponent },
+  { path: '', component: HomeComponent, data: { homeView: 'launcher' } },
   { path: 'workspace', component: WorkspaceComponent },
   { path: 'task-schedule', component: TaskScheduleComponent },
+  { path: 'settings', component: HomeComponent, data: { homeView: 'diagnostics' } },
   { path: 'check', component: LegacyWorkspaceComponent },
   { path: '**', redirectTo: '' }
 ];

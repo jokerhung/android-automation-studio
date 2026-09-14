@@ -50,6 +50,7 @@
       @if (draft.schedule_type === 'weekly') { <fieldset><legend>Days of week</legend><div class="weekday-grid">@for (day of weekdays; track day.value) { <label><input type="checkbox" [checked]="draft.weekdays?.includes(day.value)" (change)="toggleWeekday(day.value, $any($event.target).checked)">{{ day.label }}</label> }</div></fieldset> }
       <div class="form-grid"><label>Timezone (IANA)<input name="timezone" [(ngModel)]="draft.timezone" required placeholder="Asia/Bangkok"></label><label class="checkbox"><input type="checkbox" name="enabled" [(ngModel)]="draft.enabled">Enabled after saving</label></div>
       <section class="preview"><div><h3>Backend preview</h3><p>Required before saving; uses the scheduler's timezone and DST policy.</p></div><button type="button" (click)="requestPreview(scheduleForm)" [disabled]="previewLoading()">{{ previewLoading() ? 'Previewing…' : 'Preview next 5' }}</button>@if (previewError()) { <div class="preview-error" role="alert"><span class="material-symbols-outlined" aria-hidden="true">error</span><span>{{ previewError() }}</span></div> } @if (preview().length) { <ol>@for (time of preview(); track time) { <li>{{ time | date:'full' }}</li> }</ol> }</section>
+      @if (formError()) { <div class="notice error form-error" role="alert">{{ formError() }}</div> }
       <footer><button type="button" (click)="closeForm()">Cancel</button><button type="submit" class="primary" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Save schedule' }}</button></footer>
     </form>
   </section></div>

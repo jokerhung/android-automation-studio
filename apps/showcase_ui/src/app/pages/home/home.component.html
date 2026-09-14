@@ -32,42 +32,9 @@
     <!-- Task entry section -->
     <section class="hero-section">
       <h1 class="hero-title">
-        What would you like to do on your phone?
+        {{ activeTab() === 'diagnostics' ? 'Settings' : 'What would you like to do on your phone?' }}
       </h1>
     </section>
-
-    <!-- Top View Mode Stepper / Tab Switcher (Frosted Glass Segmented Control matching top-left nav) -->
-    <div class="mode-tabs-container">
-      <div class="mode-tabs">
-        <button
-          type="button"
-          class="mode-tab-btn"
-          [class.active]="activeTab() === 'diagnostics'"
-          (click)="setTab('diagnostics')"
-        >
-          @if (isReady()) {
-            <span class="material-symbols-outlined tab-icon icon-ready">check_circle</span>
-          } @else {
-            <span class="material-symbols-outlined tab-icon">tune</span>
-          }
-          <span class="tab-label">System Setup & Prerequisites</span>
-        </button>
-
-        <button
-          type="button"
-          class="mode-tab-btn"
-          [class.active]="activeTab() === 'launcher'"
-          (click)="setTab('launcher')"
-        >
-          @if (!isReady()) {
-            <span class="material-symbols-outlined tab-icon icon-locked">lock</span>
-          } @else {
-            <span class="material-symbols-outlined tab-icon">rocket_launch</span>
-          }
-          <span class="tab-label">Launch Autonomous Task</span>
-        </button>
-      </div>
-    </div>
 
     <!-- ========================================================================= -->
     <!-- VIEW 1: SYSTEM SETUP & FOOLPROOF STEP-BY-STEP GUIDANCE                    -->
@@ -1712,7 +1679,7 @@
             <span>
               {{ adbProbe()?.summary === 'Device Locked'
                 ? 'Android device is locked. Unlock it and enter the home screen before running a task.'
-                : 'Prerequisites incomplete: runtime, credentials, or Android device is not ready. Click here to open Setup Guide.' }}
+                : 'Prerequisites incomplete: runtime, credentials, or Android device is not ready. Click here to open Settings.' }}
             </span>
             <span class="material-symbols-outlined arrow">arrow_forward</span>
           </div>
