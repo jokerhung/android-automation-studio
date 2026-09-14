@@ -14,7 +14,7 @@
  limitations under the License.
 -->
 
-<div class="home-container" [class.system-ready]="isReady()" [class.system-pending]="!isReady()" [class.pro-theme-active]="selectedProfile() === 'pro'">
+<div class="home-container" [class.settings-page]="activeTab() === 'diagnostics'" [class.system-ready]="isReady()" [class.system-pending]="!isReady()" [class.pro-theme-active]="selectedProfile() === 'pro'">
   <!-- Dynamic Aurora Glow Background -->
   <div class="aurora-background">
     <div class="glow glow-1"></div>
@@ -34,6 +34,11 @@
       <h1 class="hero-title">
         {{ activeTab() === 'diagnostics' ? 'Settings' : 'What would you like to do on your phone?' }}
       </h1>
+      @if (activeTab() === 'diagnostics') {
+        <button type="button" class="settings-close" (click)="setTab('launcher')" aria-label="Close Settings" title="Back to Home">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      }
     </section>
 
     <!-- ========================================================================= -->
@@ -41,8 +46,26 @@
     <!-- ========================================================================= -->
     @if (activeTab() === 'diagnostics') {
       <section class="setup-guide-view">
+        <nav class="settings-sidebar" role="tablist" aria-label="Settings categories" aria-orientation="vertical">
+          @for (tab of settingsTabs; track tab.id; let index = $index) {
+            <button type="button" role="tab" [id]="'settings-tab-' + tab.id"
+              [attr.aria-controls]="'settings-panel-' + tab.id" [attr.aria-selected]="settingsTab() === tab.id"
+              [attr.tabindex]="settingsTab() === tab.id ? 0 : -1" [class.selected]="settingsTab() === tab.id"
+              (click)="settingsTab.set(tab.id)" (keydown)="onSettingsTabKey($event, index)">
+              <span class="material-symbols-outlined" aria-hidden="true">{{ tab.icon }}</span>{{ tab.label }}
+            </button>
+          }
+        </nav>
+        <div class="settings-detail">
+        <section class="settings-panel" id="settings-panel-general" role="tabpanel" aria-labelledby="settings-tab-general" tabindex="0" [hidden]="settingsTab() !== 'general'">
+        <h2>General</h2>
+        <p class="settings-description">Application startup and behavior on this computer.</p>
         <app-windows-startup></app-windows-startup>
+        </section>
 
+<section class="settings-panel" id="settings-panel-system" role="tabpanel" aria-labelledby="settings-tab-system" tabindex="0" [hidden]="settingsTab() !== 'system'">
+<h2>System & Environment</h2>
+<p class="settings-description">Check runtime dependencies and screen recording tools.</p>
 <!-- =================================================================== -->
 <!-- STEP 1: ENVIRONMENT & SYSTEM DEPENDENCIES (FIRST & FOUNDATIONAL)    -->
 <!-- =================================================================== -->
@@ -252,6 +275,10 @@
 <!-- =================================================================== -->
 <!-- STEP 2: AI MODEL SETUP                                              -->
 <!-- =================================================================== -->
+</section>
+<section class="settings-panel" id="settings-panel-models" role="tabpanel" aria-labelledby="settings-tab-models" tabindex="0" [hidden]="settingsTab() !== 'models'">
+<h2>AI Model</h2>
+<p class="settings-description">Manage model providers, API credentials and OCR configuration.</p>
 <div class="guide-card" [class.card-pass]="isCredentialsReady()" [class.card-warn]="!isCredentialsReady()">
 
   <div class="guide-card-header">
@@ -628,6 +655,10 @@
         <!-- =================================================================== -->
         <!-- STEP 3: ANDROID DEVICE & EMULATOR CONNECTION                        -->
         <!-- =================================================================== -->
+        </section>
+        <section class="settings-panel" id="settings-panel-android" role="tabpanel" aria-labelledby="settings-tab-android" tabindex="0" [hidden]="settingsTab() !== 'android'">
+        <h2>Android Devices</h2>
+        <p class="settings-description">Connect a phone or emulator using USB, Wi-Fi or a remote ADB server.</p>
         <div class="guide-card" [class.card-pass]="isDeviceReady()" [class.card-warn]="!isDeviceReady()">
           
           <div class="guide-card-header">
@@ -1645,8 +1676,9 @@
           </div>
         </div>
 
+        </section>
         <!-- Ready Banner Footer: Direct One-Click Launch -->
-        @if (isReady()) {
+        @if (isReady() && settingsTab() === 'system') {
           <div class="ready-banner-footer">
             <div class="ready-banner-left">
               <div class="step-badge step-pass">
@@ -1664,6 +1696,7 @@
           </div>
         }
 
+        </div>
       </section>
     }
 

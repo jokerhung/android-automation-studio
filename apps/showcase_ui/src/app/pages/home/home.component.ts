@@ -99,6 +99,7 @@ export interface TuningSliderVm {
 export type { AppReference, SmartSuggestion, SuggestionCategory };
 
 type AdbGuideTab = 'emulator' | 'usb' | 'wifi' | 'remote';
+type SettingsTab = 'general' | 'models' | 'android' | 'system';
 
 
 @Component({
@@ -107,7 +108,7 @@ type AdbGuideTab = 'emulator' | 'usb' | 'wifi' | 'remote';
   imports: [FormsModule, WindowsStartupComponent],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
-  styleUrl: './home.component.scss'
+  styleUrls: ['./home.component.scss', './settings-layout.scss']
 })
 export class HomeComponent implements OnInit, OnDestroy {
   public agentService = inject(AgentService);
@@ -120,6 +121,26 @@ export class HomeComponent implements OnInit, OnDestroy {
   public activeTab = signal<'diagnostics' | 'launcher'>(
     this.route.snapshot.data['homeView'] === 'diagnostics' ? 'diagnostics' : 'launcher'
   );
+  public settingsTab = signal<SettingsTab>('general');
+  public settingsTabs: { id: SettingsTab; label: string; icon: string }[] = [
+    { id: 'general', label: 'General', icon: 'tune' },
+    { id: 'models', label: 'AI Model', icon: 'auto_awesome' },
+    { id: 'android', label: 'Android Devices', icon: 'smartphone' },
+    { id: 'system', label: 'System & Environment', icon: 'computer' }
+  ];
+
+  public onSettingsTabKey(event: KeyboardEvent, index: number): void {
+    let next = index;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = (index + 1) % this.settingsTabs.length;
+    else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') next = (index + this.settingsTabs.length - 1) % this.settingsTabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = this.settingsTabs.length - 1;
+    else return;
+    event.preventDefault();
+    this.settingsTab.set(this.settingsTabs[next].id);
+    const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    buttons?.[next]?.focus();
+  }
 
   // Interactive guide sub-tab inside the ADB section
   public activeAdbGuideTab = signal<AdbGuideTab>('emulator');
