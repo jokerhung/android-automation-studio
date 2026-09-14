@@ -34,6 +34,7 @@ from artemis.core.diagnostics.schema import (
 from artemis.platform import OSType, platform
 from artemis.toolchain import toolchain
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -123,6 +124,7 @@ class AdbDeviceProbe(BaseProbe):
                 "version",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                **hidden_process_kwargs(),
             )
             stdout, _ = await proc.communicate()
             if stdout:
@@ -211,6 +213,7 @@ class AdbDeviceProbe(BaseProbe):
                 *service_args,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                **hidden_process_kwargs(),
             )
             try:
                 stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout_seconds)
@@ -296,6 +299,7 @@ class AdbDeviceProbe(BaseProbe):
             *args,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            **hidden_process_kwargs(),
         )
         try:
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout_seconds)
@@ -325,6 +329,7 @@ class AdbDeviceProbe(BaseProbe):
                 "-l",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                **hidden_process_kwargs(),
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout_seconds)
             if proc.returncode != 0:
@@ -484,6 +489,7 @@ class AdbDeviceProbe(BaseProbe):
                 "-l",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                **hidden_process_kwargs(),
             )
             stdout, _ = await proc.communicate()
             if proc.returncode != 0 or not stdout:

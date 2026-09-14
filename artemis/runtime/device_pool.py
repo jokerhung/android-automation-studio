@@ -21,6 +21,7 @@ from dataclasses import dataclass
 import os
 import shutil
 import subprocess
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 import threading
 import time
 from typing import Any
@@ -115,6 +116,7 @@ class DevicePool:
                 text=True,
                 timeout=timeout if timeout is not None else self._current_query_timeout(),
                 check=False,
+                **hidden_process_kwargs(),
             )
             if res.returncode != 0:
                 return None
@@ -139,6 +141,7 @@ class DevicePool:
                 "-l",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                **hidden_process_kwargs(),
             )
             stdout, _ = await asyncio.wait_for(
                 proc.communicate(),
@@ -252,6 +255,7 @@ class DevicePool:
             proc = await asyncio.create_subprocess_exec(
                 adb,
                 "start-server",
+                **hidden_process_kwargs(),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=clean_env,

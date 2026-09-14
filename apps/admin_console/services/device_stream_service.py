@@ -25,6 +25,7 @@ import time
 from collections.abc import AsyncGenerator
 
 from artemis.toolchain import find_adb
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = logging.getLogger("artemis.stream_service")
 
@@ -49,6 +50,7 @@ class DeviceStreamService:
                 "devices",
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                **hidden_process_kwargs(),
             )
             stdout, _ = await proc.communicate()
             lines = stdout.decode().strip().splitlines()
@@ -77,6 +79,7 @@ class DeviceStreamService:
                     *cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
+                    **hidden_process_kwargs(),
                 )
                 stdout, _ = await proc.communicate()
                 if proc.returncode == 0 and len(stdout) > 1000:

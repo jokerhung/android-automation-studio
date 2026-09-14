@@ -71,6 +71,7 @@ from pathlib import Path
 import re
 import secrets
 import subprocess
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 import threading
 import time
 from typing import Any
@@ -246,6 +247,7 @@ def _default_run_adb(args: list[str], timeout: float = 30.0) -> subprocess.Compl
         text=True,
         timeout=timeout,
         check=False,
+        **hidden_process_kwargs(),
     )
 
 

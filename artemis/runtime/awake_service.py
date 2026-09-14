@@ -28,6 +28,7 @@ from artemis.config import settings
 from artemis.runtime.adb_endpoint import adb_command
 from artemis.runtime.awake_lease import ScreenAwakeLease
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -54,6 +55,7 @@ def _run_awake_adb_command(
             text=True,
             timeout=10,
             check=False,
+            **hidden_process_kwargs(),
         )
         if result.returncode != 0:
             detail = (result.stderr or result.stdout).strip()

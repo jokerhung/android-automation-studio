@@ -26,6 +26,7 @@ from dataclasses import asdict, dataclass
 import os
 import re
 import subprocess
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 from typing import Any, Mapping, MutableMapping, Sequence
 
 from artemis.config import settings
@@ -158,6 +159,8 @@ class AdbSession:
 
     def run(self, arguments: Sequence[str], **kwargs: Any) -> subprocess.CompletedProcess:
         kwargs.setdefault("env", self.environment())
+        for key, value in hidden_process_kwargs().items():
+            kwargs[key] = kwargs.get(key, 0) | value
         return subprocess.run(self.command(arguments), **kwargs)
 
 

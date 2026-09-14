@@ -35,6 +35,7 @@ from artemis.runtime.adb_endpoint import (
 )
 from artemis.toolchain import toolchain
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -164,6 +165,7 @@ class AdbServerConnectionManager:
         try:
             result = subprocess.run(
                 command,
+                **hidden_process_kwargs(),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

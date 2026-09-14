@@ -17,6 +17,7 @@
 import asyncio
 import os
 import subprocess
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 import time
 from typing import Any
 
@@ -326,6 +327,7 @@ class ReadinessEngine:
                 clean_env.pop("ADB_SERVER_SOCKET", None)
                 subprocess.run(
                     [adb_path, "kill-server"],
+                    **hidden_process_kwargs(),
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     timeout=5,
@@ -333,6 +335,7 @@ class ReadinessEngine:
                 )
                 res = subprocess.run(
                     [adb_path, "start-server"],
+                    **hidden_process_kwargs(),
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     timeout=5,
@@ -411,6 +414,7 @@ class ReadinessEngine:
             try:
                 res = subprocess.run(
                     [adb_path, "connect", target],
+                    **hidden_process_kwargs(),
                     capture_output=True,
                     text=True,
                     timeout=8,
