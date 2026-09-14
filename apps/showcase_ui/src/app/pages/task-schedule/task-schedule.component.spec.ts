@@ -60,6 +60,19 @@ describe('TaskScheduleComponent', () => {
     expect(component.draft.timezone).toBeTruthy();
   });
 
+  it('omits advanced task options while keeping the schedule fields', () => {
+    component.newSchedule();
+    fixture.detectChanges();
+    const modal = fixture.nativeElement.querySelector('.form-modal');
+    expect(modal.textContent).not.toContain('Advanced task options');
+    expect(modal.querySelector('[name="outputter"]')).toBeNull();
+    expect(modal.querySelector('[name="verification"]')).toBeNull();
+    expect(modal.querySelector('[name="explorer"]')).toBeNull();
+    expect(modal.querySelector('[name="name"]')).not.toBeNull();
+    expect(modal.querySelector('[name="interval"]')).not.toBeNull();
+    expect(modal.textContent).toContain('Preview next 5');
+  });
+
   it('shows missing required fields beside Preview next 5, not on the list', async () => {
     component.newSchedule();
     fixture.detectChanges();

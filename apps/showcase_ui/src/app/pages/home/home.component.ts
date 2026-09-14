@@ -19,6 +19,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AgentService } from '../../services/agent.service';
 import { SystemService } from '../../services/system.service';
+import { WindowsStartupComponent } from '../../components/windows-startup/windows-startup.component';
 import {
   AdbServerConnectionResult,
   AdbServerDevice,
@@ -103,7 +104,7 @@ type AdbGuideTab = 'emulator' | 'usb' | 'wifi' | 'remote';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, WindowsStartupComponent],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './home.component.scss'

@@ -32,6 +32,45 @@ from artemis.core.diagnostics.schema import SystemReadinessReport
 router = APIRouter(prefix="/api/system", tags=["system"])
 
 
+class WindowsStartupRequest(BaseModel):
+    enabled: bool = Field(strict=True)
+
+
+@router.get("/windows-startup")
+def get_windows_startup(request: Request):
+    from artemis.runtime.windows_startup import get_startup_status
+
+    _require_loopback_request(request, "Windows startup settings are local-only.")
+    try:
+        return get_startup_status()
+    except OSError:
+        raise HTTPException(500, "Unable to read Windows startup settings.") from None
+
+
+@router.put("/windows-startup")
+def update_windows_startup(payload: WindowsStartupRequest, request: Request):
+    from artemis.runtime.windows_startup import set_startup_enabled
+
+    try:
+        from admin_console.core.state import state
+    except ImportError:
+        from apps.admin_console.core.state import state
+
+    _require_loopback_request(request, "Windows startup settings are local-only.")
+    origin = request.headers.get("origin")
+    if origin and urlsplit(origin).netloc.lower() != request.headers.get("host", "").lower():
+        raise HTTPException(403, "Change startup settings from the same-origin Artemis console.")
+    try:
+        return set_startup_enabled(payload.enabled, state.port)
+    except NotImplementedError as exc:
+        raise HTTPException(400, str(exc)) from None
+    except OSError:
+        raise HTTPException(
+            500,
+            "Unable to update Windows startup settings. Check permissions and Python installation.",
+        ) from None
+
+
 def _require_local_admin_request(request: Request) -> None:
     """Keep endpoint probing and mutation on the local administration boundary."""
     client_host = request.client.host if request.client else None
