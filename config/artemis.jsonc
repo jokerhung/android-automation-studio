@@ -13,8 +13,10 @@
     "fallback": {
       "provider": "openai",
       "model": "gpt-5.6-luna",
-      "thinking_level": "medium"
-    }
+      "thinking_level": "medium",
+      "api_base": "http://localhost:58982/v1"
+    },
+    "api_base": "http://localhost:58982/v1"
   },
 
   // ------------------------------------------------------------------------------
