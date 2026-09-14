@@ -1,0 +1,50 @@
+<section class="appearance-card" aria-labelledby="appearance-settings-title">
+  <header>
+    <h3 id="appearance-settings-title">{{ i18n.translate('appearance.title') }}</h3>
+    <p>{{ i18n.translate('appearance.description') }}</p>
+  </header>
+
+  <fieldset class="preference-row">
+    <legend class="visually-hidden">{{ i18n.translate('language.label') }}</legend>
+    <div class="preference-copy">
+      <span class="preference-label" aria-hidden="true">{{ i18n.translate('language.label') }}</span>
+      <p id="language-help">{{ i18n.translate('appearance.languageDescription') }}</p>
+    </div>
+    <div class="choices" aria-describedby="language-help">
+      <label [class.selected]="preferences.language() === 'en'">
+        <input type="radio" name="ui-language" value="en"
+          [checked]="preferences.language() === 'en'" (change)="chooseLanguage('en')">
+        <span>English</span>
+      </label>
+      <label [class.selected]="preferences.language() === 'vi'">
+        <input type="radio" name="ui-language" value="vi"
+          [checked]="preferences.language() === 'vi'" (change)="chooseLanguage('vi')">
+        <span>Tiếng Việt</span>
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset class="preference-row">
+    <legend class="visually-hidden">{{ i18n.translate('appearance.theme') }}</legend>
+    <div class="preference-copy">
+      <span class="preference-label" aria-hidden="true">{{ i18n.translate('appearance.theme') }}</span>
+      <p id="theme-help">{{ i18n.translate('appearance.themeDescription') }}</p>
+    </div>
+    <div class="choices" aria-describedby="theme-help">
+      <label [class.selected]="preferences.theme() === 'light'">
+        <input type="radio" name="ui-theme" value="light"
+          [checked]="preferences.theme() === 'light'" (change)="chooseTheme('light')">
+        <span class="material-symbols-outlined" aria-hidden="true">light_mode</span>
+        <span>{{ i18n.translate('appearance.light') }}</span>
+      </label>
+      <label [class.selected]="preferences.theme() === 'dark'">
+        <input type="radio" name="ui-theme" value="dark"
+          [checked]="preferences.theme() === 'dark'" (change)="chooseTheme('dark')">
+        <span class="material-symbols-outlined" aria-hidden="true">dark_mode</span>
+        <span>{{ i18n.translate('appearance.dark') }}</span>
+      </label>
+    </div>
+  </fieldset>
+
+  <p class="save-status" role="status" aria-live="polite" aria-atomic="true">{{ status() }}</p>
+</section>

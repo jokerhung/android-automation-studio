@@ -18,7 +18,7 @@ limitations under the License.
   <!-- Left Main Panel: Raw Agent Log Stream -->
   <main class="left-panel glass-panel">
     <div class="workspace-content">
-    <section class="activity-panel" aria-label="Task activity">
+    <section class="activity-panel" [attr.aria-label]="'workspace.activity' | translate">
     <app-agent-stream></app-agent-stream>
 
     <!-- Bottom Floating Command Bar Dock -->
@@ -91,7 +91,7 @@ limitations under the License.
 
           <!-- Dormant / Capsule Peek View (Visible when mouse is away and input idle) -->
           <div class="capsule-peek-view">
-            <span class="capsule-placeholder">Start a new task...</span>
+            <span class="capsule-placeholder">{{ 'workspace.startNew' | translate }}</span>
           </div>
 
           <!-- Expanded Full View Content (Visible on hover, focus, or text) -->
@@ -107,8 +107,8 @@ limitations under the License.
                   rows="1"
                   [disabled]="isSubmitting()"
                   [placeholder]="selectedProfile() === 'pro' 
-                    ? 'Pro: plans first, checks results and recovers from blocked steps. For long or complex tasks'
-                    : 'Flash: fast single-look loop for everyday app tasks'"
+                    ? ('workspace.proPlaceholder' | translate)
+                    : ('workspace.flashPlaceholder' | translate)"
                   class="dock-textarea"
                   spellcheck="false"
                 ></textarea>
@@ -117,7 +117,7 @@ limitations under the License.
               <!-- Clear Button (visible when text is entered) -->
               @if (taskInput.trim() && !isSubmitting()) {
                 <button type="button" class="dock-circle-btn btn-clear"
-                  (click)="clearInput($event)" title="Clear input text" aria-label="Clear input text">
+                  (click)="clearInput($event)" [title]="'workspace.clear' | translate" [attr.aria-label]="'workspace.clear' | translate">
                   <span class="material-symbols-outlined">close</span>
                 </button>
               }
@@ -138,8 +138,8 @@ limitations under the License.
                 [class.has-content]="!!taskInput.trim()"
                 [disabled]="!taskInput.trim() || isSubmitting()"
                 (click)="submitTask()"
-                [title]="isSubmitting() ? 'Starting task...' : 'Start task (Enter)'"
-                aria-label="Start task"
+                [title]="isSubmitting() ? ('workspace.starting' | translate) : ('workspace.startEnter' | translate)"
+                [attr.aria-label]="'workspace.start' | translate"
                 >
                 @if (isSubmitting()) {
                   <span class="material-symbols-outlined spinning-icon">sync</span>
@@ -154,7 +154,7 @@ limitations under the License.
             <div class="card-footer-row">
               <div class="footer-left-group">
                 <!-- Segmented Architecture Toggle (Flash / Pro) -->
-                <div class="model-profile-toggle" role="group" aria-label="Select Agent Architecture">
+                <div class="model-profile-toggle" role="group" [attr.aria-label]="'workspace.selectArchitecture' | translate">
                   <button type="button" class="profile-toggle-pill" [class.active]="selectedProfile() === 'flash'"
                     (mousedown)="$event.preventDefault()" (click)="setProfile('flash', $event)"
                     title="Flash: fast single-look loop for everyday app tasks (3–5s/step)">
@@ -188,7 +188,7 @@ limitations under the License.
     </div>
     </section>
     <aside class="workspace-screen-panel" [class.is-open]="agentService.isVideoWindowOpen()"
-      aria-label="Device screen and replay" [attr.aria-hidden]="!agentService.isVideoWindowOpen()">
+      [attr.aria-label]="'workspace.deviceReplay' | translate" [attr.aria-hidden]="!agentService.isVideoWindowOpen()">
       <app-floating-video-player [docked]="true"></app-floating-video-player>
     </aside>
     </div>

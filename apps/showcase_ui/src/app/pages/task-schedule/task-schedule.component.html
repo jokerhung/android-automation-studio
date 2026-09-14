@@ -1,35 +1,35 @@
 <main class="schedule-page">
   <header class="page-header">
-    <div><p class="eyebrow">AUTOMATION</p><h1>Task Schedule</h1><p>Run saved ARTEMIS tasks on a recurring schedule.</p></div>
-    <button type="button" class="primary" (click)="newSchedule()" aria-label="Create new task schedule"><span class="material-symbols-outlined" aria-hidden="true">add</span> New Schedule</button>
+    <div><p class="eyebrow">{{ 'schedule.automation' | translate }}</p><h1>{{ 'schedule.title' | translate }}</h1><p>{{ 'schedule.subtitle' | translate }}</p></div>
+    <button type="button" class="primary" (click)="newSchedule()" [attr.aria-label]="'schedule.createAria' | translate"><span class="material-symbols-outlined" aria-hidden="true">add</span> {{ 'schedule.new' | translate }}</button>
   </header>
 
   <section class="health" [class.unhealthy]="health() && !health()!.healthy" aria-live="polite">
     <span class="material-symbols-outlined" aria-hidden="true">{{ health()?.healthy ? 'verified' : 'info' }}</span>
-    <div><strong>Scheduler {{ health()?.healthy ? 'healthy' : 'status unavailable' }}</strong><span>Last heartbeat: {{ health()?.last_heartbeat ? (health()!.last_heartbeat | date:'medium') : 'not reported' }}</span></div>
-    <p>Only runs while this machine and the ARTEMIS server are running.</p>
+    <div><strong>{{ (health()?.healthy ? 'schedule.healthy' : 'schedule.unavailable') | translate }}</strong><span>{{ 'schedule.heartbeat' | translate:{ value: health()?.last_heartbeat ? (health()!.last_heartbeat | date:'medium') : ('schedule.notReported' | translate) } }}</span></div>
+    <p>{{ 'schedule.machineNote' | translate }}</p>
   </section>
 
-  @if (error()) { <div class="notice error" role="alert">{{ error() }} <button type="button" (click)="refresh()">Retry</button></div> }
+  @if (error()) { <div class="notice error" role="alert">{{ error() }} <button type="button" (click)="refresh()">{{ 'common.retry' | translate }}</button></div> }
   @if (message()) { <div class="notice success" role="status">{{ message() }}</div> }
 
   @if (loading()) {
-    <div class="loading" role="status"><span class="spinner"></span> Loading schedules…</div>
+    <div class="loading" role="status"><span class="spinner"></span> {{ 'schedule.loading' | translate }}</div>
   } @else if (!schedules().length) {
-    <section class="empty"><span class="material-symbols-outlined" aria-hidden="true">calendar_add_on</span><h2>No schedules yet</h2><p>Create your first interval, daily, or weekly task schedule.</p><button type="button" class="primary" (click)="newSchedule()">Create first schedule</button></section>
+    <section class="empty"><span class="material-symbols-outlined" aria-hidden="true">calendar_add_on</span><h2>{{ 'schedule.empty' | translate }}</h2><p>{{ 'schedule.emptyHelp' | translate }}</p><button type="button" class="primary" (click)="newSchedule()">{{ 'schedule.createFirst' | translate }}</button></section>
   } @else {
-    <section class="schedule-section" aria-labelledby="active-heading"><div class="section-title"><h2 id="active-heading">Active</h2><span>{{ activeSchedules().length }}</span></div>
-      <div class="card-grid">@for (schedule of activeSchedules(); track schedule.id) { <ng-container [ngTemplateOutlet]="scheduleCard" [ngTemplateOutletContext]="{$implicit: schedule}"></ng-container> } @empty { <p class="muted">No active schedules.</p> }</div>
+    <section class="schedule-section" aria-labelledby="active-heading"><div class="section-title"><h2 id="active-heading">{{ 'schedule.active' | translate }}</h2><span>{{ activeSchedules().length }}</span></div>
+      <div class="card-grid">@for (schedule of activeSchedules(); track schedule.id) { <ng-container [ngTemplateOutlet]="scheduleCard" [ngTemplateOutletContext]="{$implicit: schedule}"></ng-container> } @empty { <p class="muted">{{ 'schedule.noActive' | translate }}</p> }</div>
     </section>
-    <section class="schedule-section" aria-labelledby="paused-heading"><div class="section-title"><h2 id="paused-heading">Paused</h2><span>{{ pausedSchedules().length }}</span></div>
-      <div class="card-grid">@for (schedule of pausedSchedules(); track schedule.id) { <ng-container [ngTemplateOutlet]="scheduleCard" [ngTemplateOutletContext]="{$implicit: schedule}"></ng-container> } @empty { <p class="muted">No paused schedules.</p> }</div>
+    <section class="schedule-section" aria-labelledby="paused-heading"><div class="section-title"><h2 id="paused-heading">{{ 'schedule.paused' | translate }}</h2><span>{{ pausedSchedules().length }}</span></div>
+      <div class="card-grid">@for (schedule of pausedSchedules(); track schedule.id) { <ng-container [ngTemplateOutlet]="scheduleCard" [ngTemplateOutletContext]="{$implicit: schedule}"></ng-container> } @empty { <p class="muted">{{ 'schedule.noPaused' | translate }}</p> }</div>
     </section>
   }
 </main>
 
 <ng-template #scheduleCard let-schedule>
   <article class="schedule-card" [class.paused]="!schedule.enabled">
-    <div class="card-head"><div><span class="status-dot"></span><span class="status">{{ schedule.enabled ? 'Active' : 'Paused' }}</span><h3>{{ schedule.name }}</h3></div><button type="button" class="icon-button" (click)="edit(schedule)" [attr.aria-label]="'Edit ' + schedule.name"><span class="material-symbols-outlined">edit</span></button></div>
+    <div class="card-head"><div><span class="status-dot"></span><span class="status">{{ (schedule.enabled ? 'schedule.active' : 'schedule.paused') | translate }}</span><h3>{{ schedule.name }}</h3></div><button type="button" class="icon-button" (click)="edit(schedule)" [attr.aria-label]="'schedule.edit' | translate:{name:schedule.name}"><span class="material-symbols-outlined">edit</span></button></div>
     <p class="goal">{{ schedule.goal }}</p>
     <dl><div><dt>Schedule</dt><dd>{{ ruleText(schedule) }}</dd></div><div><dt>Timezone</dt><dd>{{ schedule.timezone }}</dd></div><div><dt>Device</dt><dd>{{ deviceLabel(schedule.device_serial) }}</dd></div><div><dt>Profile</dt><dd>{{ schedule.profile | titlecase }}</dd></div><div><dt>Next run</dt><dd>{{ schedule.next_run_at ? (schedule.next_run_at | date:'medium') : '—' }}</dd></div><div><dt>Last result</dt><dd><button type="button" class="text-link" (click)="openHistory(schedule)">{{ schedule.last_run?.status || schedule.last_run_status || 'No runs' }}</button></dd></div><div><dt>Email</dt><dd>{{ schedule.email_enabled ? (schedule.recipient_email || 'Enabled') : 'Off' }}</dd></div></dl>
     <div class="actions"><button type="button" (click)="pauseResume(schedule)" [disabled]="actionId() === schedule.id"><span class="material-symbols-outlined">{{ schedule.enabled ? 'pause' : 'play_arrow' }}</span>{{ schedule.enabled ? 'Pause' : 'Resume' }}</button><button type="button" (click)="runNow(schedule)" [disabled]="actionId() === schedule.id"><span class="material-symbols-outlined">rocket_launch</span>Run now</button><button type="button" (click)="openHistory(schedule)"><span class="material-symbols-outlined">history</span>History</button><button type="button" class="danger" (click)="remove(schedule)" [disabled]="actionId() === schedule.id" [attr.aria-label]="'Delete ' + schedule.name"><span class="material-symbols-outlined">delete</span></button></div>
@@ -46,7 +46,7 @@
       <fieldset><legend>Schedule type</legend><div class="segmented schedule-types"><label><input type="radio" name="type" [(ngModel)]="draft.schedule_type" value="interval" (change)="setScheduleType('interval')">Interval</label><label><input type="radio" name="type" [(ngModel)]="draft.schedule_type" value="daily" (change)="setScheduleType('daily')">Daily</label><label><input type="radio" name="type" [(ngModel)]="draft.schedule_type" value="weekly" (change)="setScheduleType('weekly')">Weekly</label></div></fieldset>
       @if (draft.schedule_type === 'interval') { <label>Repeat every (minutes)<input type="number" name="interval" [(ngModel)]="draft.interval_minutes" required min="1" max="10080"></label> }
       @if (draft.schedule_type !== 'interval') { <label>Time (HH:mm:ss)<input type="time" name="time" [(ngModel)]="draft.time_of_day" required step="1"></label> }
-      @if (draft.schedule_type === 'weekly') { <fieldset><legend>Days of week</legend><div class="weekday-grid">@for (day of weekdays; track day.value) { <label><input type="checkbox" [checked]="draft.weekdays?.includes(day.value)" (change)="toggleWeekday(day.value, $any($event.target).checked)">{{ day.label }}</label> }</div></fieldset> }
+      @if (draft.schedule_type === 'weekly') { <fieldset><legend>Days of week</legend><div class="weekday-grid">@for (day of weekdays; track day.value) { <label><input type="checkbox" [checked]="draft.weekdays?.includes(day.value)" (change)="toggleWeekday(day.value, $any($event.target).checked)">{{ ('weekday.' + day.value) | translate }}</label> }</div></fieldset> }
       <div class="form-grid"><label>Timezone (IANA)<input name="timezone" [(ngModel)]="draft.timezone" required placeholder="Asia/Bangkok"></label><label class="checkbox"><input type="checkbox" name="enabled" [(ngModel)]="draft.enabled">Enabled after saving</label></div>
       <section class="email-notification" [class.enabled]="draft.email_enabled">
         <label class="email-toggle"><span><strong>Send email when task finishes</strong><small>Opt in to email for completed, failed, or cancelled runs, including Run now.</small></span><input type="checkbox" name="emailEnabled" [(ngModel)]="draft.email_enabled" (change)="onEmailToggle()"></label>
@@ -61,7 +61,7 @@
       </section>
       <section class="preview"><div><h3>Backend preview</h3><p>Required before saving; uses the scheduler's timezone and DST policy. Preview never sends email.</p></div><button type="button" (click)="requestPreview(scheduleForm)" [disabled]="previewLoading()">{{ previewLoading() ? 'Previewing…' : 'Preview next 5' }}</button>@if (previewError()) { <div class="preview-error" role="alert"><span class="material-symbols-outlined" aria-hidden="true">error</span><span>{{ previewError() }}</span></div> } @if (preview().length) { <ol>@for (time of preview(); track time) { <li>{{ time | date:'full' }}</li> }</ol> }</section>
       @if (formError()) { <div class="notice error form-error" role="alert">{{ formError() }}</div> }
-      <footer><button type="button" (click)="closeForm()">Cancel</button><button type="submit" class="primary" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Save schedule' }}</button></footer>
+      <footer><button type="button" (click)="closeForm()">Cancel</button><button type="submit" class="primary" [disabled]="saving()">{{ (saving() ? 'schedule.saving' : 'schedule.save') | translate }}</button></footer>
     </form>
   </section></div>
 }

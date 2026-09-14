@@ -21,38 +21,38 @@ $font-sans: 'Google Sans Text', 'Google Sans', 'Inter', -apple-system, BlinkMacS
 $font-mono: 'JetBrains Mono', 'Fira Code', 'Roboto Mono', 'SFMono-Regular', Consolas, monospace;
 
 // Surfaces & Backgrounds
-$bg-base: #f8f9fa;
-$card-bg: #ffffff;
-$card-border: #e2e8f0;
-$card-border-hover: #cbd5e1;
-$card-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 4px 12px rgba(0, 0, 0, 0.02);
+$bg-base: var(--theme-bg-page);
+$card-bg: var(--theme-bg-surface);
+$card-border: var(--theme-border);
+$card-border-hover: var(--theme-border-strong);
+$card-shadow: 0 1px 3px var(--theme-shadow-soft), 0 4px 12px var(--theme-shadow-soft);
 
 // Brand & Semantic Colors
-$primary: #1a73e8;
-$primary-dark: #1557b0;
-$primary-light: #eff6ff;
-$primary-border: #bfdbfe;
+$primary: var(--theme-accent);
+$primary-dark: var(--theme-accent-hover);
+$primary-light: var(--theme-accent-subtle);
+$primary-border: var(--theme-accent-border);
 
-$emerald: #059669;
-$emerald-dark: #047857;
-$emerald-light: #ecfdf5;
-$emerald-border: #a7f3d0;
+$emerald: var(--theme-success);
+$emerald-dark: var(--theme-success);
+$emerald-light: var(--theme-success-bg);
+$emerald-border: var(--theme-success-border);
 
-$amber: #d97706;
-$amber-dark: #b45309;
-$amber-light: #fffbeb;
-$amber-border: #fde68a;
+$amber: var(--theme-warning);
+$amber-dark: var(--theme-warning);
+$amber-light: var(--theme-warning-bg);
+$amber-border: var(--theme-warning-border);
 
-$rose: #dc2626;
-$rose-dark: #b91c1c;
-$rose-light: #fef2f2;
-$rose-border: #fecaca;
+$rose: var(--theme-error);
+$rose-dark: var(--theme-error);
+$rose-light: var(--theme-error-bg);
+$rose-border: var(--theme-error-border);
 
 // Neutral Text Scale
-$text-main: #0f172a;
-$text-secondary: #475569;
-$text-muted: #64748b;
-$text-light: #94a3b8;
+$text-main: var(--theme-text-primary);
+$text-secondary: var(--theme-text-secondary);
+$text-muted: var(--theme-text-muted);
+$text-light: var(--theme-text-disabled);
 
 // Shared OS switcher. It is rendered in both the dependency installer and
 // the empty-AVD guide, so the styling cannot be scoped to either card.

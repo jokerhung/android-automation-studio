@@ -22,6 +22,7 @@ import { SystemService } from '../../services/system.service';
 import { ModelSettingsComponent } from '../../components/model-settings/model-settings.component';
 import { WindowsStartupComponent } from '../../components/windows-startup/windows-startup.component';
 import { EmailSettingsComponent } from '../../components/email-settings/email-settings.component';
+import { AppearanceSettingsComponent } from '../../components/appearance-settings/appearance-settings.component';
 import {
   AdbServerConnectionResult,
   AdbServerDevice,
@@ -34,6 +35,8 @@ import {
   SuggestionCategory
 } from '../../core/data/smart-tasks.data';
 import { TaskRecommendationService } from '../../core/services/task-recommendation.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslationService } from '../../core/i18n/translation.service';
 import {
   DEFAULT_EXPLORER_MODE,
   DEFAULT_VERIFICATION_LEVEL,
@@ -107,7 +110,7 @@ type SettingsTab = 'general' | 'models' | 'email' | 'android' | 'system';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [FormsModule, WindowsStartupComponent, EmailSettingsComponent, ModelSettingsComponent],
+  imports: [FormsModule, WindowsStartupComponent, EmailSettingsComponent, ModelSettingsComponent, AppearanceSettingsComponent, TranslatePipe],
   templateUrl: './home.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./home.component.scss', './settings-layout.scss']
@@ -118,29 +121,30 @@ export class HomeComponent implements OnInit, OnDestroy {
   public taskRecService = inject(TaskRecommendationService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  public readonly i18n = inject(TranslationService);
 
   // High-level navigation mode: 'diagnostics' (System Setup Guide) vs 'launcher' (Task Execution)
   public activeTab = signal<'diagnostics' | 'launcher'>(
     this.route.snapshot.data['homeView'] === 'diagnostics' ? 'diagnostics' : 'launcher'
   );
   public settingsTab = signal<SettingsTab>('general');
-  public settingsTabs: { id: SettingsTab; label: string; icon: string }[] = [
-    { id: 'general', label: 'General', icon: 'tune' },
-    { id: 'models', label: 'AI Model', icon: 'auto_awesome' },
-    { id: 'email', label: 'Email', icon: 'mail' },
-    { id: 'android', label: 'Android Devices', icon: 'smartphone' },
-    { id: 'system', label: 'System & Environment', icon: 'computer' }
-  ];
+  public settingsTabs = computed(() => [
+    { id: 'general' as SettingsTab, label: this.i18n.translate('settings.general'), icon: 'tune' },
+    { id: 'models' as SettingsTab, label: this.i18n.translate('settings.models'), icon: 'auto_awesome' },
+    { id: 'email' as SettingsTab, label: this.i18n.translate('settings.email'), icon: 'mail' },
+    { id: 'android' as SettingsTab, label: this.i18n.translate('settings.android'), icon: 'smartphone' },
+    { id: 'system' as SettingsTab, label: this.i18n.translate('settings.system'), icon: 'computer' }
+  ]);
 
   public onSettingsTabKey(event: KeyboardEvent, index: number): void {
     let next = index;
-    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = (index + 1) % this.settingsTabs.length;
-    else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') next = (index + this.settingsTabs.length - 1) % this.settingsTabs.length;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = (index + 1) % this.settingsTabs().length;
+    else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') next = (index + this.settingsTabs().length - 1) % this.settingsTabs().length;
     else if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = this.settingsTabs.length - 1;
+    else if (event.key === 'End') next = this.settingsTabs().length - 1;
     else return;
     event.preventDefault();
-    this.settingsTab.set(this.settingsTabs[next].id);
+    this.settingsTab.set(this.settingsTabs()[next].id);
     const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
     buttons?.[next]?.focus();
   }
@@ -565,7 +569,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const requestedSettingsTab = this.route.snapshot.queryParamMap.get('tab');
-    if (this.settingsTabs.some(tab => tab.id === requestedSettingsTab)) {
+    if (this.settingsTabs().some(tab => tab.id === requestedSettingsTab)) {
       this.settingsTab.set(requestedSettingsTab as SettingsTab);
     }
 

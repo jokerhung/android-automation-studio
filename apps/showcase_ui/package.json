@@ -6,7 +6,9 @@
     "start": "ng serve --proxy-config proxy.conf.json",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "i18n:check": "node scripts/check-i18n.mjs",
+    "test:styles": "node scripts/verify-theme-styles.mjs"
   },
   "private": true,
   "dependencies": {

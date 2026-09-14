@@ -31,6 +31,7 @@ import {
 
 import { FormsModule } from '@angular/forms';
 import { AgentService } from '../../services/agent.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { StepReplayFrame } from '../../core/models/stream.model';
 import { drawActionCoordinatesOnOverlay } from '../../utils/image-overlay.util';
 import { getActionIcon } from '../../utils/action-formatter.util';
@@ -39,7 +40,7 @@ import { locateTimelineTime, sessionTimeToTimelineTime } from '../../utils/recor
 @Component({
   selector: 'app-floating-video-player',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslatePipe],
   templateUrl: './floating-video-player.component.html',
   styleUrl: './floating-video-player.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush

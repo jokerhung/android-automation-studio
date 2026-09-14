@@ -1,7 +1,7 @@
 # Plan: Language và Theme trong Settings → General
 
 Ngày: 2026-09-14  
-Trạng thái: Đề xuất — chỉ thêm tài liệu, chưa triển khai hai tính năng.
+Trạng thái: Đã triển khai — Language EN/VI và Theme Light/Dark có hiệu lực ngay, lưu theo trình duyệt, đồng bộ tab, có catalog/runtime translation, semantic theme tokens, tests và production build.
 
 ## 1. Yêu cầu và phạm vi
 

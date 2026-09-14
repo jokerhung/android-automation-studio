@@ -7,15 +7,18 @@ import { ScheduleDevice, ScheduleRun, ScheduleStatus, ScheduleType, TaskSchedule
 import { AgentService } from '../../services/agent.service';
 import { ScheduleService } from '../../services/schedule.service';
 import { EmailSettingsService } from '../../services/email-settings.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslationService } from '../../core/i18n/translation.service';
 
-const WEEKDAYS = [{ value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' }, { value: 4, label: 'Thu' }, { value: 5, label: 'Fri' }, { value: 6, label: 'Sat' }, { value: 7, label: 'Sun' }];
+const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7].map(value => ({ value }));
 
-@Component({ selector: 'app-task-schedule', standalone: true, imports: [CommonModule, FormsModule], templateUrl: './task-schedule.component.html', styleUrl: './task-schedule.component.scss', changeDetection: ChangeDetectionStrategy.OnPush })
+@Component({ selector: 'app-task-schedule', standalone: true, imports: [CommonModule, FormsModule, TranslatePipe], templateUrl: './task-schedule.component.html', styleUrl: './task-schedule.component.scss', changeDetection: ChangeDetectionStrategy.OnPush })
 export class TaskScheduleComponent implements OnInit {
   private readonly schedulesApi = inject(ScheduleService);
   private readonly agentService = inject(AgentService);
   private readonly emailSettingsApi = inject(EmailSettingsService);
   private readonly router = inject(Router);
+  readonly i18n = inject(TranslationService);
   readonly weekdays = WEEKDAYS;
   readonly schedules = signal<TaskSchedule[]>([]);
   readonly devices = signal<ScheduleDevice[]>([]);
@@ -128,11 +131,11 @@ export class TaskScheduleComponent implements OnInit {
   reviewReport(run: ScheduleRun): void { const schedule = this.historySchedule(); if (schedule) window.open(this.schedulesApi.emailReportUrl(schedule.id, run.id), '_blank', 'noopener'); }
 
   ruleText(schedule: TaskSchedule): string {
-    if (schedule.schedule_type === 'interval') return 'Every ' + schedule.interval_minutes + ' minute' + (schedule.interval_minutes === 1 ? '' : 's');
+    if (schedule.schedule_type === 'interval') return this.i18n.translate('schedule.everyMinutes', { count: schedule.interval_minutes ?? '' });
     const time = this.normalizeTime(schedule.time_of_day);
-    if (schedule.schedule_type === 'daily') return 'Daily at ' + time;
-    const labels = (schedule.weekdays ?? []).map(day => WEEKDAYS.find(value => value.value === day)?.label).filter(Boolean).join(', ');
-    return (labels || 'No days') + ' at ' + time;
+    if (schedule.schedule_type === 'daily') return this.i18n.translate('schedule.dailyAt', { time });
+    const labels = (schedule.weekdays ?? []).map(day => this.i18n.translate('weekday.' + day)).filter(Boolean).join(', ');
+    return this.i18n.translate('schedule.daysAt', { days: labels || this.i18n.translate('schedule.noDays'), time });
   }
   deviceLabel(serial: string): string { const device = this.devices().find(value => value.serial === serial); return device ? ((device.name || device.model || serial) + (device.serial !== (device.name || device.model) ? ' · ' + device.serial : '')) : serial; }
   trackById(_index: number, value: { id: string }): string { return value.id; }

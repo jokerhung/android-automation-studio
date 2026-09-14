@@ -1,6 +1,6 @@
 // Scoped to Settings so Home's task launcher keeps its current layout.
 .home-container.settings-page {
-  background: #fff;
+  background: var(--theme-bg-surface);
   .aurora-background { display: none; }
   .home-content {
     max-width: 1440px;
@@ -15,8 +15,8 @@
     .settings-close {
       display: inline-flex; align-items: center; justify-content: center;
       border: 0; border-radius: 8px; width: 32px; height: 32px;
-      background: transparent; color: #8a929e; cursor: pointer;
-      &:hover { background: #f3f4f6; color: #172033; }
+      background: transparent; color: var(--theme-text-muted); cursor: pointer;
+      &:hover { background: var(--theme-hover); color: var(--theme-text-primary); }
     }
     .setup-guide-view {
       display: grid; grid-template-columns: 220px minmax(0, 1fr);
@@ -28,26 +28,26 @@
           display: flex; align-items: center; gap: 12px;
           min-height: 40px; width: 100%; padding: 10px 12px;
           border: 0; border-radius: 8px; text-align: left;
-          background: transparent; color: #4b5563; font-size: 13px;
+          background: transparent; color: var(--theme-text-secondary); font-size: 13px;
           font-family: inherit; cursor: pointer;
           .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
-          &:hover { background: #f8f9fa; }
-          &.selected { background: #f1f2f4; color: #202124; font-weight: 600; }
-          &:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+          &:hover { background: var(--theme-bg-surface-subtle); }
+          &.selected { background: var(--theme-selected); color: var(--theme-text-primary); font-weight: 600; }
+          &:focus-visible { outline: 2px solid var(--theme-focus); outline-offset: 2px; }
         }
       }
       .settings-detail { min-width: 0; }
       .model-diagnostics {
-        border-top: 1px solid #e2e8f0; padding-top: 16px;
-        > summary { cursor: pointer; color: #475569; font-size: 14px; margin-bottom: 18px; }
+        border-top: 1px solid var(--theme-border); padding-top: 16px;
+        > summary { cursor: pointer; color: var(--theme-text-secondary); font-size: 14px; margin-bottom: 18px; }
       }
       .settings-panel {
         min-width: 0;
         &[hidden] { display: none !important; }
-        h2 { margin: 0 0 8px; font-size: 19px; font-weight: 600; color: #202124; }
-        .settings-description { margin: 0 0 24px; color: #6b7280; font-size: 13px; line-height: 1.6; }
+        h2 { margin: 0 0 8px; font-size: 19px; font-weight: 600; color: var(--theme-text-primary); }
+        .settings-description { margin: 0 0 24px; color: var(--theme-text-muted); font-size: 13px; line-height: 1.6; }
         .guide-card {
-          box-shadow: none; border: 0; border-radius: 0; background: #fff;
+          box-shadow: none; border: 0; border-radius: 0; background: var(--theme-bg-surface);
           > .guide-card-header {
             padding: 0 0 16px;
             > .step-badge { display: none; }

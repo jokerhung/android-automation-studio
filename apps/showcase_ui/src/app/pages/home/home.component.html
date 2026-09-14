@@ -32,10 +32,10 @@
     <!-- Task entry section -->
     <section class="hero-section">
       <h1 class="hero-title">
-        {{ activeTab() === 'diagnostics' ? 'Settings' : 'What would you like to do on your phone?' }}
+        {{ (activeTab() === 'diagnostics' ? 'nav.settings' : 'home.question') | translate }}
       </h1>
       @if (activeTab() === 'diagnostics') {
-        <button type="button" class="settings-close" (click)="setTab('launcher')" aria-label="Close Settings" title="Back to Home">
+        <button type="button" class="settings-close" (click)="setTab('launcher')" [attr.aria-label]="'settings.close' | translate" [title]="'settings.backHome' | translate">
           <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
       }
@@ -46,8 +46,8 @@
     <!-- ========================================================================= -->
     @if (activeTab() === 'diagnostics') {
       <section class="setup-guide-view">
-        <nav class="settings-sidebar" role="tablist" aria-label="Settings categories" aria-orientation="vertical">
-          @for (tab of settingsTabs; track tab.id; let index = $index) {
+        <nav class="settings-sidebar" role="tablist" [attr.aria-label]="'settings.categories' | translate" aria-orientation="vertical">
+          @for (tab of settingsTabs(); track tab.id; let index = $index) {
             <button type="button" role="tab" [id]="'settings-tab-' + tab.id"
               [attr.aria-controls]="'settings-panel-' + tab.id" [attr.aria-selected]="settingsTab() === tab.id"
               [attr.tabindex]="settingsTab() === tab.id ? 0 : -1" [class.selected]="settingsTab() === tab.id"
@@ -58,8 +58,9 @@
         </nav>
         <div class="settings-detail">
         <section class="settings-panel" id="settings-panel-general" role="tabpanel" aria-labelledby="settings-tab-general" tabindex="0" [hidden]="settingsTab() !== 'general'">
-        <h2>General</h2>
-        <p class="settings-description">Application startup and behavior on this computer.</p>
+        <h2>{{ 'settings.general' | translate }}</h2>
+        <p class="settings-description">Application preferences, startup, and behavior on this computer.</p>
+        <app-appearance-settings></app-appearance-settings>
         <app-windows-startup></app-windows-startup>
         </section>
 
@@ -68,7 +69,7 @@
 </section>
 
 <section class="settings-panel" id="settings-panel-system" role="tabpanel" aria-labelledby="settings-tab-system" tabindex="0" [hidden]="settingsTab() !== 'system'">
-<h2>System & Environment</h2>
+<h2>{{ 'settings.system' | translate }}</h2>
 <p class="settings-description">Check runtime dependencies and screen recording tools.</p>
 <!-- =================================================================== -->
 <!-- STEP 1: ENVIRONMENT & SYSTEM DEPENDENCIES (FIRST & FOUNDATIONAL)    -->
@@ -281,7 +282,7 @@
 <!-- =================================================================== -->
 </section>
 <section class="settings-panel" id="settings-panel-models" role="tabpanel" aria-labelledby="settings-tab-models" tabindex="0" [hidden]="settingsTab() !== 'models'">
-<h2>AI Model</h2>
+<h2>{{ 'settings.models' | translate }}</h2>
 <p class="settings-description">Manage model providers, API credentials and OCR configuration.</p>
 <app-model-settings></app-model-settings>
 <details class="model-diagnostics">
@@ -665,7 +666,7 @@
         </details>
         </section>
         <section class="settings-panel" id="settings-panel-android" role="tabpanel" aria-labelledby="settings-tab-android" tabindex="0" [hidden]="settingsTab() !== 'android'">
-        <h2>Android Devices</h2>
+        <h2>{{ 'settings.android' | translate }}</h2>
         <p class="settings-description">Connect a phone or emulator using USB, Wi-Fi or a remote ADB server.</p>
         <div class="guide-card" [class.card-pass]="isDeviceReady()" [class.card-warn]="!isDeviceReady()">
           
@@ -1698,7 +1699,7 @@
               </div>
             </div>
             <button type="button" class="btn-proceed-launch" (click)="setTab('launcher')">
-              <span>Launch Autonomous Task</span>
+              <span>{{ 'home.launch' | translate }}</span>
               <span class="material-symbols-outlined rocket-icon">rocket_launch</span>
             </button>
           </div>
@@ -1754,7 +1755,7 @@
               rows="3"
               [(ngModel)]="taskGoal"
               [disabled]="isSubmitting()"
-              placeholder="Describe what you want to achieve on your phone (e.g. Open Gmail and search for latest emails)..."
+              [placeholder]="'home.taskPlaceholder' | translate"
               (keydown.control.enter)="runTask()"
               (keydown.meta.enter)="runTask()"
             ></textarea>
@@ -1834,7 +1835,7 @@
                 (click)="runTask()"
               >
                 @if (isSubmitting()) {
-                  <span class="spinner"></span><span>Starting...</span>
+                  <span class="spinner"></span><span>{{ 'home.starting' | translate }}</span>
                 } @else {
                   <span class="material-symbols-outlined run-icon">play_arrow</span><span>Run Task</span>
                 }

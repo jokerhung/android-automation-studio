@@ -49,19 +49,19 @@ limitations under the License.
               class="mode-btn"
               [class.active]="agentService.playerMode() === 'video'"
               (click)="agentService.setPlayerMode('video')"
-              title="Video Recording"
+              [title]="'player.videoTitle' | translate"
               >
               <span class="material-symbols-outlined mode-icon">videocam</span>
-              <span>Video</span>
+              <span>{{ 'player.video' | translate }}</span>
             </button>
             <button
               class="mode-btn"
               [class.active]="agentService.playerMode() === 'steps'"
               (click)="agentService.setPlayerMode('steps')"
-              title="Step Screenshot Replay"
+              [title]="'player.stepsTitleButton' | translate"
               >
               <span class="material-symbols-outlined mode-icon">slideshow</span>
-              <span>Steps</span>
+              <span>{{ 'player.steps' | translate }}</span>
             </button>
           </div>
         }
@@ -70,8 +70,8 @@ limitations under the License.
         <button
           class="header-btn"
           (click)="toggleMinimize()"
-          [title]="agentService.isVideoMinimized() ? 'Restore' : 'Minimize'"
-          aria-label="Minimize"
+          [title]="agentService.isVideoMinimized() ? ('player.restore' | translate) : ('player.minimize' | translate)"
+          [attr.aria-label]="'player.minimize' | translate"
           >
           <span class="material-symbols-outlined">{{ agentService.isVideoMinimized() ? 'expand_less' : 'remove' }}</span>
         </button>
@@ -81,7 +81,7 @@ limitations under the License.
           <button
             class="header-btn"
             (click)="toggleTheater()"
-            [title]="isTheaterMode() ? 'Exit Theater' : 'Theater Mode'"
+            [title]="isTheaterMode() ? ('player.exitTheater' | translate) : ('player.theater' | translate)"
             aria-label="Theater"
             >
             <span class="material-symbols-outlined">{{ isTheaterMode() ? 'close_fullscreen' : 'open_in_full' }}</span>
@@ -91,8 +91,8 @@ limitations under the License.
         <button
           class="header-btn close-btn"
           (click)="agentService.closeVideoPlayer()"
-          title="Close"
-          aria-label="Close"
+          [title]="'common.close' | translate"
+          [attr.aria-label]="'common.close' | translate"
           >
           <span class="material-symbols-outlined">close</span>
         </button>
@@ -109,14 +109,14 @@ limitations under the License.
                 class="live-screen-img"
                 [src]="liveStreamUrl()"
                 (error)="onLiveStreamError()"
-                alt="Live Device Screen"
+                [alt]="'player.live' | translate"
                 />
                 <div class="live-status-overlay">
                   <div class="live-badge">
                     <span class="pulse-dot"></span>
                     <span>LIVE</span>
                   </div>
-                  <button class="live-refresh-btn" (click)="retryLiveStream()" title="Refresh Live Stream">
+                  <button class="live-refresh-btn" (click)="retryLiveStream()" [title]="'player.refreshLive' | translate">
                     <span class="material-symbols-outlined">refresh</span>
                   </button>
                 </div>
@@ -127,10 +127,10 @@ limitations under the License.
                 <div class="fallback-icon-wrap">
                   <span class="material-symbols-outlined fallback-icon">phonelink_off</span>
                 </div>
-                <h4 class="fallback-title">Device Stream Connecting</h4>
-                <p class="fallback-desc">Waiting for ADB device screen stream...</p>
+                <h4 class="fallback-title">{{ 'player.connecting' | translate }}</h4>
+                <p class="fallback-desc">{{ 'player.waiting' | translate }}</p>
                 <button class="retry-btn" (click)="retryLiveStream()">
-                  <span class="material-symbols-outlined">refresh</span> Reconnect
+                  <span class="material-symbols-outlined">refresh</span> {{ 'player.reconnect' | translate }}
                 </button>
               </div>
             }
@@ -282,15 +282,15 @@ limitations under the License.
                       <div class="controls-row">
                         <div class="controls-left">
                           <!-- Play / Pause Button -->
-                          <button class="ctrl-btn play-btn" (click)="toggleStepPlay()" [title]="isStepPlaying() ? 'Pause' : 'Play Slideshow'">
+                          <button class="ctrl-btn play-btn" (click)="toggleStepPlay()" [title]="isStepPlaying() ? ('player.pause' | translate) : ('player.playSlideshow' | translate)">
                             <span class="material-symbols-outlined">{{ isStepPlaying() ? 'pause' : 'play_arrow' }}</span>
                           </button>
                           <!-- Previous Frame Button -->
-                          <button class="ctrl-btn" (click)="prevStepFrame()" [disabled]="activeStepIndex() <= 0" title="Previous Step">
+                          <button class="ctrl-btn" (click)="prevStepFrame()" [disabled]="activeStepIndex() <= 0" [title]="'player.previous' | translate">
                             <span class="material-symbols-outlined">skip_previous</span>
                           </button>
                           <!-- Next Frame Button -->
-                          <button class="ctrl-btn" (click)="nextStepFrame()" [disabled]="activeStepIndex() >= totalStepFrames() - 1" title="Next Step">
+                          <button class="ctrl-btn" (click)="nextStepFrame()" [disabled]="activeStepIndex() >= totalStepFrames() - 1" [title]="'player.next' | translate">
                             <span class="material-symbols-outlined">skip_next</span>
                           </button>
                           <!-- Step Replay / Reset -->
@@ -367,7 +367,7 @@ limitations under the License.
                         <div class="controls-row">
                           <div class="controls-left">
                             <!-- Play / Pause Button -->
-                            <button class="ctrl-btn play-btn" (click)="togglePlay()" [title]="isPlaying() ? 'Pause' : 'Play'">
+                            <button class="ctrl-btn play-btn" (click)="togglePlay()" [title]="isPlaying() ? ('player.pause' | translate) : ('player.play' | translate)">
                               <span class="material-symbols-outlined">{{ isPlaying() ? 'pause' : 'play_arrow' }}</span>
                             </button>
                             <!-- Replay / Reset -->
@@ -398,11 +398,11 @@ limitations under the License.
                               <span class="material-symbols-outlined">repeat</span>
                             </button>
                             <!-- Mute / Unmute Toggle -->
-                            <button class="ctrl-btn" (click)="toggleMute()" [title]="isMuted() ? 'Unmute' : 'Mute'">
+                            <button class="ctrl-btn" (click)="toggleMute()" [title]="isMuted() ? ('player.unmute' | translate) : ('player.mute' | translate)">
                               <span class="material-symbols-outlined">{{ isMuted() ? 'volume_off' : 'volume_up' }}</span>
                             </button>
                             <!-- Open in new tab -->
-                            <button class="ctrl-btn" (click)="openInNewTab()" title="Open video in new tab">
+                            <button class="ctrl-btn" (click)="openInNewTab()" [title]="'player.openVideoTab' | translate">
                               <span class="material-symbols-outlined">open_in_new</span>
                             </button>
                           </div>

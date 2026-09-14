@@ -1,14 +1,14 @@
 {
-  "pid": 3596,
+  "pid": 3724,
   "port": 8009,
   "host": "127.0.0.1",
-  "started_at": 1789381692.1189475,
+  "started_at": 1789383094.577009,
   "workspace": "C:\\hungnm\\artemis",
   "workspace_id": "acf284f3369bd348",
   "cwd": "C:\\hungnm\\artemis",
-  "sys_executable": "C:\\Users\\jkhung\\AppData\\Roaming\\uv\\python\\cpython-3.14.7-windows-x86_64-none\\pythonw.exe",
+  "sys_executable": "C:\\Users\\jkhung\\AppData\\Roaming\\uv\\python\\cpython-3.14.7-windows-x86_64-none\\python.exe",
   "cmdline": [
-    "C:\\Users\\jkhung\\AppData\\Roaming\\uv\\python\\cpython-3.14-windows-x86_64-none\\pythonw.exe",
+    "C:\\Users\\jkhung\\AppData\\Roaming\\uv\\python\\cpython-3.14-windows-x86_64-none\\python.exe",
     "-m",
     "apps.admin_console.server",
     "--host",
@@ -16,6 +16,6 @@
     "--port",
     "8009"
   ],
-  "process_create_time": 1789381689.226064,
-  "lifecycle_token": "ZV3FUdY_6kOl0eghd3WOlBHmUqPSU4B5tOXsPKFLYag"
+  "process_create_time": 1789383092.2525847,
+  "lifecycle_token": "hIV7pA-0Tt9tHOkHMTzS8QaB4Z4UR4w0X4rpqII5iJc"
 }

@@ -21,6 +21,8 @@ import { AgentStreamComponent } from '../../components/agent-stream/agent-stream
 import { ChatInterfaceComponent } from '../../components/chat-interface/chat-interface.component';
 import { FloatingVideoPlayerComponent } from '../../components/floating-video-player/floating-video-player.component';
 import { AgentService } from '../../services/agent.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslationService } from '../../core/i18n/translation.service';
 
 @Component({
   selector: 'app-workspace',
@@ -29,7 +31,8 @@ import { AgentService } from '../../services/agent.service';
     FormsModule,
     AgentStreamComponent,
     ChatInterfaceComponent,
-    FloatingVideoPlayerComponent
+    FloatingVideoPlayerComponent,
+    TranslatePipe
 ],
   templateUrl: './workspace.component.html',
   styleUrl: './workspace.component.scss',
@@ -37,6 +40,7 @@ import { AgentService } from '../../services/agent.service';
 })
 export class WorkspaceComponent implements OnInit {
   public agentService = inject(AgentService);
+  public readonly i18n = inject(TranslationService);
   private zone = inject(NgZone);
   private destroyRef = inject(DestroyRef);
 
@@ -112,13 +116,13 @@ export class WorkspaceComponent implements OnInit {
       const truncated = session.initial_goal.length > 45
         ? session.initial_goal.substring(0, 42) + '...'
         : session.initial_goal;
-      return `Stop current task: "${truncated}"`;
+      return this.i18n.translate('workspace.stopGoal', { goal: truncated });
     }
     const curId = this.agentService.currentSessionId();
     if (curId) {
-      return `Stop current task (${curId})`;
+      return this.i18n.translate('workspace.stopId', { id: curId });
     }
-    return 'Stop current running task';
+    return this.i18n.translate('workspace.stop');
   });
 
   /**
@@ -244,7 +248,7 @@ export class WorkspaceComponent implements OnInit {
       error: (err) => {
         console.error('Failed to submit task:', err);
         this.isSubmitting.set(false);
-        this.errorMessage.set(err.error?.detail || 'The runner is busy. Please wait for current task to finish.');
+        this.errorMessage.set(err.error?.detail || this.i18n.translate('workspace.busy'));
         setTimeout(() => {
           this.errorMessage.set(null);
         }, 5000);

@@ -1,73 +1,16 @@
-/**
- * Copyright 2026 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-import { Component, ChangeDetectionStrategy } from '@angular/core';
-
+/** Runtime navigation with no-reload locale switching. */
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslationService } from '../../core/i18n/translation.service';
 @Component({
-  selector: 'app-nav-switcher',
-  standalone: true,
-  imports: [RouterLink, RouterLinkActive],
-  template: `
-    <nav class="floating-nav-switcher" aria-label="Main Navigation">
-      <a 
-        routerLink="/" 
-        routerLinkActive="active" 
-        [routerLinkActiveOptions]="{exact: true}"
-        class="nav-tab-btn"
-        title="Return to Home Launcher to start a new task"
-        aria-label="Home"
-      >
-        <span class="material-symbols-outlined tab-icon">add_task</span>
-        <span class="tab-label">Home</span>
-      </a>
-      <a 
-        routerLink="/workspace" 
-        routerLinkActive="active" 
-        class="nav-tab-btn"
-        title="Open Workspace"
-        aria-label="Open Workspace"
-      >
-        <span class="material-symbols-outlined tab-icon">space_dashboard</span>
-        <span class="tab-label">Workspace</span>
-      </a>
-      <a
-        routerLink="/task-schedule"
-        routerLinkActive="active"
-        class="nav-tab-btn"
-        title="Open Task Schedule"
-        aria-label="Open Task Schedule"
-      >
-        <span class="material-symbols-outlined tab-icon" aria-hidden="true">calendar_clock</span>
-        <span class="tab-label">Task Schedule</span>
-      </a>
-      <a
-        routerLink="/settings"
-        routerLinkActive="active"
-        class="nav-tab-btn"
-        title="Open Settings"
-        aria-label="Open Settings"
-      >
-        <span class="material-symbols-outlined tab-icon" aria-hidden="true">settings</span>
-        <span class="tab-label">Settings</span>
-      </a>
-    </nav>
-  `,
-  changeDetection: ChangeDetectionStrategy.Eager,
-  styleUrls: ['./nav-switcher.component.scss']
-})
-export class NavSwitcherComponent {}
+ selector:'app-nav-switcher', standalone:true, imports:[RouterLink,RouterLinkActive,TranslatePipe],
+ template:`
+ <nav class="floating-nav-switcher" [attr.aria-label]="'nav.main' | translate">
+  <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}" class="nav-tab-btn" [title]="'nav.homeTitle' | translate" [attr.aria-label]="'nav.home' | translate"><span class="material-symbols-outlined tab-icon">add_task</span><span class="tab-label">{{ 'nav.home' | translate }}</span></a>
+  <a routerLink="/workspace" routerLinkActive="active" class="nav-tab-btn" [title]="'nav.openWorkspace' | translate" [attr.aria-label]="'nav.openWorkspace' | translate"><span class="material-symbols-outlined tab-icon">space_dashboard</span><span class="tab-label">{{ 'nav.workspace' | translate }}</span></a>
+  <a routerLink="/task-schedule" routerLinkActive="active" class="nav-tab-btn" [title]="'nav.openSchedule' | translate" [attr.aria-label]="'nav.openSchedule' | translate"><span class="material-symbols-outlined tab-icon" aria-hidden="true">calendar_clock</span><span class="tab-label">{{ 'nav.schedule' | translate }}</span></a>
+  <a routerLink="/settings" routerLinkActive="active" class="nav-tab-btn" [title]="'nav.openSettings' | translate" [attr.aria-label]="'nav.openSettings' | translate"><span class="material-symbols-outlined tab-icon" aria-hidden="true">settings</span><span class="tab-label">{{ 'nav.settings' | translate }}</span></a>
+  <button type="button" class="nav-tab-btn" (click)="i18n.toggle()" [title]="'language.label' | translate" [attr.aria-label]="'language.label' | translate"><span class="material-symbols-outlined tab-icon" aria-hidden="true">language</span><span class="tab-label">{{ i18n.locale() === 'en' ? 'VI' : 'EN' }}</span></button>
+ </nav>`, changeDetection:ChangeDetectionStrategy.Eager, styleUrls:['./nav-switcher.component.scss']
+}) export class NavSwitcherComponent { readonly i18n=inject(TranslationService); }
