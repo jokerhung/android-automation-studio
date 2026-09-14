@@ -4,17 +4,20 @@ import { FormsModule, NgForm } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { EmailSettings, EmailSettingsDraft, EmailSettingsUpdate, InlineActionState } from '../../core/models/email-settings.model';
 import { EmailSettingsService } from '../../services/email-settings.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslationService } from '../../core/i18n/translation.service';
 
 @Component({
   selector: 'app-email-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslatePipe],
   templateUrl: './email-settings.component.html',
   styleUrl: './email-settings.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class EmailSettingsComponent implements OnInit {
   private readonly api = inject(EmailSettingsService);
+  private readonly i18n = inject(TranslationService);
   readonly loading = signal(true);
   readonly loadError = signal<string | null>(null);
   readonly saveState = signal<InlineActionState>('idle');
@@ -37,49 +40,49 @@ export class EmailSettingsComponent implements OnInit {
     this.loading.set(true); this.loadError.set(null);
     this.api.get().pipe(finalize(() => this.loading.set(false))).subscribe({
       next: settings => this.apply(settings),
-      error: error => this.loadError.set(this.errorText(error, 'Unable to load email settings.'))
+      error: error => this.loadError.set(this.errorText(error, this.i18n.translate('email.loadError')))
     });
   }
 
   save(form: NgForm): void {
     this.resetAction('save');
-    if (form.invalid) { form.control.markAllAsTouched(); this.saveState.set('error'); this.saveMessage.set('Correct the highlighted email settings before saving.'); return; }
-    if (this.passwordConfigured() && !this.draft.password && this.accountFingerprint() !== this.savedAccount && !window.confirm('The SMTP host or username changed. Keep using the saved password with this new account?')) return;
+    if (form.invalid) { form.control.markAllAsTouched(); this.saveState.set('error'); this.saveMessage.set(this.i18n.translate('email.invalid')); return; }
+    if (this.passwordConfigured() && !this.draft.password && this.accountFingerprint() !== this.savedAccount && !window.confirm(this.i18n.translate('email.accountChangedConfirm'))) return;
     const testRecipient = this.draft.test_recipient;
     this.saveState.set('pending');
     this.api.save(this.payload()).pipe(finalize(() => { if (this.saveState() === 'pending') this.saveState.set('idle'); })).subscribe({
-      next: settings => { this.apply(settings); this.draft.test_recipient = testRecipient || settings.sender_email; this.saveState.set('success'); this.saveMessage.set('Email settings saved. Saving does not prove a message reached an inbox.'); },
-      error: error => { this.saveState.set('error'); this.saveMessage.set(this.errorText(error, 'Unable to save email settings.')); }
+      next: settings => { this.apply(settings); this.draft.test_recipient = testRecipient || settings.sender_email; this.saveState.set('success'); this.saveMessage.set(this.i18n.translate('email.saved')); },
+      error: error => { this.saveState.set('error'); this.saveMessage.set(this.errorText(error, this.i18n.translate('email.saveError'))); }
     });
   }
 
   clearPassword(): void {
-    if (!this.passwordConfigured() || this.clearing() || !window.confirm('Clear the saved SMTP password? Email delivery will remain unavailable until a new password is saved.')) return;
+    if (!this.passwordConfigured() || this.clearing() || !window.confirm(this.i18n.translate('email.clearConfirm'))) return;
     this.clearing.set(true); this.saveMessage.set(null);
     this.api.clearPassword().pipe(finalize(() => this.clearing.set(false))).subscribe({
-      next: settings => { this.apply(settings); this.saveState.set('success'); this.saveMessage.set('SMTP password cleared.'); },
-      error: error => { this.saveState.set('error'); this.saveMessage.set(this.errorText(error, 'Unable to clear SMTP password.')); }
+      next: settings => { this.apply(settings); this.saveState.set('success'); this.saveMessage.set(this.i18n.translate('email.cleared')); },
+      error: error => { this.saveState.set('error'); this.saveMessage.set(this.errorText(error, this.i18n.translate('email.clearError'))); }
     });
   }
 
   testConnection(): void {
     this.connectionMessage.set(null);
-    if (this.dirty()) { this.connectionState.set('error'); this.connectionMessage.set('Save changes before testing so the saved SMTP configuration is used.'); return; }
+    if (this.dirty()) { this.connectionState.set('error'); this.connectionMessage.set(this.i18n.translate('email.saveBeforeTest')); return; }
     this.connectionState.set('pending');
     this.api.testConnection().pipe(finalize(() => { if (this.connectionState() === 'pending') this.connectionState.set('idle'); })).subscribe({
       next: result => { this.connectionState.set(result.success ? 'success' : 'error'); this.connectionMessage.set(result.message); this.lastTestedAt.set(result.tested_at ?? new Date().toISOString()); this.lastTestError.set(result.success ? null : result.message); },
-      error: error => { this.connectionState.set('error'); this.connectionMessage.set(this.errorText(error, 'SMTP connection test failed.')); }
+      error: error => { this.connectionState.set('error'); this.connectionMessage.set(this.errorText(error, this.i18n.translate('email.connectionFailed'))); }
     });
   }
 
   sendTestEmail(): void {
     this.sendMessage.set(null);
-    if (this.dirty()) { this.sendState.set('error'); this.sendMessage.set('Save changes before sending a test email.'); return; }
-    if (!this.draft.test_recipient.trim()) { this.sendState.set('error'); this.sendMessage.set('Enter a valid test recipient.'); return; }
+    if (this.dirty()) { this.sendState.set('error'); this.sendMessage.set(this.i18n.translate('email.saveBeforeSend')); return; }
+    if (!this.draft.test_recipient.trim()) { this.sendState.set('error'); this.sendMessage.set(this.i18n.translate('email.recipientRequired')); return; }
     this.sendState.set('pending');
     this.api.sendTest(this.draft.test_recipient.trim()).pipe(finalize(() => { if (this.sendState() === 'pending') this.sendState.set('idle'); })).subscribe({
       next: result => { this.sendState.set(result.success ? 'success' : 'error'); this.sendMessage.set(result.message); },
-      error: error => { this.sendState.set('error'); this.sendMessage.set(this.errorText(error, 'Unable to send the test email.')); }
+      error: error => { this.sendState.set('error'); this.sendMessage.set(this.errorText(error, this.i18n.translate('email.sendError'))); }
     });
   }
 

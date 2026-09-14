@@ -29,7 +29,7 @@ limitations under the License.
         <div class="floating-dock-toast error">
           <span class="material-symbols-outlined toast-icon">error</span>
           <span class="toast-text">{{ errorMessage() }}</span>
-          <button type="button" class="btn-toast-close" (click)="errorMessage.set(null)" aria-label="Close error message">
+          <button type="button" class="btn-toast-close" (click)="errorMessage.set(null)" [attr.aria-label]="'workspace.closeError' | translate">
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
@@ -157,13 +157,13 @@ limitations under the License.
                 <div class="model-profile-toggle" role="group" [attr.aria-label]="'workspace.selectArchitecture' | translate">
                   <button type="button" class="profile-toggle-pill" [class.active]="selectedProfile() === 'flash'"
                     (mousedown)="$event.preventDefault()" (click)="setProfile('flash', $event)"
-                    title="Flash: fast single-look loop for everyday app tasks (3–5s/step)">
+                    [title]="'workspace.flashTitle' | translate">
                     <span class="material-symbols-outlined pill-icon icon-flash">bolt</span>
                     <span class="pill-label">Flash</span>
                   </button>
                   <button type="button" class="profile-toggle-pill" [class.active]="selectedProfile() === 'pro'"
                     (mousedown)="$event.preventDefault()" (click)="setProfile('pro', $event)"
-                    title="Pro: plans first, checks results and recovers from blocked steps. For long or complex tasks (15–40s/step)">
+                    [title]="'workspace.proTitle' | translate">
                     <span class="material-symbols-outlined pill-icon icon-pro">psychology</span>
                     <span class="pill-label">Pro</span>
                   </button>

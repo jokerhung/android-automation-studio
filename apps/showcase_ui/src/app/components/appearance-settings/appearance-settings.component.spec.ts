@@ -10,21 +10,25 @@ describe('AppearanceSettingsComponent', () => {
 
   afterEach(() => localStorage.removeItem(UI_PREFERENCES_STORAGE_KEY));
 
-  it('renders accessible EN/VI and Light/Dark controls and persists changes', () => {
+  it('renders an accessible language combobox and Light/Dark controls and persists changes', () => {
     const fixture = TestBed.createComponent(AppearanceSettingsComponent);
     fixture.detectChanges();
     const inputs = fixture.nativeElement.querySelectorAll('input') as NodeListOf<HTMLInputElement>;
-    expect(inputs.length).toBe(4);
+    const language = fixture.nativeElement.querySelector('#ui-language') as HTMLSelectElement;
+    expect(inputs.length).toBe(2);
+    expect(language.getAttribute('aria-describedby')).toBe('language-help');
+    expect([...language.options].map(option => option.text)).toEqual(['English', 'Tiếng Việt']);
     expect(fixture.nativeElement.querySelectorAll('fieldset legend').length).toBe(2);
     expect(fixture.nativeElement.textContent).toContain('English');
     expect(fixture.nativeElement.textContent).toContain('Tiếng Việt');
     expect(fixture.nativeElement.textContent).not.toContain('added separately');
     expect(fixture.nativeElement.textContent).toContain('Changes the ARTEMIS web interface immediately without reloading.');
-    inputs[1].click();
+    language.value = 'vi';
+    language.dispatchEvent(new Event('change'));
     fixture.detectChanges();
     expect(document.documentElement.lang).toBe('vi');
     expect(fixture.nativeElement.querySelector('[role="status"]').textContent).toContain('Đã áp dụng Tiếng Việt và đã lưu');
-    inputs[3].click();
+    inputs[1].click();
     fixture.detectChanges();
     expect(document.documentElement.dataset['theme']).toBe('dark');
     expect(JSON.parse(localStorage.getItem(UI_PREFERENCES_STORAGE_KEY)!)).toEqual({ version: 1, language: 'vi', theme: 'dark' });
@@ -33,7 +37,9 @@ describe('AppearanceSettingsComponent', () => {
   it('renders all control copy from the active translation catalog', () => {
     const fixture = TestBed.createComponent(AppearanceSettingsComponent);
     fixture.detectChanges();
-    (fixture.nativeElement.querySelector('input[value="vi"]') as HTMLInputElement).click();
+    const language = fixture.nativeElement.querySelector('#ui-language') as HTMLSelectElement;
+    language.value = 'vi';
+    language.dispatchEvent(new Event('change'));
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Giao diện & Ngôn ngữ');
     expect(fixture.nativeElement.textContent).toContain('Đổi ngay ngôn ngữ giao diện web ARTEMIS mà không cần tải lại trang.');

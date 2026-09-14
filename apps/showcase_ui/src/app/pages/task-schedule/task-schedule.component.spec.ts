@@ -5,6 +5,7 @@ import { AgentService } from '../../services/agent.service';
 import { ScheduleService } from '../../services/schedule.service';
 import { EmailSettingsService } from '../../services/email-settings.service';
 import { TaskScheduleComponent } from './task-schedule.component';
+import { UiPreferencesService } from '../../services/ui-preferences.service';
 
 describe('TaskScheduleComponent', () => {
   let fixture: ComponentFixture<TaskScheduleComponent>;
@@ -32,6 +33,26 @@ describe('TaskScheduleComponent', () => {
     expect(component.health()?.healthy).toBeTrue();
     expect(component.devices()[0].serial).toBe('pixel-1');
     expect(fixture.nativeElement.textContent).toContain('No schedules yet');
+  });
+
+  it('translates the schedule page, create form, and history actions to Vietnamese', () => {
+    const preferences = TestBed.inject(UiPreferencesService);
+    preferences.setLanguage('vi');
+    component.newSchedule();
+    component.draft.email_enabled = true;
+    component.historySchedule.set({ id: 's1', name: 'Lịch kiểm tra' } as any);
+    component.historyLoading.set(false);
+    component.history.set([{ id: 'r1', schedule_id: 's1', due_at: '2026-09-14T08:00:00Z', trigger: 'scheduled', status: 'completed', email_notification: { status: 'failed', can_retry: true } }] as any);
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Lịch tác vụ');
+    expect(text).toContain('Tạo lịch tác vụ');
+    expect(text).toContain('Hướng dẫn tác vụ');
+    expect(text).toContain('Xem trước 5 lần tiếp theo');
+    expect(text).toContain('Email: Thất bại');
+    expect(text).toContain('Gửi lại email');
+    preferences.setLanguage('en');
+    fixture.detectChanges();
   });
 
   it('shows schedule email policy directly on each card', () => {

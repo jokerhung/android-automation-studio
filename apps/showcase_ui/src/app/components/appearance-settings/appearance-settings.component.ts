@@ -25,6 +25,11 @@ export class AppearanceSettingsComponent {
     this.statusKey.set(result.persisted ? 'appearance.savedLanguage' : 'appearance.sessionLanguage');
   }
 
+  chooseLanguageFromSelect(event: Event): void {
+    const language = (event.target as HTMLSelectElement).value;
+    if (language === 'en' || language === 'vi') this.chooseLanguage(language);
+  }
+
   chooseTheme(theme: UiTheme): void {
     if (theme === this.preferences.theme()) return;
     const result = this.preferences.setTheme(theme);

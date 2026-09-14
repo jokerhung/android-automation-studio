@@ -49,7 +49,7 @@ describe('Workspace docked screen player', () => {
 
   it('removes the image request when closed', () => {
     const { fixture, service } = setup();
-    fixture.nativeElement.querySelector('[aria-label="Close"]').click();
+    fixture.nativeElement.querySelector('.close-btn').click();
     fixture.detectChanges();
     expect(service.isVideoWindowOpen()).toBeFalse();
     expect(fixture.nativeElement.querySelector('.live-screen-img')).toBeNull();
@@ -59,6 +59,7 @@ describe('Workspace docked screen player', () => {
     const { fixture } = setup(false);
     const wrapper = fixture.nativeElement.querySelector('.floating-video-wrapper');
     expect(getComputedStyle(wrapper).position).toBe('fixed');
-    expect(fixture.nativeElement.querySelector('[aria-label="Theater"]')).not.toBeNull();
+    expect([...fixture.nativeElement.querySelectorAll('.header-btn')]
+      .some((button: Element) => button.textContent?.includes('open_in_full'))).toBeTrue();
   });
 });

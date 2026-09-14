@@ -18,7 +18,7 @@
       border-color: var(--theme-border) !important;
       box-shadow: 0 2px 8px var(--theme-shadow-soft) !important;
     }
-    .composer-model-descriptor, .model-toggle-capsule, .category-tabs-group,
+    .model-toggle-capsule, .category-tabs-group,
     .app-icon-badge, .btn-shuffle-suggestions, .btn-tuning-reset {
       background: var(--theme-bg-surface-muted) !important;
       border-color: var(--theme-border) !important;
@@ -32,8 +32,7 @@
       box-shadow: none !important;
     }
     .composer-footer, .card-footer-row, .tuning-card-header { border-color: var(--theme-border) !important; }
-    .composer-model-descriptor, .composer-model-descriptor strong, .card-desc,
-    .desc-line, .desc-line span, .desc-line strong, .mode-name,
+    .card-desc,
     .model-toggle-btn .btn-text, .suggestions-header-bar .label-text,
     .app-names-label, .tag-pill, .suggestions-title, .tuning-title, .tuning-label,
     .tuning-tip, .tuning-tip strong { color: var(--theme-text-secondary) !important; }
@@ -68,6 +67,13 @@
     .action-title, .action-label, .action-value { color: var(--theme-text-secondary) !important; }
     .detail-label, .detail-value, .grid-label, .grid-value, .note-title,
     .line-text, .task-card-body, .report-markdown-body { color: var(--theme-text-secondary) !important; }
+    .detail-value.coordinate-badge, .grid-value.code-pill {
+      background: var(--theme-info-bg) !important;
+      border: 1px solid var(--theme-info-border) !important;
+      color: var(--theme-info) !important;
+      font-weight: 700 !important;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-info) 8%, transparent) !important;
+    }
     .task-time, .task-device, .task-card-footer, .task-id { color: var(--theme-text-muted) !important; }
     .history-header, .history-toggle, .history-section-toggle { color: var(--theme-text-secondary) !important; border-color: var(--theme-border) !important; }
     .task-card-footer { border-color: var(--theme-border) !important; }

@@ -1,8 +1,7 @@
 /** Runtime navigation with no-reload locale switching. */
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { TranslationService } from '../../core/i18n/translation.service';
 @Component({
  selector:'app-nav-switcher', standalone:true, imports:[RouterLink,RouterLinkActive,TranslatePipe],
  template:`
@@ -11,6 +10,5 @@ import { TranslationService } from '../../core/i18n/translation.service';
   <a routerLink="/workspace" routerLinkActive="active" class="nav-tab-btn" [title]="'nav.openWorkspace' | translate" [attr.aria-label]="'nav.openWorkspace' | translate"><span class="material-symbols-outlined tab-icon">space_dashboard</span><span class="tab-label">{{ 'nav.workspace' | translate }}</span></a>
   <a routerLink="/task-schedule" routerLinkActive="active" class="nav-tab-btn" [title]="'nav.openSchedule' | translate" [attr.aria-label]="'nav.openSchedule' | translate"><span class="material-symbols-outlined tab-icon" aria-hidden="true">calendar_clock</span><span class="tab-label">{{ 'nav.schedule' | translate }}</span></a>
   <a routerLink="/settings" routerLinkActive="active" class="nav-tab-btn" [title]="'nav.openSettings' | translate" [attr.aria-label]="'nav.openSettings' | translate"><span class="material-symbols-outlined tab-icon" aria-hidden="true">settings</span><span class="tab-label">{{ 'nav.settings' | translate }}</span></a>
-  <button type="button" class="nav-tab-btn" (click)="i18n.toggle()" [title]="'language.label' | translate" [attr.aria-label]="'language.label' | translate"><span class="material-symbols-outlined tab-icon" aria-hidden="true">language</span><span class="tab-label">{{ i18n.locale() === 'en' ? 'VI' : 'EN' }}</span></button>
  </nav>`, changeDetection:ChangeDetectionStrategy.Eager, styleUrls:['./nav-switcher.component.scss']
-}) export class NavSwitcherComponent { readonly i18n=inject(TranslationService); }
+}) export class NavSwitcherComponent {}

@@ -3,6 +3,8 @@ import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, finalize, of, switchMap, takeWhile, timer, timeout } from 'rxjs';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslationService } from '../../core/i18n/translation.service';
 
 interface ModelSettings {
   provider: string; default_model: string; fallback_model: string; fallback_provider: string;
@@ -11,47 +13,47 @@ interface ModelSettings {
 }
 
 @Component({
-  selector: 'app-model-settings', standalone: true, imports: [FormsModule],
+  selector: 'app-model-settings', standalone: true, imports: [FormsModule, TranslatePipe],
   template: `
     <section class="model-editor" aria-labelledby="model-editor-title">
-      <h3 id="model-editor-title">Default models & connection</h3>
-      <p>Save to artemis.jsonc and .env, then restart ARTEMIS automatically. API keys are never shown.</p>
-      @if (loading()) { <p role="status">Loading model settings…</p> }
+      <h3 id="model-editor-title">{{ 'model.title' | translate }}</h3>
+      <p>{{ 'model.description' | translate }}</p>
+      @if (loading()) { <p role="status">{{ 'model.loading' | translate }}</p> }
       @if (saved(); as current) {
         <form #modelForm="ngForm" (ngSubmit)="confirmSave(modelForm)" novalidate>
           <fieldset [disabled]="busy()">
-            <label>Provider<select name="provider" [(ngModel)]="draft.provider" (ngModelChange)="providerChanged()" required>
-              @for (provider of providers; track provider.id) { <option [value]="provider.id">{{ provider.label }}</option> }
+            <label>{{ 'model.provider' | translate }}<select name="provider" [(ngModel)]="draft.provider" (ngModelChange)="providerChanged()" required>
+              @for (provider of providers; track provider.id) { <option [value]="provider.id">{{ provider.id === 'custom' ? ('model.customProvider' | translate) : provider.label }}</option> }
             </select></label>
             <div class="row">
-              <label>Default model<input name="defaultModel" [(ngModel)]="draft.default_model" required maxlength="200" placeholder="Model name served by your provider"></label>
-              <label>Fallback model<input name="fallbackModel" [(ngModel)]="draft.fallback_model" required maxlength="200"></label>
+              <label>{{ 'model.default' | translate }}<input name="defaultModel" [(ngModel)]="draft.default_model" required maxlength="200" [placeholder]="'model.modelPlaceholder' | translate"></label>
+              <label>{{ 'model.fallback' | translate }}<input name="fallbackModel" [(ngModel)]="draft.fallback_model" required maxlength="200"></label>
             </div>
-            <label>API key <span class="hint">{{ current.keys_configured[draft.provider] ? 'Configured — leave blank to keep existing key' : 'Not configured' }}</span>
-              <input type="password" name="apiKey" [(ngModel)]="apiKey" autocomplete="new-password" placeholder="Leave blank to keep existing key">
+            <label>{{ 'model.apiKey' | translate }} <span class="hint">{{ (current.keys_configured[draft.provider] ? 'model.configured' : 'model.notConfigured') | translate }}</span>
+              <input type="password" name="apiKey" [(ngModel)]="apiKey" autocomplete="new-password" [placeholder]="'model.keepKey' | translate">
             </label>
             @if (draft.provider !== 'google') {
               <div class="row">
-                <label>Base URL<input name="baseUrl" [(ngModel)]="draft.base_url" placeholder="https://your-endpoint/v1"></label>
-                <label>Fallback URL<input name="fallbackUrl" [(ngModel)]="draft.fallback_url" placeholder="Same as Base URL when blank"></label>
+                <label>{{ 'model.baseUrl' | translate }}<input name="baseUrl" [(ngModel)]="draft.base_url" placeholder="https://your-endpoint/v1"></label>
+                <label>{{ 'model.fallbackUrl' | translate }}<input name="fallbackUrl" [(ngModel)]="draft.fallback_url" [placeholder]="'model.sameBaseUrl' | translate"></label>
               </div>
-              <p class="hint">Both models use this provider's API key. Only use URLs you trust. Include the API prefix, not /chat/completions.</p>
-            } @else { <p class="hint">Google uses its standard endpoint; custom Google URLs are not supported by this editor.</p> }
-            <p class="hint">Per-agent overrides (including Flash step summarizer) are kept unchanged. They can override the default models above.</p>
-            @if (current.fallback_provider !== current.provider) { <p class="warning">The current fallback uses another provider. Saving this form will set both models to the selected provider.</p> }
-            <p class="paths">Config: {{ current.config_path }}<br>Keys: {{ current.env_path }}</p>
-            <button type="submit">Save & restart</button>
+              <p class="hint">{{ 'model.urlHint' | translate }}</p>
+            } @else { <p class="hint">{{ 'model.googleHint' | translate }}</p> }
+            <p class="hint">{{ 'model.overrideHint' | translate }}</p>
+            @if (current.fallback_provider !== current.provider) { <p class="warning">{{ 'model.fallbackWarning' | translate }}</p> }
+            <p class="paths">{{ 'model.configPath' | translate }}: {{ current.config_path }}<br>{{ 'model.keysPath' | translate }}: {{ current.env_path }}</p>
+            <button type="submit">{{ 'model.saveRestart' | translate }}</button>
           </fieldset>
         </form>
       }
-      @if (error()) { <div class="error" role="alert">{{ error() }} <button type="button" (click)="load()" [disabled]="busy()">Reload settings</button></div> }
+      @if (error()) { <div class="error" role="alert">{{ error() }} <button type="button" (click)="load()" [disabled]="busy()">{{ 'model.reload' | translate }}</button></div> }
       @if (message()) { <p class="status" role="status">{{ message() }}</p> }
       @if (confirming()) {
         <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="restart-title">
-          <h3 id="restart-title">Save settings and restart ARTEMIS?</h3>
-          <p>Your model settings will be saved to disk. The service will restart and this page will briefly disconnect. Changes apply to future tasks.</p>
-          <p>Task, queue or email activity blocks this action. Wait until the service is idle.</p>
-          <div class="buttons"><button type="button" (click)="confirming.set(false)">Cancel</button><button type="button" (click)="save()">Save & restart now</button></div>
+          <h3 id="restart-title">{{ 'model.confirmTitle' | translate }}</h3>
+          <p>{{ 'model.confirmDescription' | translate }}</p>
+          <p>{{ 'model.confirmBusy' | translate }}</p>
+          <div class="buttons"><button type="button" (click)="confirming.set(false)">{{ 'common.cancel' | translate }}</button><button type="button" (click)="save()">{{ 'model.saveRestartNow' | translate }}</button></div>
         </section></div>
       }
     </section>
@@ -77,9 +79,10 @@ interface ModelSettings {
 export class ModelSettingsComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly i18n = inject(TranslationService);
   readonly providers = [
     {id:'openai',label:'OpenAI'}, {id:'google',label:'Google Gemini'}, {id:'anthropic',label:'Anthropic'},
-    {id:'openrouter',label:'OpenRouter'}, {id:'xai',label:'xAI'}, {id:'custom',label:'Custom (OpenAI-compatible)'},
+    {id:'openrouter',label:'OpenRouter'}, {id:'xai',label:'xAI'}, {id:'custom',label:'Custom'},
     {id:'ollama',label:'Ollama'}, {id:'vllm',label:'vLLM'}
   ];
   readonly saved = signal<ModelSettings | null>(null);
@@ -92,28 +95,28 @@ export class ModelSettingsComponent implements OnInit {
     this.loading.set(true); this.error.set(null);
     this.http.get<ModelSettings>('/api/settings/model').pipe(takeUntilDestroyed(this.destroyRef),finalize(()=>this.loading.set(false))).subscribe({
       next: value => { this.saved.set(value); this.draft = {provider:value.provider,default_model:value.default_model,fallback_model:value.fallback_model,base_url:value.base_url,fallback_url:value.fallback_url}; this.apiKey=''; },
-      error: err => this.error.set(this.errorText(err,'Unable to load model settings. Restart the backend after updating code.'))
+      error: err => this.error.set(this.errorText(err,this.i18n.translate('model.loadError')))
     });
   }
   providerChanged(): void { this.apiKey=''; this.draft.base_url=''; this.draft.fallback_url=''; }
   confirmSave(form: NgForm): void {
     this.error.set(null); this.message.set(null);
-    if(form.invalid || !this.draft.default_model.trim() || !this.draft.fallback_model.trim()) { form.control.markAllAsTouched(); this.error.set('Enter the provider, default model and fallback model.'); return; }
+    if(form.invalid || !this.draft.default_model.trim() || !this.draft.fallback_model.trim()) { form.control.markAllAsTouched(); this.error.set(this.i18n.translate('model.requiredError')); return; }
     this.confirming.set(true);
   }
   save(): void {
     if(this.busy() || !this.saved()) return;
     this.confirming.set(false); this.busy.set(true);
-    this.message.set('Saving configuration. ARTEMIS will restart after the files are saved…');
+    this.message.set(this.i18n.translate('model.saving'));
     this.http.put<any>('/api/settings/model',{...this.draft,api_key:this.apiKey || null,expected_version:this.saved()!.version,confirm_restart:true})
       .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: res => {
           this.apiKey='';
-          if(res.status !== 'restarting') { this.busy.set(false); this.message.set(null); this.error.set(res.message || 'Saved; restart manually to apply.'); return; }
-          this.message.set('Settings saved. Restarting ARTEMIS — reconnecting automatically…');
+          if(res.status !== 'restarting') { this.busy.set(false); this.message.set(null); this.error.set(res.message || this.i18n.translate('model.restartManual')); return; }
+          this.message.set(this.i18n.translate('model.restarting'));
           this.reconnect(res.previous_pid);
         },
-        error: err => { this.busy.set(false); this.message.set(null); this.error.set(this.errorText(err,'Save/restart could not be confirmed. Reload settings before trying again.')); }
+        error: err => { this.busy.set(false); this.message.set(null); this.error.set(this.errorText(err,this.i18n.translate('model.saveError'))); }
       });
   }
   private reconnect(previousPid: number): void {
@@ -125,7 +128,7 @@ export class ModelSettingsComponent implements OnInit {
       finalize(()=>this.busy.set(false))
     ).subscribe({
       next: () => {},
-      complete: ()=> { if(this.destroyRef.destroyed) return; if(recovered) { this.message.set('ARTEMIS restarted. New model settings are active.'); this.load(); } else { this.message.set(null); this.error.set('Reconnection timed out. Settings were saved; check the server or restart it manually.'); } }
+      complete: ()=> { if(this.destroyRef.destroyed) return; if(recovered) { this.message.set(this.i18n.translate('model.restarted')); this.load(); } else { this.message.set(null); this.error.set(this.i18n.translate('model.timeout')); } }
     });
   }
   private errorText(err:any,fallback:string):string { return typeof err?.error?.detail === 'string' ? err.error.detail : fallback; }

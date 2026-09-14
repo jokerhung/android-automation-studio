@@ -25,7 +25,7 @@ limitations under the License.
         (click)="agentService.activeTab.set('tasks')"
         >
         <span class="material-symbols-outlined tab-icon">list_alt</span>
-        <span class="tab-text">Task Queue</span>
+        <span class="tab-text">{{ 'workspace.taskQueue' | translate }}</span>
       </button>
       <button
         class="tab-selector-btn"
@@ -33,7 +33,7 @@ limitations under the License.
         (click)="agentService.activeTab.set('notes')"
         >
         <span class="material-symbols-outlined tab-icon">description</span>
-        <span class="tab-text">Notes & Plans</span>
+        <span class="tab-text">{{ 'workspace.notesPlans' | translate }}</span>
       </button>
     </div>
 
@@ -42,8 +42,8 @@ limitations under the License.
         <button
           class="btn-clear-history"
           (click)="clearHistory()"
-          title="Clear all tasks and history"
-          aria-label="Clear all tasks and history"
+          [title]="'workspace.clearHistory' | translate"
+          [attr.aria-label]="'workspace.clearHistory' | translate"
           [disabled]="isSubmitting()"
           >
           <span class="material-symbols-outlined">delete</span>
@@ -58,11 +58,11 @@ limitations under the License.
     @if (agentService.activeTab() === 'tasks') {
       <!-- Active Queue Section -->
       <div class="queue-section-header">
-        <span class="material-symbols-outlined section-icon">bolt</span> Active Queue ({{ activeQueue().length }})
+        <span class="material-symbols-outlined section-icon">bolt</span> {{ 'workspace.activeQueue' | translate:{count:activeQueue().length} }}
       </div>
       @if (activeQueue().length === 0) {
         <div class="empty-section-placeholder">
-          No active or queued tasks.
+          {{ 'workspace.noActive' | translate }}
         </div>
       }
       @for (session of activeQueue(); track trackSession($index, session)) {
@@ -77,11 +77,11 @@ limitations under the License.
               @if (getTaskStatus(session) === 'running') {
                 <span class="status-dot"></span>
               }
-              {{ getTaskStatus(session) | uppercase }}
+              {{ ('workspace.status.' + getTaskStatus(session)) | translate }}
             </span>
             <div class="task-card-header-actions">
               @if (getDeviceSerial(session)) {
-                <span class="task-device" [title]="'Device: ' + getDeviceSerial(session)">
+                <span class="task-device" [title]="('workspace.device' | translate) + ': ' + getDeviceSerial(session)">
                   <span class="material-symbols-outlined device-icon">phone_android</span>
                   <span class="device-name">{{ getDeviceSerial(session) }}</span>
                 </span>
@@ -95,8 +95,8 @@ limitations under the License.
                   type="button"
                   class="btn-stop-card"
                   (click)="stopTask(session.session_id, $event)"
-                  title="Stop this task"
-                  aria-label="Stop this task"
+                  [title]="'workspace.stopTask' | translate"
+                  [attr.aria-label]="'workspace.stopTask' | translate"
                   >
                   <span class="material-symbols-outlined">stop_circle</span>
                 </button>
@@ -106,8 +106,8 @@ limitations under the License.
                   type="button"
                   class="btn-delete-card"
                   (click)="deleteTask(session.session_id, $event)"
-                  title="Delete this task"
-                  aria-label="Delete this task"
+                  [title]="'workspace.deleteTask' | translate"
+                  [attr.aria-label]="'workspace.deleteTask' | translate"
                   [disabled]="isSubmitting()"
                   >
                   <span class="material-symbols-outlined">delete</span>
@@ -116,7 +116,7 @@ limitations under the License.
             </div>
           </div>
           <div class="task-goal" title="{{ session.initial_goal }}">
-            {{ session.initial_goal || 'Unnamed Task' }}
+            {{ session.initial_goal || ('workspace.unnamedTask' | translate) }}
           </div>
           <div class="task-card-footer">
             <span class="task-id" [title]="session.session_id">ID: {{ session.session_id }}</span>
@@ -127,12 +127,12 @@ limitations under the License.
       <!-- Collapsible History Section -->
       <details class="history-section" open>
         <summary class="history-summary">
-          <span class="material-symbols-outlined section-icon">history</span> Past Runs & History ({{ historyTasks().length }})
+          <span class="material-symbols-outlined section-icon">history</span> {{ 'workspace.pastRuns' | translate:{count:historyTasks().length} }}
         </summary>
         <div class="history-list-wrapper">
           @if (historyTasks().length === 0) {
             <div class="empty-section-placeholder">
-              No past tasks.
+              {{ 'workspace.noPast' | translate }}
             </div>
           }
           @for (session of historyTasks(); track trackSession($index, session)) {
@@ -147,11 +147,11 @@ limitations under the License.
                   @if (getTaskStatus(session) === 'running') {
                     <span class="status-dot"></span>
                   }
-                  {{ getTaskStatus(session) | uppercase }}
+                  {{ ('workspace.status.' + getTaskStatus(session)) | translate }}
                 </span>
                 <div class="task-card-header-actions">
                   @if (getDeviceSerial(session)) {
-                    <span class="task-device" [title]="'Device: ' + getDeviceSerial(session)">
+                    <span class="task-device" [title]="('workspace.device' | translate) + ': ' + getDeviceSerial(session)">
                       <span class="material-symbols-outlined device-icon">phone_android</span>
                       <span class="device-name">{{ getDeviceSerial(session) }}</span>
                     </span>
@@ -165,8 +165,8 @@ limitations under the License.
                       type="button"
                       class="btn-delete-card"
                       (click)="deleteTask(session.session_id, $event)"
-                      title="Delete this task"
-                      aria-label="Delete this task"
+                      [title]="'workspace.deleteTask' | translate"
+                      [attr.aria-label]="'workspace.deleteTask' | translate"
                       [disabled]="isSubmitting()"
                       >
                       <span class="material-symbols-outlined">delete</span>
@@ -175,7 +175,7 @@ limitations under the License.
                 </div>
               </div>
               <div class="task-goal" title="{{ session.initial_goal }}">
-                {{ session.initial_goal || 'Unnamed Task' }}
+                {{ session.initial_goal || ('workspace.unnamedTask' | translate) }}
               </div>
               <div class="task-card-footer">
                 <span class="task-id" [title]="session.session_id">ID: {{ session.session_id }}</span>
@@ -212,8 +212,8 @@ limitations under the License.
             <div class="empty-notes-icon">
               <span class="material-symbols-outlined">description</span>
             </div>
-            <h4 class="empty-notes-title">No Notes & Plans</h4>
-            <p class="empty-notes-subtitle">No notes or structured plans were recorded for this session.</p>
+            <h4 class="empty-notes-title">{{ 'workspace.noNotesTitle' | translate }}</h4>
+            <p class="empty-notes-subtitle">{{ 'workspace.noNotes' | translate }}</p>
           </div>
         }
         <!-- Notes Content Viewer (Clean card blocks matching the second screenshot style) -->

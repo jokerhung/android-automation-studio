@@ -6,13 +6,21 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from '../../app.routes';
 import { HomeComponent } from '../../pages/home/home.component';
 import { NavSwitcherComponent } from './nav-switcher.component';
+import { UI_PREFERENCES_STORAGE_KEY, UiPreferencesService } from '../../services/ui-preferences.service';
 
 describe('Settings navigation', () => {
   beforeEach(() => {
+    localStorage.removeItem(UI_PREFERENCES_STORAGE_KEY);
     TestBed.configureTestingModule({
       imports: [NavSwitcherComponent],
       providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()]
     });
+  });
+
+  afterEach(() => {
+    localStorage.removeItem(UI_PREFERENCES_STORAGE_KEY);
+    document.documentElement.lang = 'en';
+    document.documentElement.dataset['theme'] = 'light';
   });
 
   it('places Settings immediately after Task Schedule', () => {
@@ -22,6 +30,7 @@ describe('Settings navigation', () => {
     expect(links.map(link => link.querySelector('.tab-label')?.textContent?.trim()))
       .toEqual(['Home', 'Workspace', 'Task Schedule', 'Settings']);
     expect(links[3].getAttribute('href')).toBe('/settings');
+    expect(fixture.nativeElement.querySelector('button')).toBeNull();
   });
 
   it('opens setup directly at /settings and returns to the launcher via Home', async () => {
@@ -106,5 +115,24 @@ describe('Settings navigation', () => {
     ready.and.returnValue(false);
     harness.detectChanges();
     expect(root.querySelector('.ready-banner-footer')).toBeNull();
+  });
+
+  it('translates the primary content of every Settings tab to Vietnamese', async () => {
+    const harness = await RouterTestingHarness.create();
+    const settings = await harness.navigateByUrl('/settings', HomeComponent);
+    TestBed.inject(UiPreferencesService).setLanguage('vi');
+    harness.detectChanges();
+    const root = harness.routeNativeElement!;
+
+    settings.settingsTab.set('general'); harness.detectChanges();
+    expect(root.querySelector('#settings-panel-general')?.textContent).toContain('Khởi động cùng Windows');
+    settings.settingsTab.set('models'); harness.detectChanges();
+    expect(root.querySelector('#settings-panel-models')?.textContent).toContain('Mô hình mặc định và kết nối');
+    settings.settingsTab.set('email'); harness.detectChanges();
+    expect(root.querySelector('#settings-panel-email')?.textContent).toContain('Đang tải cài đặt email');
+    settings.settingsTab.set('android'); harness.detectChanges();
+    expect(root.querySelector('#settings-panel-android')?.textContent).toContain('Kết nối thiết bị Android và trình giả lập');
+    settings.settingsTab.set('system'); harness.detectChanges();
+    expect(root.querySelector('#settings-panel-system')?.textContent).toContain('Môi trường Python');
   });
 });

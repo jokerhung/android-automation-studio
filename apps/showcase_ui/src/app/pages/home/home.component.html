@@ -59,7 +59,7 @@
         <div class="settings-detail">
         <section class="settings-panel" id="settings-panel-general" role="tabpanel" aria-labelledby="settings-tab-general" tabindex="0" [hidden]="settingsTab() !== 'general'">
         <h2>{{ 'settings.general' | translate }}</h2>
-        <p class="settings-description">Application preferences, startup, and behavior on this computer.</p>
+        <p class="settings-description">{{ 'settings.generalDescription' | translate }}</p>
         <app-appearance-settings></app-appearance-settings>
         <app-windows-startup></app-windows-startup>
         </section>
@@ -70,7 +70,7 @@
 
 <section class="settings-panel" id="settings-panel-system" role="tabpanel" aria-labelledby="settings-tab-system" tabindex="0" [hidden]="settingsTab() !== 'system'">
 <h2>{{ 'settings.system' | translate }}</h2>
-<p class="settings-description">Check runtime dependencies and screen recording tools.</p>
+<p class="settings-description">{{ 'settings.systemDescription' | translate }}</p>
 <!-- =================================================================== -->
 <!-- STEP 1: ENVIRONMENT & SYSTEM DEPENDENCIES (FIRST & FOUNDATIONAL)    -->
 <!-- =================================================================== -->
@@ -86,9 +86,9 @@
     </div>
     <div class="step-info">
       <div class="step-title-row">
-        <h3 class="step-title">System & Environment</h3>
+        <h3 class="step-title">{{ 'settings.system' | translate }}</h3>
       </div>
-      <p class="step-desc">Core tools, Android debug bridge, and video recording runtime</p>
+      <p class="step-desc">{{ 'settings.systemCore' | translate }}</p>
     </div>
 
     <button
@@ -96,10 +96,10 @@
       class="btn-header-action"
       [disabled]="isRefreshingDiagnostics()"
       (click)="refreshReadiness()"
-      title="Re-check all system dependencies"
+      [title]="'settings.recheckTitle' | translate"
     >
       <span class="material-symbols-outlined" [class.spinning]="isRefreshingDiagnostics()">refresh</span>
-      <span>{{ isRefreshingDiagnostics() ? 'Checking...' : 'Re-check' }}</span>
+      <span>{{ (isRefreshingDiagnostics() ? 'settings.checking' : 'settings.recheck') | translate }}</span>
     </button>
   </div>
 
@@ -113,7 +113,7 @@
         </div>
         <div class="install-bar-text">
           <div class="install-bar-title-row">
-            <div class="install-bar-title">Automated Dependency Setup</div>
+            <div class="install-bar-title">{{ 'settings.automatedSetup' | translate }}</div>
             <div class="os-selector-pills">
               <button type="button" class="os-pill" [class.active]="effectiveOs() === 'linux'"
                 (click)="setSelectedOs('linux')">Linux</button>
@@ -123,7 +123,7 @@
                 (click)="setSelectedOs('windows')">Windows</button>
             </div>
           </div>
-          <div class="install-bar-desc">Run in terminal to install ADB, FFmpeg, scrcpy, and project dependencies:</div>
+          <div class="install-bar-desc">{{ 'settings.installDependencies' | translate }}</div>
         </div>
       </div>
       <div class="code-box small-box">
@@ -132,7 +132,7 @@
           (click)="copyToClipboard(oneClickSetupCmd(), 'one_click_deps')">
           <span class="material-symbols-outlined">{{ copiedId() === 'one_click_deps' ? 'check' : 'content_copy'
             }}</span>
-          <span>{{ copiedId() === 'one_click_deps' ? 'Copied!' : 'Copy' }}</span>
+          <span>{{ (copiedId() === 'one_click_deps' ? 'settings.copied' : 'settings.copy') | translate }}</span>
         </button>
       </div>
     </div>
@@ -149,8 +149,8 @@
             <span class="material-symbols-outlined item-icon">terminal</span>
           </div>
           <div class="item-title-group">
-            <div class="item-name">Python Runtime</div>
-            <div class="item-subtitle">{{ pythonProbe()?.summary || 'Checking…' }}</div>
+            <div class="item-name">{{ 'settings.pythonRuntime' | translate }}</div>
+            <div class="item-subtitle">{{ pythonProbe()?.summary || ('settings.checking' | translate) }}</div>
           </div>
           <div class="item-status">
             <span class="status-dot" [class.dot-pass]="pythonProbe()?.status === 'pass'" [class.dot-fail]="pythonProbe()?.status === 'fail'"></span>
@@ -166,7 +166,7 @@
                 (click)="copyToClipboard('uv python install 3.12', 'py_install')">
                 <span class="material-symbols-outlined">{{ copiedId() === 'py_install' ? 'check' : 'content_copy'
                   }}</span>
-                <span>{{ copiedId() === 'py_install' ? 'Copied!' : 'Copy' }}</span>
+                <span>{{ (copiedId() === 'py_install' ? 'settings.copied' : 'settings.copy') | translate }}</span>
               </button>
             </div>
           </div>
@@ -182,8 +182,8 @@
             <span class="material-symbols-outlined item-icon">construction</span>
           </div>
           <div class="item-title-group">
-            <div class="item-name">Android Platform-Tools</div>
-            <div class="item-subtitle">{{ !adbProbe() ? 'Checking…' : (adbProbe()?.metadata?.['installed'] ? 'ADB Installed' : 'ADB Missing') }}</div>
+            <div class="item-name">{{ 'settings.androidTools' | translate }}</div>
+            <div class="item-subtitle">{{ (!adbProbe() ? 'settings.checking' : (adbProbe()?.metadata?.['installed'] ? 'settings.adbInstalled' : 'settings.adbMissing')) | translate }}</div>
           </div>
           <div class="item-status">
             <span class="status-dot" [class.dot-pass]="adbProbe()?.metadata?.['installed']" [class.dot-fail]="adbProbe()?.status === 'fail'"></span>
@@ -199,7 +199,7 @@
                 (click)="copyToClipboard(adbInstallCmd(), 'env_adb_cmd')">
                 <span class="material-symbols-outlined">{{ copiedId() === 'env_adb_cmd' ? 'check' : 'content_copy'
                   }}</span>
-                <span>{{ copiedId() === 'env_adb_cmd' ? 'Copied!' : 'Copy' }}</span>
+                <span>{{ (copiedId() === 'env_adb_cmd' ? 'settings.copied' : 'settings.copy') | translate }}</span>
               </button>
             </div>
           </div>
@@ -215,8 +215,8 @@
             <span class="material-symbols-outlined item-icon">tune</span>
           </div>
           <div class="item-title-group">
-            <div class="item-name">System Configuration</div>
-            <div class="item-subtitle">{{ configProbe()?.summary || 'Config Valid' }}</div>
+            <div class="item-name">{{ 'settings.systemConfiguration' | translate }}</div>
+            <div class="item-subtitle">{{ configProbe()?.summary || ('settings.configValid' | translate) }}</div>
           </div>
           <div class="item-status">
             <span class="status-dot" [class.dot-pass]="configProbe()?.status === 'pass'" [class.dot-fail]="configProbe()?.status === 'fail'"></span>
@@ -232,7 +232,7 @@
                 (click)="copyToClipboard('artemis init', 'cfg_init')">
                 <span class="material-symbols-outlined">{{ copiedId() === 'cfg_init' ? 'check' : 'content_copy'
                   }}</span>
-                <span>{{ copiedId() === 'cfg_init' ? 'Copied!' : 'Copy' }}</span>
+                <span>{{ (copiedId() === 'cfg_init' ? 'settings.copied' : 'settings.copy') | translate }}</span>
               </button>
             </div>
           </div>
@@ -248,7 +248,7 @@
             <span class="material-symbols-outlined item-icon">videocam</span>
           </div>
           <div class="item-title-group">
-            <div class="item-name">Video Toolchain</div>
+            <div class="item-name">{{ 'settings.videoToolchain' | translate }}</div>
             <div class="item-subtitle">{{ toolchainProbe()?.summary || 'FFmpeg & scrcpy' }}</div>
           </div>
           <div class="item-status">
@@ -265,7 +265,7 @@
                 (click)="copyToClipboard(toolchainInstallCmd(), 'install_toolchain')">
                 <span class="material-symbols-outlined">{{ copiedId() === 'install_toolchain' ? 'check' : 'content_copy'
                   }}</span>
-                <span>{{ copiedId() === 'install_toolchain' ? 'Copied!' : 'Copy' }}</span>
+                <span>{{ (copiedId() === 'install_toolchain' ? 'settings.copied' : 'settings.copy') | translate }}</span>
               </button>
             </div>
           </div>
@@ -283,10 +283,10 @@
 </section>
 <section class="settings-panel" id="settings-panel-models" role="tabpanel" aria-labelledby="settings-tab-models" tabindex="0" [hidden]="settingsTab() !== 'models'">
 <h2>{{ 'settings.models' | translate }}</h2>
-<p class="settings-description">Manage model providers, API credentials and OCR configuration.</p>
+<p class="settings-description">{{ 'settings.modelsDescription' | translate }}</p>
 <app-model-settings></app-model-settings>
 <details class="model-diagnostics">
-<summary>OCR & provider diagnostics</summary>
+<summary>{{ 'settings.modelDiagnostics' | translate }}</summary>
 <div class="guide-card" [class.card-pass]="isCredentialsReady()" [class.card-warn]="!isCredentialsReady()">
 
   <div class="guide-card-header">
@@ -299,9 +299,9 @@
     </div>
     <div class="step-info">
       <div class="step-title-row">
-        <h3 class="step-title">AI Model Setup</h3>
+        <h3 class="step-title">{{ 'settings.aiSetup' | translate }}</h3>
       </div>
-      <p class="step-desc">Google Gemini or custom LLM providers (OpenAI, Claude, Ollama)</p>
+      <p class="step-desc">{{ 'settings.aiSetupDescription' | translate }}</p>
     </div>
   </div>
 
@@ -331,9 +331,9 @@
           <div class="choice-text">
             <div class="choice-title-row">
               <span class="choice-title">Google Gemini</span>
-              <span class="tag-badge tag-rec">Recommended</span>
+              <span class="tag-badge tag-rec">{{ 'settings.recommended' | translate }}</span>
             </div>
-            <p class="choice-desc">Fast multimodal reasoning with free API key from Google AI Studio.</p>
+            <p class="choice-desc">{{ 'settings.geminiDescription' | translate }}</p>
           </div>
         </div>
       </div>
@@ -349,10 +349,9 @@
           </div>
           <div class="choice-text">
             <div class="choice-title-row">
-              <span class="choice-title">Custom Configuration</span>
+              <span class="choice-title">{{ 'settings.customConfiguration' | translate }}</span>
             </div>
-            <p class="choice-desc">Define models in <code>config/artemis.jsonc</code> & keys in <code>.env</code>
-              (OpenAI, Claude, Ollama).</p>
+            <p class="choice-desc">{{ 'settings.customDescription' | translate }}</p>
           </div>
         </div>
       </div>
@@ -365,12 +364,12 @@
       <div class="input-box-header">
         <div class="header-label">
           <span class="material-symbols-outlined label-icon">vpn_key</span>
-          <span>Enter Gemini API Key:</span>
+          <span>{{ 'settings.enterGeminiKey' | translate }}</span>
         </div>
         <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"
           class="btn-header-link">
           <span class="material-symbols-outlined">open_in_new</span>
-          <span>Get Free API Key (Google AI Studio)</span>
+          <span>{{ 'settings.getGeminiKey' | translate }}</span>
         </a>
       </div>
 
@@ -379,11 +378,11 @@
           <span class="material-symbols-outlined key-prefix-icon">key</span>
           <input [type]="showGeminiKey() ? 'text' : 'password'" class="unified-key-input"
             [class.is-masked]="!showGeminiKey()" [ngModel]="geminiKeyInput()"
-            (ngModelChange)="onGeminiKeyChange($event)" placeholder="Enter Gemini API Key (e.g. AIzaSy...)"
+            (ngModelChange)="onGeminiKeyChange($event)" [placeholder]="'settings.geminiKeyPlaceholder' | translate"
             spellcheck="false" autocomplete="off" />
 
           <!-- Visibility Toggle -->
-          <button type="button" class="btn-icon-action" [title]="showGeminiKey() ? 'Mask Key' : 'Show Plaintext'"
+          <button type="button" class="btn-icon-action" [title]="(showGeminiKey() ? 'settings.maskKey' : 'settings.showKey') | translate"
             (click)="toggleGeminiKeyVisibility()">
             <span class="material-symbols-outlined">
               {{ showGeminiKey() ? 'visibility_off' : 'visibility' }}
@@ -392,7 +391,7 @@
 
           <!-- Copy Button -->
           @if (geminiKeyInput()) {
-          <button type="button" class="btn-icon-action" title="Copy API Key"
+          <button type="button" class="btn-icon-action" [title]="'settings.copyApiKey' | translate"
             (click)="copyToClipboard(geminiKeyInput(), 'gemini_key_field')">
             <span class="material-symbols-outlined" [class.text-emerald]="copiedId() === 'gemini_key_field'">
               {{ copiedId() === 'gemini_key_field' ? 'check' : 'content_copy' }}
@@ -406,22 +405,22 @@
           [disabled]="isSavingGeminiKey() || isTestingGeminiKey() || (!isGeminiModified() && !geminiKeyInput().trim())" (click)="saveGeminiKey()">
           @if (isSavingGeminiKey()) {
           <span class="material-symbols-outlined spin">sync</span>
-          <span>{{ geminiKeyInput().trim() ? 'Verifying & Saving...' : 'Clearing...' }}</span>
+          <span>{{ (geminiKeyInput().trim() ? 'settings.verifyingSaving' : 'settings.clearing') | translate }}</span>
           } @else {
           <span class="material-symbols-outlined">{{ geminiKeyInput().trim() ? 'save' : 'delete_outline' }}</span>
-          <span>{{ !geminiKeyInput().trim() ? 'Clear Key' : (isGeminiModified() ? 'Save & Apply' : 'Save Key') }}</span>
+          <span>{{ (!geminiKeyInput().trim() ? 'settings.clearKey' : (isGeminiModified() ? 'settings.saveApply' : 'settings.saveKey')) | translate }}</span>
           }
         </button>
 
         <!-- Test Button -->
-        <button type="button" class="btn-unified-test" title="Test if Gemini API key is valid"
+        <button type="button" class="btn-unified-test" [title]="'settings.testKeyTitle' | translate"
           [disabled]="isTestingGeminiKey() || isSavingGeminiKey() || !geminiKeyInput().trim()" (click)="testGeminiKey()">
           @if (isTestingGeminiKey()) {
           <span class="material-symbols-outlined spin">sync</span>
-          <span>Testing...</span>
+          <span>{{ 'settings.testing' | translate }}</span>
           } @else {
           <span class="material-symbols-outlined">network_check</span>
-          <span>Test Key</span>
+          <span>{{ 'settings.testKey' | translate }}</span>
           }
         </button>
       </div>
@@ -446,13 +445,13 @@
         <div class="toggle-bar-left">
           <span class="material-symbols-outlined icon-ocr">document_scanner</span>
           <div class="toggle-bar-titles">
-            <span class="ocr-main-title">Optional: Google Cloud Vision OCR</span>
+            <span class="ocr-main-title">{{ 'settings.optionalOcr' | translate }}</span>
           </div>
         </div>
 
         <div class="toggle-bar-right">
           @if (isOcrConfigured()) {
-            <span class="status-dot dot-pass" title="OCR Configured"></span>
+            <span class="status-dot dot-pass" [title]="'settings.ocrConfigured' | translate"></span>
           }
           <span class="material-symbols-outlined caret-icon">
             {{ showOcrConfig() ? 'expand_less' : 'expand_more' }}
@@ -463,7 +462,7 @@
       @if (showOcrConfig()) {
       <div class="ocr-content-body">
         <p class="ocr-help-desc">
-          Provides screen text coordinate grounding to improve element detection and interaction accuracy on text-heavy apps.
+          {{ 'settings.ocrDescription' | translate }}
         </p>
 
         <!-- Input Box -->
@@ -471,7 +470,7 @@
           <div class="input-box-header">
             <div class="header-label">
               <span class="material-symbols-outlined label-icon">key</span>
-              <span>Cloud Vision API Key:</span>
+              <span>{{ 'settings.visionKey' | translate }}</span>
             </div>
           </div>
 
@@ -480,10 +479,10 @@
               <span class="material-symbols-outlined key-prefix-icon">key</span>
               <input [type]="showOcrKey() ? 'text' : 'password'" class="unified-key-input" [class.is-masked]="!showOcrKey()"
                 [ngModel]="ocrKeyInput()" (ngModelChange)="onOcrKeyChange($event)"
-                placeholder="Enter Vision OCR API Key (e.g. AIzaSy...)" spellcheck="false" autocomplete="off" />
+                [placeholder]="'settings.visionKeyPlaceholder' | translate" spellcheck="false" autocomplete="off" />
           
               <!-- Visibility Toggle -->
-              <button type="button" class="btn-icon-action" [title]="showOcrKey() ? 'Mask Key' : 'Show Plaintext'"
+              <button type="button" class="btn-icon-action" [title]="(showOcrKey() ? 'settings.maskKey' : 'settings.showKey') | translate"
                 (click)="toggleOcrKeyVisibility()">
                 <span class="material-symbols-outlined">
                   {{ showOcrKey() ? 'visibility_off' : 'visibility' }}
@@ -492,7 +491,7 @@
           
               <!-- Copy Button -->
               @if (ocrKeyInput()) {
-              <button type="button" class="btn-icon-action" title="Copy API Key"
+              <button type="button" class="btn-icon-action" [title]="'settings.copyApiKey' | translate"
                 (click)="copyToClipboard(ocrKeyInput(), 'ocr_key_field')">
                 <span class="material-symbols-outlined" [class.text-emerald]="copiedId() === 'ocr_key_field'">
                   {{ copiedId() === 'ocr_key_field' ? 'check' : 'content_copy' }}
@@ -506,22 +505,22 @@
               [disabled]="isSavingOcrKey() || isTestingOcrKey() || (!isOcrModified() && !ocrKeyInput().trim())" (click)="saveOcrKey()">
               @if (isSavingOcrKey()) {
               <span class="material-symbols-outlined spin">sync</span>
-              <span>{{ ocrKeyInput().trim() ? 'Verifying & Saving...' : 'Clearing...' }}</span>
+              <span>{{ (ocrKeyInput().trim() ? 'settings.verifyingSaving' : 'settings.clearing') | translate }}</span>
               } @else {
               <span class="material-symbols-outlined">{{ ocrKeyInput().trim() ? 'save' : 'delete_outline' }}</span>
-              <span>{{ !ocrKeyInput().trim() ? 'Clear Key' : (isOcrModified() ? 'Save & Apply' : 'Save Key') }}</span>
+              <span>{{ (!ocrKeyInput().trim() ? 'settings.clearKey' : (isOcrModified() ? 'settings.saveApply' : 'settings.saveKey')) | translate }}</span>
               }
             </button>
 
             <!-- Test Button -->
-            <button type="button" class="btn-unified-test" title="Test if Vision OCR key is valid"
+            <button type="button" class="btn-unified-test" [title]="'settings.testKeyTitle' | translate"
               [disabled]="isTestingOcrKey() || isSavingOcrKey() || !ocrKeyInput().trim()" (click)="testOcrKey()">
               @if (isTestingOcrKey()) {
               <span class="material-symbols-outlined spin">sync</span>
-              <span>Testing...</span>
+              <span>{{ 'settings.testing' | translate }}</span>
               } @else {
               <span class="material-symbols-outlined">network_check</span>
-              <span>Test Key</span>
+              <span>{{ 'settings.testKey' | translate }}</span>
               }
             </button>
           </div>
@@ -552,8 +551,8 @@
           <div class="inspector-header-left">
             <span class="material-symbols-outlined header-icon">tune</span>
             <div class="inspector-header-titles">
-              <span class="inspector-title">Active Model Configuration</span>
-              <span class="inspector-subtitle">Defined in
+              <span class="inspector-title">{{ 'settings.activeModelConfig' | translate }}</span>
+              <span class="inspector-subtitle">{{ 'settings.definedIn' | translate }}
                 <code>{{ modelConfigEnv()?.config_path || 'config/artemis.jsonc' }}</code></span>
             </div>
           </div>
@@ -564,13 +563,13 @@
               <span class="material-symbols-outlined" [class.text-emerald]="copiedId() === 'config_path_btn'">
                 {{ copiedId() === 'config_path_btn' ? 'check' : 'content_copy' }}
               </span>
-              <span>Copy Path</span>
+              <span>{{ 'settings.copyPath' | translate }}</span>
               </button>
               <button type="button" class="btn-file-action btn-toggle-code" (click)="toggleFullConfigFile()">
                 <span class="material-symbols-outlined">
                   {{ showFullConfigFile() ? 'unfold_less' : 'code' }}
                 </span>
-                <span>{{ showFullConfigFile() ? 'Hide JSONC' : 'View JSONC' }}</span>
+                <span>{{ (showFullConfigFile() ? 'settings.hideJsonc' : 'settings.viewJsonc') | translate }}</span>
             </button>
           </div>
           </div>
@@ -578,7 +577,7 @@
           <!-- Model Summary Row -->
           <div class="inspector-summary-row">
             <div class="summary-metric">
-              <span class="metric-label">Default Model</span>
+              <span class="metric-label">{{ 'settings.defaultModel' | translate }}</span>
               <div class="metric-val-pill">
                 <span class="provider-dot"></span>
                 <span class="provider-name">{{ modelConfigEnv()?.default_model?.provider || 'google' }}</span>
@@ -589,7 +588,7 @@
           
             @if (modelConfigEnv()?.default_model?.fallback) {
             <div class="summary-metric">
-              <span class="metric-label">Fallback Model</span>
+              <span class="metric-label">{{ 'settings.fallbackModel' | translate }}</span>
               <div class="metric-val-pill secondary">
                 <span>{{ modelConfigEnv()?.default_model?.fallback?.provider }}/{{
                   modelConfigEnv()?.default_model?.fallback?.model }}</span>
@@ -667,7 +666,7 @@
         </section>
         <section class="settings-panel" id="settings-panel-android" role="tabpanel" aria-labelledby="settings-tab-android" tabindex="0" [hidden]="settingsTab() !== 'android'">
         <h2>{{ 'settings.android' | translate }}</h2>
-        <p class="settings-description">Connect a phone or emulator using USB, Wi-Fi or a remote ADB server.</p>
+        <p class="settings-description">{{ 'settings.androidDescription' | translate }}</p>
         <div class="guide-card" [class.card-pass]="isDeviceReady()" [class.card-warn]="!isDeviceReady()">
           
           <div class="guide-card-header">
@@ -680,9 +679,9 @@
             </div>
             <div class="step-info">
               <div class="step-title-row">
-                <h3 class="step-title">Android Device & Emulator Connection</h3>
+                <h3 class="step-title">{{ 'settings.androidConnection' | translate }}</h3>
               </div>
-              <p class="step-desc">Local emulator, attached phone, wireless device, or another ADB server</p>
+              <p class="step-desc">{{ 'settings.androidConnectionDescription' | translate }}</p>
             </div>
 
             <button
@@ -691,7 +690,7 @@
               (click)="toggleConnectionMethods()"
             >
               <span class="material-symbols-outlined">swap_horiz</span>
-              <span>{{ showConnectionMethods() ? 'Hide Options' : 'Change Connection' }}</span>
+              <span>{{ (showConnectionMethods() ? 'settings.hideOptions' : 'settings.changeConnection') | translate }}</span>
             </button>
 
             <button
@@ -699,17 +698,17 @@
               class="btn-restart-adb"
               [disabled]="isRestartingAdb()"
               (click)="restartAdbServer()"
-              [title]="isRemoteAdbServer() ? 'Refresh devices without stopping the remote ADB server' : 'Restart local ADB daemon'"
+              [title]="(isRemoteAdbServer() ? 'settings.refreshDevicesTitle' : 'settings.restartAdbTitle') | translate"
             >
               @if (isRestartingAdb()) {
               <span class="material-symbols-outlined spinning">sync</span>
-              <span>Restarting...</span>
+              <span>{{ 'settings.restarting' | translate }}</span>
               } @else if (adbRestartFeedback()) {
               <span class="material-symbols-outlined feedback-done">check</span>
               <span class="feedback-text">{{ adbRestartFeedback() }}</span>
               } @else {
               <span class="material-symbols-outlined">sync</span>
-              <span>{{ isRemoteAdbServer() ? 'Refresh Devices' : 'Restart ADB' }}</span>
+              <span>{{ (isRemoteAdbServer() ? 'settings.refreshDevices' : 'settings.restartAdb') | translate }}</span>
               }
             </button>
           </div>
@@ -731,7 +730,7 @@
                     </div>
                     <div class="device-hero-meta">
                       @if (activeDevice()?.is_emulator) {
-                        <span>Virtual Device</span>
+                        <span>{{ 'settings.virtualDevice' | translate }}</span>
                         <span class="meta-dot">·</span>
                       }
                       <span>{{ activeDevice()?.serial }}</span>
@@ -746,21 +745,21 @@
                       @if (isRemoteAdbServer()) {
                         <span class="meta-dot">·</span>
                         <span class="remote-endpoint-label">
-                          Remote via {{ adbServerStatus()?.endpoint?.host }}:{{ adbServerStatus()?.endpoint?.port }}
+                          {{ 'settings.remoteVia' | translate }} {{ adbServerStatus()?.endpoint?.host }}:{{ adbServerStatus()?.endpoint?.port }}
                         </span>
                       }
                     </div>
                   </div>
                   <div class="device-hero-status">
                     <span class="status-dot dot-pass"></span>
-                    <span class="status-text">Connected</span>
+                    <span class="status-text">{{ 'settings.connected' | translate }}</span>
                   </div>
                 </div>
 
                 <!-- Multi-Device Switcher if multiple devices detected -->
                 @if (connectedDevices().length > 1) {
                   <div class="multi-device-switcher">
-                    <span class="switcher-label">Select Active Device:</span>
+                    <span class="switcher-label">{{ 'settings.selectActiveDevice' | translate }}</span>
                     <div class="switcher-chips">
                       @for (dev of connectedDevices(); track dev.serial) {
                         <button
@@ -774,7 +773,7 @@
                           </span>
                           <span>{{ dev.model || dev.serial }}</span>
                           @if (dev.serial === activeDevice()?.serial) {
-                            <span class="active-check">✓ Active</span>
+                            <span class="active-check">✓ {{ 'settings.active' | translate }}</span>
                           }
                         </button>
                       }
@@ -976,13 +975,13 @@
                       </div>
                       <div class="method-info">
                         <div class="method-title-row">
-                          <span class="method-title">Android Emulator</span>
+                          <span class="method-title">{{ 'settings.emulator' | translate }}</span>
                         </div>
                         <span class="method-desc">
                           @if (installedAvds().length > 0) {
                             {{ installedAvds().length }} local virtual device{{ installedAvds().length > 1 ? 's' : '' }} available
                           } @else {
-                            Launch a local Android Virtual Device
+                            {{ 'settings.emulatorDescription' | translate }}
                           }
                         </span>
                       </div>
@@ -1004,9 +1003,9 @@
                       </div>
                       <div class="method-info">
                         <div class="method-title-row">
-                          <span class="method-title">USB Cable</span>
+                          <span class="method-title">{{ 'settings.usbCable' | translate }}</span>
                         </div>
-                        <span class="method-desc">Connect physical phone via USB</span>
+                        <span class="method-desc">{{ 'settings.usbDescription' | translate }}</span>
                       </div>
                       </div>
                       <div class="method-card-right">
@@ -1026,9 +1025,9 @@
                       </div>
                       <div class="method-info">
                         <div class="method-title-row">
-                          <span class="method-title">Wireless ADB</span>
+                          <span class="method-title">{{ 'settings.wirelessAdb' | translate }}</span>
                         </div>
-                        <span class="method-desc">Connect over local Wi-Fi</span>
+                        <span class="method-desc">{{ 'settings.wirelessDescription' | translate }}</span>
                       </div>
                       </div>
                       <div class="method-card-right">
@@ -1048,9 +1047,9 @@
                       </div>
                       <div class="method-info">
                         <div class="method-title-row">
-                          <span class="method-title">Remote Computer</span>
+                          <span class="method-title">{{ 'settings.remoteComputer' | translate }}</span>
                         </div>
-                        <span class="method-desc">Phone connected to another computer</span>
+                        <span class="method-desc">{{ 'settings.remoteDescription' | translate }}</span>
                       </div>
                     </div>
                     <div class="method-card-right">
@@ -1367,7 +1366,7 @@
                     <div class="wifi-interactive-box">
                       <div class="wifi-form-row">
                         <div class="wifi-input-col ip-col">
-                          <label class="wifi-label">Device IP Address</label>
+                          <label class="wifi-label">{{ 'settings.deviceIp' | translate }}</label>
                           <div class="wifi-input-wrap">
                             <span class="material-symbols-outlined wrap-icon">router</span>
                             <input type="text" class="wifi-input" [ngModel]="wifiHost()" (ngModelChange)="wifiHost.set($event)"
@@ -1376,7 +1375,7 @@
                         </div>
                   
                         <div class="wifi-input-col port-col">
-                          <label class="wifi-label">Port</label>
+                          <label class="wifi-label">{{ 'settings.port' | translate }}</label>
                           <div class="wifi-input-wrap">
                             <span class="material-symbols-outlined wrap-icon">tag</span>
                             <input type="text" class="wifi-input" [ngModel]="wifiPort()" (ngModelChange)="wifiPort.set($event)"
@@ -1389,10 +1388,10 @@
                             (click)="connectWifiDevice()">
                             @if (isConnectingWifi()) {
                             <span class="material-symbols-outlined spinning">sync</span>
-                            <span>Connecting...</span>
+                            <span>{{ 'settings.connecting' | translate }}</span>
                             } @else {
                             <span class="material-symbols-outlined">bolt</span>
-                            <span>Connect</span>
+                            <span>{{ 'settings.connect' | translate }}</span>
                             }
                           </button>
                         </div>
@@ -1431,7 +1430,7 @@
                     <div class="remote-adb-interactive-box">
                       <div class="remote-adb-form-row">
                         <div class="remote-adb-input-col host-col">
-                          <label class="remote-adb-label" for="remote-adb-host">ADB Server Host</label>
+                          <label class="remote-adb-label" for="remote-adb-host">{{ 'settings.adbHost' | translate }}</label>
                           <div class="remote-adb-input-wrap">
                             <span class="material-symbols-outlined wrap-icon">dns</span>
                             <input
@@ -1448,7 +1447,7 @@
                         </div>
 
                         <div class="remote-adb-input-col port-col">
-                          <label class="remote-adb-label" for="remote-adb-port">ADB Server Port</label>
+                          <label class="remote-adb-label" for="remote-adb-port">{{ 'settings.adbPort' | translate }}</label>
                           <div class="remote-adb-input-wrap">
                             <span class="material-symbols-outlined wrap-icon">tag</span>
                             <input
@@ -1477,7 +1476,7 @@
                               <span>Checking...</span>
                             } @else {
                               <span class="material-symbols-outlined">bolt</span>
-                              <span>Test Connection</span>
+                              <span>{{ 'settings.testConnection' | translate }}</span>
                             }
                           </button>
                         </div>
@@ -1489,7 +1488,7 @@
                           [ngModel]="rememberRemoteAdb()"
                           (ngModelChange)="rememberRemoteAdb.set($event)"
                         />
-                        <span>Remember this endpoint for future Artemis launches</span>
+                        <span>{{ 'settings.rememberEndpoint' | translate }}</span>
                       </label>
 
                       @if (remoteAdbMessage()) {
@@ -1515,7 +1514,7 @@
                                 <span>{{ device.serial }}</span>
                               </div>
                               <span class="remote-device-state" [class.ready]="device.state === 'device'">
-                                {{ device.state === 'device' ? 'Ready' : device.state }}
+                                {{ device.state === 'device' ? ('settings.ready' | translate) : device.state }}
                               </span>
                             </div>
                           }
@@ -1534,7 +1533,7 @@
                             <span>Connecting...</span>
                           } @else {
                             <span class="material-symbols-outlined">check</span>
-                            <span>{{ remoteAdbHasReadyDevice() ? 'Use Connection' : 'Use Anyway' }}</span>
+                            <span>{{ (remoteAdbHasReadyDevice() ? 'settings.useConnection' : 'settings.useAnyway') | translate }}</span>
                           }
                         </button>
                       }
@@ -1694,8 +1693,8 @@
                 <span class="material-symbols-outlined step-check-icon">check</span>
               </div>
               <div class="ready-text-group">
-                <h4 class="ready-title">System Ready for Autonomous Tasks</h4>
-                <p class="ready-desc">All dependencies, AI model credentials, and Android device are verified and ready to run.</p>
+                <h4 class="ready-title">{{ 'settings.readyTitle' | translate }}</h4>
+                <p class="ready-desc">{{ 'settings.readyDescription' | translate }}</p>
               </div>
             </div>
             <button type="button" class="btn-proceed-launch" (click)="setTab('launcher')">
@@ -1721,8 +1720,8 @@
             <span class="material-symbols-outlined warn-icon">{{ adbProbe()?.summary === 'Device Locked' ? 'lock' : 'warning' }}</span>
             <span>
               {{ adbProbe()?.summary === 'Device Locked'
-                ? 'Android device is locked. Unlock it and enter the home screen before running a task.'
-                : 'Prerequisites incomplete: runtime, credentials, or Android device is not ready. Click here to open Settings.' }}
+                ? ('home.locked' | translate)
+                : ('home.notReady' | translate) }}
             </span>
             <span class="material-symbols-outlined arrow">arrow_forward</span>
           </div>
@@ -1737,11 +1736,11 @@
               <div class="suggestion-left">
                 <span class="material-symbols-outlined sparkle-icon">auto_awesome</span>
                 <span class="suggestion-text">
-                  Continuous monitoring or complex task detected. Recommended: <strong>Pro Mode</strong>
+                  {{ 'home.proRecommended' | translate }} <strong>{{ 'home.proMode' | translate }}</strong>
                 </span>
               </div>
               <button type="button" class="btn-switch-pro" (click)="setProfile('pro')">
-                <span>Switch to Pro</span>
+                <span>{{ 'home.switchToPro' | translate }}</span>
                 <span class="material-symbols-outlined btn-arrow">arrow_forward</span>
               </button>
             </div>
@@ -1759,29 +1758,6 @@
               (keydown.control.enter)="runTask()"
               (keydown.meta.enter)="runTask()"
             ></textarea>
-          </div>
-
-          <!-- Contextual Model Descriptor Strip (Clean & Unified for Flash & Pro) -->
-          <div class="composer-model-descriptor" [class.is-pro]="selectedProfile() === 'pro'">
-            <div class="descriptor-icon-wrap">
-              <span class="material-symbols-outlined">{{ selectedProfile() === 'flash' ? 'bolt' : 'psychology' }}</span>
-            </div>
-            <div class="descriptor-body">
-              @if (selectedProfile() === 'flash') {
-                <p class="desc-line">
-                  <span class="mode-name">Flash</span>
-                  <span class="bullet">·</span>
-                  <span>Token-efficient, rapid <strong>3–5s/step</strong> decisions straight from the live screen. Best for everyday tasks with a clear path, however long they run.</span>
-                  <span class="limitation-tag">(No plan, no result check, no ADB commands)</span>
-                </p>
-              } @else {
-                <p class="desc-line">
-                  <span class="mode-name">Pro</span>
-                  <span class="bullet">·</span>
-                  <span>Plans first, checks its results and recovers when a tap is blocked. Handles <strong>100+ step</strong> workflows and live phone monitoring (<strong>15–40s</strong> / step).</span>
-                </p>
-              }
-            </div>
           </div>
 
           <!-- Error Banner if any -->
@@ -1802,7 +1778,7 @@
                   class="model-toggle-btn btn-flash"
                   [class.active]="selectedProfile() === 'flash'"
                   (click)="setProfile('flash')"
-                  title="Flash: fast single-look loop for everyday app tasks (3–5s/step)"
+                  [title]="'home.flashTitle' | translate"
                 >
                   <span class="material-symbols-outlined btn-icon">bolt</span>
                   <span class="btn-text">Flash</span>
@@ -1812,7 +1788,7 @@
                   class="model-toggle-btn btn-pro"
                   [class.active]="selectedProfile() === 'pro'"
                   (click)="setProfile('pro')"
-                  title="Pro: plans first, checks results and recovers from blocked steps. For long or complex tasks (15–40s/step)"
+                  [title]="'home.proTitle' | translate"
                 >
                   <span class="material-symbols-outlined btn-icon">psychology</span>
                   <span class="btn-text">Pro</span>
@@ -1822,7 +1798,7 @@
 
             <div class="bar-right">
               @if (taskGoal().length > 0) {
-                <span class="char-count">{{ taskGoal().length }} chars</span>
+                <span class="char-count">{{ i18n.translate('home.characterCount', { count: taskGoal().length }) }}</span>
               }
 
               <!-- Run Button -->
@@ -1831,13 +1807,13 @@
                 class="btn-run-composer"
                 [class.btn-run-pro]="selectedProfile() === 'pro'"
                 [disabled]="!taskGoal().trim() || isSubmitting() || !isReady()"
-                [title]="!isReady() ? (adbProbe()?.summary === 'Device Locked' ? 'Unlock the Android device before running' : 'Complete System Setup before running') : 'Run task'"
+                [title]="!isReady() ? (adbProbe()?.summary === 'Device Locked' ? ('home.unlock' | translate) : ('home.completeSetup' | translate)) : ('home.runTask' | translate)"
                 (click)="runTask()"
               >
                 @if (isSubmitting()) {
                   <span class="spinner"></span><span>{{ 'home.starting' | translate }}</span>
                 } @else {
-                  <span class="material-symbols-outlined run-icon">play_arrow</span><span>Run Task</span>
+                  <span class="material-symbols-outlined run-icon">play_arrow</span><span>{{ 'home.runTask' | translate }}</span>
                 }
               </button>
             </div>
@@ -1848,8 +1824,8 @@
         @if (selectedProfile() === 'pro') {
           <div class="pro-outputter-standalone-card">
             <div class="outputter-card-header">
-              <span class="outputter-title">Expected Output</span>
-              <span class="outputter-optional-tag">(Optional)</span>
+              <span class="outputter-title">{{ 'home.expectedOutput' | translate }}</span>
+              <span class="outputter-optional-tag">({{ 'home.optional' | translate }})</span>
             </div>
 
             <div class="outputter-input-wrapper">
@@ -1858,7 +1834,7 @@
                 class="outputter-standalone-input"
                 [ngModel]="expectedOutput()"
                 (ngModelChange)="expectedOutput.set($event)"
-                placeholder="Specify expected output or schema (e.g. 'Extract SMS verification code as JSON' or 'Summary of discounts and total price')..."
+                [placeholder]="'home.expectedOutputPlaceholder' | translate"
                 spellcheck="false"
               />
               @if (expectedOutput().trim()) {
@@ -1866,7 +1842,7 @@
                   type="button"
                   class="btn-clear-standalone"
                   (click)="expectedOutput.set('')"
-                  title="Clear expected output"
+                  [title]="'home.clearExpectedOutput' | translate"
                 >
                   <span class="material-symbols-outlined">close</span>
                 </button>
@@ -1877,9 +1853,9 @@
           <!-- Pro Mode Tuning Card: verification depth & explorer perception sliders -->
           <div class="pro-tuning-card" [class.tip-open]="activeTuningTip() !== null">
             <div class="tuning-card-header">
-              <span class="tuning-title">Pro settings</span>
+              <span class="tuning-title">{{ 'home.proSettings' | translate }}</span>
               @if (!isTuningDefault()) {
-                <button type="button" class="btn-tuning-reset" (click)="resetTuning()" title="Back to the defaults">Reset</button>
+                <button type="button" class="btn-tuning-reset" (click)="resetTuning()" [title]="'home.backToDefaults' | translate">{{ 'home.reset' | translate }}</button>
               }
             </div>
 
@@ -1959,7 +1935,7 @@
                         </div>
                         <p class="tip-tagline">{{ slider.level.tagline }}</p>
                         <div class="tip-section">
-                          <span class="tip-section-title">What happens</span>
+                          <span class="tip-section-title">{{ 'home.whatHappens' | translate }}</span>
                           <ul>
                             @for (line of slider.level.runs; track $index) {
                               <li>{{ line }}</li>
@@ -1968,7 +1944,7 @@
                         </div>
                         @if (slider.level.skips?.length) {
                           <div class="tip-section skips">
-                            <span class="tip-section-title">Not included</span>
+                            <span class="tip-section-title">{{ 'home.notIncluded' | translate }}</span>
                             <ul>
                               @for (line of slider.level.skips; track $index) {
                                 <li>{{ line }}</li>
@@ -1977,7 +1953,7 @@
                           </div>
                         }
                         <div class="tip-best">
-                          <span class="tip-section-title">Use it for</span>
+                          <span class="tip-section-title">{{ 'home.useItFor' | translate }}</span>
                           <span>{{ slider.level.bestFor }}</span>
                         </div>
                       </div>
@@ -1996,7 +1972,7 @@
             <div class="header-left">
               <div class="section-label">
                 <span class="material-symbols-outlined section-icon">auto_awesome</span>
-                <span class="label-text">Recommended Tasks</span>
+                <span class="label-text">{{ 'home.recommendedTasks' | translate }}</span>
               </div>
 
               <!-- Filter Tabs -->
@@ -2007,7 +1983,7 @@
                   [class.active]="selectedCategory() === 'all'"
                   (click)="setCategory('all')"
                 >
-                  <span>All</span>
+                  <span>{{ 'home.all' | translate }}</span>
                 </button>
 
                 <button
@@ -2037,7 +2013,7 @@
                   (click)="setCategory('cross_app')"
                 >
                   <span class="material-symbols-outlined tab-mini-icon">sync_alt</span>
-                  <span>Multi-App</span>
+                  <span>{{ 'home.multiApp' | translate }}</span>
                 </button>
 
                 <button
@@ -2047,15 +2023,15 @@
                   (click)="setCategory('monitor')"
                 >
                   <span class="material-symbols-outlined tab-mini-icon">monitoring</span>
-                  <span>Monitor</span>
+                  <span>{{ 'home.monitor' | translate }}</span>
                 </button>
               </div>
             </div>
 
             <div class="header-right">
-              <button type="button" class="btn-shuffle-suggestions" (click)="shuffleSuggestions()" title="Discover more tasks">
+              <button type="button" class="btn-shuffle-suggestions" (click)="shuffleSuggestions()" [title]="'home.discoverMore' | translate">
                 <span class="material-symbols-outlined shuffle-icon">shuffle</span>
-                <span>Shuffle</span>
+                <span>{{ 'home.shuffle' | translate }}</span>
               </button>
             </div>
           </div>
@@ -2073,7 +2049,7 @@
                 <div class="card-top-row">
                   <div class="app-icons-cluster">
                     @for (app of item.apps; track app.name) {
-                      <div class="app-icon-badge" [title]="app.name">
+                      <div class="app-icon-badge" [title]="appDisplayName(app)">
                         <span class="material-symbols-outlined">{{ app.icon }}</span>
                       </div>
                     }
@@ -2081,22 +2057,22 @@
                   </div>
 
                   <span class="mode-badge" [class.mode-pro]="item.profile === 'pro'" [class.mode-flash]="item.profile === 'flash'"
-                    [title]="item.profile === 'pro' ? 'Uses ARTEMIS Pro (Multi-Agent Cognitive State Graph)' : 'Uses ARTEMIS Flash (Reactive Fast Loop)'">
+                    [title]="item.profile === 'pro' ? ('home.usesPro' | translate) : ('home.usesFlash' | translate)">
                     {{ item.profile === 'pro' ? 'Pro' : 'Flash' }}
                   </span>
                 </div>
 
                 <!-- Middle Content: Title + Description -->
                 <div class="card-body">
-                  <h4 class="card-title">{{ item.title }}</h4>
-                  <p class="card-desc">{{ item.description }}</p>
+                  <h4 class="card-title">{{ suggestionText(item, 'title') }}</h4>
+                  <p class="card-desc">{{ suggestionText(item, 'description') }}</p>
                 </div>
 
                 <!-- Bottom Footer Row: Tag & Action -->
                 <div class="card-footer-row">
-                  <span class="tag-pill">{{ item.tag }}</span>
+                  <span class="tag-pill">{{ suggestionText(item, 'tag') }}</span>
                   <div class="use-prompt-action">
-                    <span>Use</span>
+                    <span>{{ 'home.use' | translate }}</span>
                     <span class="material-symbols-outlined action-arrow">arrow_forward</span>
                   </div>
                 </div>

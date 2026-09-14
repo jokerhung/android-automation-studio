@@ -255,10 +255,10 @@ export class HomeComponent implements OnInit, OnDestroy {
   public readonly ditherPixels: readonly DitherPixel[] = buildDitherPixels();
 
   public verificationLevel = computed<TuningLevel<VerificationLevelId>>(
-    () => VERIFICATION_LEVELS[this.verificationIndex()]
+    () => this.translateTuningLevel('verification', VERIFICATION_LEVELS[this.verificationIndex()])
   );
   public explorerMode = computed<TuningLevel<ExplorerModeId>>(
-    () => EXPLORER_MODES[this.explorerIndex()]
+    () => this.translateTuningLevel('explorer', EXPLORER_MODES[this.explorerIndex()])
   );
   public isTuningDefault = computed<boolean>(() => {
     const d = this.tuningDefaults();
@@ -267,27 +267,45 @@ export class HomeComponent implements OnInit, OnDestroy {
   public tuningSliders = computed<TuningSliderVm[]>(() => {
     const vi = this.verificationIndex();
     const ei = this.explorerIndex();
+    const verificationLadder = VERIFICATION_LEVELS.map(level => this.translateTuningLevel('verification', level));
+    const explorerLadder = EXPLORER_MODES.map(level => this.translateTuningLevel('explorer', level));
     return [
       {
         kind: 'verify',
-        name: 'Result check',
-        ends: ['Off', 'Strict'],
-        ladder: VERIFICATION_LEVELS,
+        name: this.i18n.translate('home.resultCheck'),
+        ends: [this.i18n.translate('home.off'), this.i18n.translate('home.strict')],
+        ladder: verificationLadder,
         index: vi,
-        level: VERIFICATION_LEVELS[vi],
+        level: verificationLadder[vi],
         fraction: notchPercent(vi, VERIFICATION_LEVELS.length) / 100
       },
       {
         kind: 'explore',
-        name: 'Screen reading',
-        ends: ['Faster', 'Sharper'],
-        ladder: EXPLORER_MODES,
+        name: this.i18n.translate('home.screenReading'),
+        ends: [this.i18n.translate('home.faster'), this.i18n.translate('home.sharper')],
+        ladder: explorerLadder,
         index: ei,
-        level: EXPLORER_MODES[ei],
+        level: explorerLadder[ei],
         fraction: notchPercent(ei, EXPLORER_MODES.length) / 100
       }
     ];
   });
+
+  private translateTuningLevel<TId extends string>(
+    group: 'verification' | 'explorer',
+    level: TuningLevel<TId>
+  ): TuningLevel<TId> {
+    const base = `home.tuning.${group}.${level.id}`;
+    return {
+      ...level,
+      label: this.i18n.translate(`${base}.label`),
+      tagline: this.i18n.translate(`${base}.tagline`),
+      latency: this.i18n.translate(`${base}.latency`),
+      runs: level.runs.map((_, index) => this.i18n.translate(`${base}.runs.${index}`)),
+      skips: level.skips?.map((_, index) => this.i18n.translate(`${base}.skips.${index}`)),
+      bestFor: this.i18n.translate(`${base}.bestFor`)
+    };
+  }
 
   public notchFraction(index: number, count: number): number {
     return notchPercent(index, count) / 100;
@@ -543,6 +561,15 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.shuffleOffset()
     );
   });
+
+  public suggestionText(item: SmartSuggestion, field: 'title' | 'description' | 'goal' | 'tag'): string {
+    return this.i18n.translate(`home.suggestion.${item.id}.${field}`);
+  }
+
+  public appDisplayName(app: AppReference): string {
+    const key = app.name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    return this.i18n.translate(`home.app.${key}`);
+  }
 
 
 
@@ -1076,11 +1103,11 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   public getAppNamesDisplay(apps: AppReference[]): string {
-    return apps.map(a => a.name).join(' + ');
+    return apps.map(app => this.appDisplayName(app)).join(' + ');
   }
 
   public applySuggestion(item: SmartSuggestion): void {
-    this.taskGoal.set(item.goal);
+    this.taskGoal.set(this.suggestionText(item, 'goal'));
     this.selectedProfile.set(item.profile);
     this.errorMessage.set(null);
   }
@@ -1101,12 +1128,12 @@ export class HomeComponent implements OnInit, OnDestroy {
   public runTask(): void {
     const goal = this.taskGoal().trim();
     if (!goal) {
-      this.errorMessage.set('Please enter a task goal before running.');
+      this.errorMessage.set(this.i18n.translate('home.goalRequired'));
       return;
     }
 
     if (!this.isReady()) {
-      this.errorMessage.set('System prerequisites are not satisfied. Please review Settings first.');
+      this.errorMessage.set(this.i18n.translate('home.prerequisitesError'));
       this.setTab('diagnostics');
       return;
     }

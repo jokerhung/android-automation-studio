@@ -1,33 +1,36 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { finalize } from 'rxjs';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslationService } from '../../core/i18n/translation.service';
 
 interface StartupStatus { supported: boolean; enabled: boolean; port: number | null; }
 
 @Component({
   selector: 'app-windows-startup',
   standalone: true,
+  imports: [TranslatePipe],
   template: `
     <section aria-labelledby="startup-title">
       <div class="setting-row">
         <div>
-          <h3 id="startup-title">Start with Windows</h3>
-          <p>Start ARTEMIS in the background when you sign in to Windows. No browser or terminal window opens.</p>
+          <h3 id="startup-title">{{ 'startup.title' | translate }}</h3>
+          <p>{{ 'startup.description' | translate }}</p>
         </div>
         <label class="startup-switch" [class.is-disabled]="loading() || saving() || !status()?.supported"
-          [attr.title]="saving() ? 'Saving…' : (status()?.enabled ? 'On' : 'Off')">
-          <input type="checkbox" role="switch" aria-label="Start with Windows"
+          [attr.title]="(saving() ? 'startup.saving' : (status()?.enabled ? 'startup.on' : 'common.off')) | translate">
+          <input type="checkbox" role="switch" [attr.aria-label]="'startup.title' | translate"
             [attr.aria-busy]="saving()"
             [checked]="status()?.enabled ?? false" [disabled]="loading() || saving() || !status()?.supported"
             (change)="toggle($event)">
           <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
         </label>
       </div>
-      @if (loading()) { <p role="status">Loading startup settings…</p> }
-      @if (status()?.supported === false) { <p>This feature is only available on Windows.</p> }
-      @if (status()?.enabled) { <p>Enabled for the current Windows user · Port {{ status()?.port ?? 'unknown' }}.</p> }
-      <p class="hint">Applies at sign-in, not before login. Enabled schedules may run once ARTEMIS starts. Turning this off does not stop the current server. If you move ARTEMIS or change its port, turn this off and on again.</p>
-      @if (error()) { <p class="error" role="alert">{{ error() }} <button type="button" (click)="load()" [disabled]="loading() || saving()">Retry</button></p> }
+      @if (loading()) { <p role="status">{{ 'startup.loading' | translate }}</p> }
+      @if (status()?.supported === false) { <p>{{ 'startup.windowsOnly' | translate }}</p> }
+      @if (status()?.enabled) { <p>{{ i18n.translate('startup.enabled', { port: status()?.port ?? i18n.translate('startup.unknown') }) }}</p> }
+      <p class="hint">{{ 'startup.hint' | translate }}</p>
+      @if (error()) { <p class="error" role="alert">{{ error() }} <button type="button" (click)="load()" [disabled]="loading() || saving()">{{ 'common.retry' | translate }}</button></p> }
       @if (message()) { <p role="status">{{ message() }}</p> }
     </section>
   `,
@@ -51,6 +54,7 @@ interface StartupStatus { supported: boolean; enabled: boolean; port: number | n
 })
 export class WindowsStartupComponent implements OnInit {
   private readonly http = inject(HttpClient);
+  readonly i18n = inject(TranslationService);
   readonly status = signal<StartupStatus | null>(null);
   readonly loading = signal(false);
   readonly saving = signal(false);
@@ -78,13 +82,13 @@ export class WindowsStartupComponent implements OnInit {
       .pipe(finalize(() => this.saving.set(false))).subscribe({
         next: status => {
           this.status.set(status); input.checked = status.enabled;
-          this.message.set(status.enabled ? 'ARTEMIS will start at your next Windows sign-in.' : 'Start with Windows is turned off.');
+          this.message.set(this.i18n.translate(status.enabled ? 'startup.enabledMessage' : 'startup.disabledMessage'));
         },
         error: err => this.error.set(this.errorText(err))
       });
   }
 
   private errorText(err: any): string {
-    return typeof err?.error?.detail === 'string' ? err.error.detail : 'Unable to access startup settings. Restart the ARTEMIS backend if it has not been updated.';
+    return typeof err?.error?.detail === 'string' ? err.error.detail : this.i18n.translate('startup.loadError');
   }
 }

@@ -14,6 +14,7 @@ describe('Settings theme colors', () => {
   });
   afterEach(() => {
     localStorage.removeItem(UI_PREFERENCES_STORAGE_KEY);
+    document.documentElement.lang='en';
     document.documentElement.dataset['theme']='light';
   });
 
@@ -51,7 +52,7 @@ describe('Settings theme colors', () => {
     expect(getComputedStyle(root.querySelector('.confirm-dialog')!).backgroundColor).toBe('rgb(18, 24, 36)');
   });
 
-  it('themes Home composer, descriptors and navigation without affecting Light', async () => {
+  it('themes the streamlined Home composer and navigation without affecting Light', async () => {
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/', HomeComponent);
     const preferences = TestBed.inject(UiPreferencesService);
@@ -60,10 +61,61 @@ describe('Settings theme colors', () => {
     preferences.setTheme('dark'); harness.detectChanges();
     const style = (selector:string) => getComputedStyle(root.querySelector(selector)!);
     expect(style('.composer-card').backgroundColor).toBe('rgb(18, 24, 36)');
-    expect(style('.composer-model-descriptor').backgroundColor).toBe('rgb(32, 42, 58)');
-    expect(style('.desc-line').color).toBe('rgb(203, 213, 225)');
+    expect(root.querySelector('.composer-model-descriptor')).toBeNull();
     expect(style('.model-toggle-btn.active').backgroundColor).toBe('rgb(38, 51, 72)');
     preferences.setTheme('light'); harness.detectChanges();
     expect(style('.composer-card').backgroundColor).not.toBe('rgb(18, 24, 36)');
+  });
+
+  it('translates the Home launcher and recommended tasks to Vietnamese', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/', HomeComponent);
+    const preferences = TestBed.inject(UiPreferencesService);
+    preferences.setLanguage('vi'); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const text = root.textContent;
+    expect(text).toContain('Tác vụ đề xuất');
+    expect(text).toContain('Tất cả');
+    expect(text).toContain('Nhiều ứng dụng');
+    expect(text).toContain('Đổi gợi ý');
+    expect(text).toContain('Tìm cà phê đặc sản');
+    root.querySelector<HTMLButtonElement>('.btn-pro')!.click();
+    harness.detectChanges();
+    expect(root.textContent).toContain('Kết quả mong đợi');
+    expect(root.textContent).toContain('Cài đặt Pro');
+    expect(root.textContent).toContain('Kiểm tra kết quả');
+    expect(root.textContent).toContain('Đọc màn hình');
+    preferences.setLanguage('en'); harness.detectChanges();
+  });
+
+  it('translates the primary Workspace empty state and task navigation to Vietnamese', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/workspace');
+    const preferences = TestBed.inject(UiPreferencesService);
+    preferences.setLanguage('vi'); harness.detectChanges();
+    const text = harness.routeNativeElement!.textContent;
+    expect(text).toContain('Chưa chọn hoạt động luồng');
+    expect(text).toContain('Hãy chọn một phiên trong Danh sách tác vụ bên phải');
+    expect(text).toContain('Hàng đợi tác vụ');
+    expect(text).toContain('Ghi chú & Kế hoạch');
+    preferences.setLanguage('en'); harness.detectChanges();
+  });
+
+  it('keeps coordinate badges legible on the dark Workspace surface', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/workspace');
+    const preferences = TestBed.inject(UiPreferencesService);
+    preferences.setTheme('dark'); harness.detectChanges();
+    const stream = harness.routeNativeElement!.querySelector('app-agent-stream')!;
+    const badge = document.createElement('span');
+    badge.className = 'detail-value coordinate-badge';
+    badge.textContent = '[804, 424]';
+    stream.appendChild(badge);
+    const style = getComputedStyle(badge);
+    expect(style.backgroundColor).toBe('rgb(20, 39, 69)');
+    expect(style.color).toBe('rgb(141, 185, 255)');
+    expect(style.borderTopColor).toBe('rgb(49, 87, 134)');
+    badge.remove();
+    preferences.setTheme('light'); harness.detectChanges();
   });
 });
