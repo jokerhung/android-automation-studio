@@ -72,6 +72,8 @@ class EmailNotificationService:
         self.owner = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4()}"
         self.task = None
         self.running = False
+        self.accepting_deliveries = False
+        self._inflight: set[asyncio.Task] = set()
 
     @staticmethod
     def now():
@@ -199,13 +201,38 @@ class EmailNotificationService:
             return {"path": str(path), "filename": path.name}
         return None
 
+    @property
+    def inflight_count(self):
+        return sum(not task.done() for task in self._inflight)
+
+    @property
+    def busy(self):
+        return self.inflight_count > 0
+
+    def status(self):
+        return {
+            "running": self.running,
+            "accepting_deliveries": self.accepting_deliveries,
+            "draining": not self.accepting_deliveries and (self.running or self.busy),
+            "inflight_count": self.inflight_count,
+            "busy": self.busy,
+        }
+
+    def begin_drain(self):
+        """Prevent new SMTP claims while allowing the current delivery to finish."""
+        self.accepting_deliveries = False
+        return self.status()
+
     async def start(self):
         if self.task and not self.task.done():
             return
         self.running = True
+        self.accepting_deliveries = True
         self.task = asyncio.create_task(self.loop())
 
-    async def stop(self):
+    async def stop(self, timeout=5.0):
+        """Stop claiming mail and wait a bounded time for SMTP threads to settle."""
+        self.begin_drain()
         self.running = False
         if self.task:
             self.task.cancel()
@@ -215,11 +242,39 @@ class EmailNotificationService:
                 pass
         self.task = None
 
+        pending = [task for task in self._inflight if not task.done()]
+        if not pending:
+            return True
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(asyncio.gather(*pending, return_exceptions=True)),
+                timeout=max(0.0, timeout),
+            )
+        except TimeoutError:
+            # asyncio.to_thread cannot safely cancel an SMTP call. Keep the task
+            # tracked until the thread returns so delivery outcome is never
+            # guessed merely because shutdown reached its bound.
+            return False
+        return True
+
+    def _track_delivery(self):
+        task = asyncio.create_task(asyncio.to_thread(self.process_one))
+        self._inflight.add(task)
+        task.add_done_callback(self._inflight.discard)
+        return task
+
     async def loop(self):
         while self.running:
             try:
                 await asyncio.to_thread(self.reconcile)
-                processed = await asyncio.to_thread(self.process_one)
+                if not self.accepting_deliveries:
+                    break
+                # Shield the executor future from worker cancellation. SMTP is a
+                # blocking operation and cancelling its asyncio waiter does not
+                # stop the underlying thread.
+                processed = await asyncio.shield(self._track_delivery())
+            except asyncio.CancelledError:
+                raise
             except Exception as exc:
                 print(f"[EmailWorker] {redact_text(str(exc))}")
                 processed = False

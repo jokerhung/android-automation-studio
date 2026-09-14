@@ -16,6 +16,11 @@ except ImportError:
     from apps.admin_console.services.schedule_recurrence import next_occurrence, utc_now
     from apps.admin_console.services.schedule_service import schedule_service
 
+try:
+    from admin_console.core.state import state
+except ImportError:
+    from apps.admin_console.core.state import state
+
 
 class SchedulerService:
     def __init__(self, repo=schedule_repo, service=schedule_service, clock=utc_now):
@@ -27,6 +32,17 @@ class SchedulerService:
         self.last_heartbeat = None
         self.generation = None
         self.running = False
+        self._claim_lock = None
+
+    @property
+    def claim_lock(self):
+        loop = asyncio.get_running_loop()
+        if self._claim_lock is None or (
+            getattr(self._claim_lock, "_loop", None) is not None
+            and self._claim_lock._loop != loop
+        ):
+            self._claim_lock = asyncio.Lock()
+        return self._claim_lock
 
     async def start(self):
         if self.task and not self.task.done():
@@ -47,6 +63,12 @@ class SchedulerService:
         self.repo.release_lease(self.owner)
 
     async def tick(self):
+        async with self.claim_lock:
+            if state.is_draining or state.is_shutting_down:
+                return 0
+            return await self._tick_unlocked()
+
+    async def _tick_unlocked(self):
         now = self.clock()
         gen = self.repo.acquire_lease(self.owner, now)
         if gen is None:
@@ -84,8 +106,11 @@ class SchedulerService:
             await asyncio.sleep(1)
 
     def status(self):
+        claiming = self.running and not state.is_draining and not state.is_shutting_down
         return {
             "running": self.running,
+            "claiming": claiming,
+            "draining": state.is_draining,
             "leader": self.generation is not None,
             "owner": self.owner,
             "generation": self.generation,

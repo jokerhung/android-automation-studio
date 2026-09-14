@@ -11,8 +11,10 @@ Installing this feature does not enable it automatically.
   No administrator access or API credentials are required in the registry.
 - Turning it off deletes only that registry value; it does not stop the current
   server, delete schedules or remove other startup applications.
-- If the port is already occupied at sign-in, the launcher exits without killing
-  or restarting the listener. Daemon logs remain in the usual Artemis logs folder.
+- On supported installations, sign-in starts a persistent ARTEMIS system tray for the configured workspace and port. The menu provides **Start**, **Stop**, **Open homepage**, and **Exit**.
+- Stop keeps the tray running. Exit safely stops the verified daemon and then closes the tray. Active work uses the drain/confirmation policy rather than force-kill by default.
+- If the port is occupied by an unverified listener, the tray reports a port conflict and never kills or restarts it. Daemon logs remain in the usual Artemis logs folder.
+- Windows may place the icon under **Show hidden icons**. If the optional tray backend is unavailable, startup falls back to the previous background-daemon behavior.
 - Keep this Python installation and workspace at the registered paths. After
   moving/reinstalling Artemis or changing its port, toggle off and on to register
   the new paths/port.

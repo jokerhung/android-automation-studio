@@ -8,7 +8,6 @@ import argparse
 import os
 from pathlib import Path
 import re
-import socket
 import subprocess
 import sys
 
@@ -27,7 +26,8 @@ def startup_command(port: int) -> str:
     return subprocess.list2cmdline(
         [
             str(pythonw),
-            str(Path(__file__).resolve()),
+            "-m",
+            "artemis.runtime.windows_startup",
             "--working-directory",
             str(ROOT_DIR),
             "--port",
@@ -73,6 +73,7 @@ def set_startup_enabled(enabled: bool, port: int) -> dict:
 
 
 def main() -> None:
+    """Ensure the identity-aware tray/daemon target at Windows sign-in."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--working-directory", required=True, type=Path)
     parser.add_argument("--port", required=True, type=int)
@@ -80,17 +81,32 @@ def main() -> None:
     if not 1 <= args.port <= 65535:
         parser.error("Invalid port")
     os.chdir(args.working_directory)
-    # Absolute script invocation is independent of the Windows logon CWD.
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from artemis.runtime.daemon_client import spawn_daemon
 
-    # Never restart/kill an existing daemon or another app occupying the port.
-    try:
-        with socket.create_connection(("127.0.0.1", args.port), timeout=2):
-            return
-    except OSError:
-        pass
-    spawn_daemon(host="127.0.0.1", port=args.port)
+    from artemis.runtime.background_runtime import (
+        WindowsTrayRuntimeAdapter,
+        ensure_background_runtime,
+    )
+    from artemis.runtime.tray_controller import ArtemisLifecycleAdapter
+    from artemis.runtime.tray_launcher import _configure_launcher_logging
+
+    logger = _configure_launcher_logging(args.port)
+    logger.info("Windows startup orchestration beginning")
+    result = ensure_background_runtime(
+        host="127.0.0.1",
+        port=args.port,
+        lifecycle=ArtemisLifecycleAdapter(host="127.0.0.1", port=args.port),
+        tray=WindowsTrayRuntimeAdapter(workspace=args.working_directory),
+        wait_timeout=60.0,
+    )
+    if result.ok:
+        logger.info(
+            "Windows startup orchestration ready; daemon_started=%s tray_running=%s",
+            result.daemon_started,
+            result.tray_running,
+        )
+    else:
+        logger.error("Windows startup orchestration failed: %s", result.detail)
 
 
 if __name__ == "__main__":

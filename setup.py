@@ -147,8 +147,13 @@ setup(
         ]
     ),
     package_data={
-        "artemis": ["**/*.json", "**/*.md"],
-        "artemis.resources": ["config/*.jsonc", "showcase_ui/*", "showcase_ui/**/*"],
+        "artemis": ["**/*.json", "**/*.md", "resources/tray/*.png"],
+        "artemis.resources": [
+            "config/*.jsonc",
+            "showcase_ui/*",
+            "showcase_ui/**/*",
+            "tray/*.png",
+        ],
         "apps.admin_console": ["index.html"],
     },
     include_package_data=False,

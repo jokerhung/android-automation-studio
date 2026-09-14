@@ -14,6 +14,8 @@
 
 """Unit tests for ARTEMIS Unified CLI application."""
 
+from unittest.mock import MagicMock
+
 from typer.testing import CliRunner
 from artemis.interfaces.cli.main import app
 
@@ -552,128 +554,97 @@ def test_cli_status_help():
 
 
 def test_cli_status_offline(monkeypatch):
-    """Verify 'artemis status' reports offline when port is unused."""
-    from artemis.runtime import server_lifecycle
+    """Verify status reports stopped from the identity-aware adapter."""
+    from artemis.interfaces.cli.commands import server_lifecycle as sl_cmd
 
-    monkeypatch.setattr(server_lifecycle, "is_port_in_use", lambda port, **kwargs: False)
-    monkeypatch.setattr(server_lifecycle, "find_server_pids", lambda port: [])
-    monkeypatch.setattr(server_lifecycle, "read_server_info", lambda: None)
-
+    lifecycle = MagicMock()
+    lifecycle.status.return_value = sl_cmd.LifecycleStatus(sl_cmd.DaemonPresence.STOPPED)
+    monkeypatch.setattr(sl_cmd, "ArtemisLifecycleAdapter", MagicMock(return_value=lifecycle))
     result = runner.invoke(app, ["status", "--port", "59998"])
     assert result.exit_code == 0
     assert "OFFLINE" in result.output or "STOPPED" in result.output
 
 
-def test_cli_status_online(monkeypatch):
-    """Verify 'artemis status' reports online details when server is active."""
-    from artemis.runtime import server_lifecycle
-
-    monkeypatch.setattr(server_lifecycle, "is_port_in_use", lambda port, **kwargs: True)
-    monkeypatch.setattr(server_lifecycle, "find_server_pids", lambda port: [12345])
-    monkeypatch.setattr(
-        server_lifecycle,
-        "read_server_info",
-        lambda: {"pid": 12345, "port": 8000, "started_at": 1000.0, "cwd": "/tmp"},
-    )
-
-    result = runner.invoke(app, ["status", "--port", "8000"])
-    assert result.exit_code == 0
-    assert "ONLINE" in result.output or "RUNNING" in result.output
-    assert "12345" in result.output
-
-
-def test_cli_stop_command(monkeypatch):
-    """Verify 'artemis stop' invokes stop_server with given parameters."""
+def test_cli_status_refuses_foreign_listener(monkeypatch):
     from artemis.interfaces.cli.commands import server_lifecycle as sl_cmd
 
-    mock_called = {}
+    lifecycle = MagicMock()
+    lifecycle.status.return_value = sl_cmd.LifecycleStatus(
+        sl_cmd.DaemonPresence.PORT_CONFLICT, "foreign listener"
+    )
+    monkeypatch.setattr(sl_cmd, "ArtemisLifecycleAdapter", MagicMock(return_value=lifecycle))
+    result = runner.invoke(app, ["status", "--port", "8000"])
+    assert result.exit_code == 1
+    assert "PORT CONFLICT" in result.output
 
-    def mock_stop(port, timeout=4.0, force=False):
-        mock_called["port"] = port
-        mock_called["force"] = force
-        return True, "Artemis server stopped (PID: 12345).", [12345]
 
-    monkeypatch.setattr(sl_cmd, "find_server_pids", lambda port: [12345])
-    monkeypatch.setattr(sl_cmd, "stop_server", mock_stop)
+def test_cli_stop_command_uses_verified_graceful_adapter(monkeypatch):
+    from artemis.interfaces.cli.commands import server_lifecycle as sl_cmd
 
+    lifecycle = MagicMock()
+    lifecycle.status.return_value = sl_cmd.LifecycleStatus(sl_cmd.DaemonPresence.ARTEMIS)
+    lifecycle.stop.return_value = True
+    monkeypatch.setattr(sl_cmd, "ArtemisLifecycleAdapter", MagicMock(return_value=lifecycle))
+    monkeypatch.setattr(sl_cmd, "load_session_reconciler", MagicMock())
     result = runner.invoke(app, ["stop", "--port", "8000", "--force"])
     assert result.exit_code == 0
-    assert mock_called["port"] == 8000
-    assert mock_called["force"] is True
-    assert "stopped successfully" in result.output.lower() or "PID: 12345" in result.output
+    lifecycle.stop.assert_called_once_with(timeout=12.0)
+    assert "stopped gracefully" in result.output.lower()
 
 
-def test_cli_restart_command(monkeypatch):
-    """Verify 'artemis restart' stops previous server and spawns a detached daemon by default."""
-    from unittest.mock import MagicMock
-
+def test_cli_stop_never_stops_unverified_listener(monkeypatch):
     from artemis.interfaces.cli.commands import server_lifecycle as sl_cmd
-    from artemis.runtime import server_lifecycle
 
-    stopped = {}
-    spawned = {}
+    lifecycle = MagicMock()
+    lifecycle.status.return_value = sl_cmd.LifecycleStatus(
+        sl_cmd.DaemonPresence.PORT_CONFLICT, "foreign listener"
+    )
+    monkeypatch.setattr(sl_cmd, "ArtemisLifecycleAdapter", MagicMock(return_value=lifecycle))
+    result = runner.invoke(app, ["stop", "--port", "8000"])
+    assert result.exit_code == 1
+    lifecycle.stop.assert_not_called()
 
-    def mock_stop(port, timeout=4.0, force=False):
-        stopped["port"] = port
-        return True, "Stopped server", [12345]
 
-    def mock_spawn(host, port):
-        spawned["host"] = host
-        spawned["port"] = port
-        proc = MagicMock()
-        proc.pid = 54321
-        proc.poll.return_value = None
-        return proc
+def test_cli_restart_command_uses_background_orchestration(monkeypatch):
+    from artemis.interfaces.cli.commands import server_lifecycle as sl_cmd
 
-    monkeypatch.setattr(server_lifecycle, "find_server_pids", lambda port: [12345])
-    monkeypatch.setattr(sl_cmd, "stop_server", mock_stop)
-    monkeypatch.setattr(sl_cmd, "spawn_daemon", mock_spawn)
-    monkeypatch.setattr(sl_cmd, "is_daemon_running", lambda **kwargs: True)
+    lifecycle = MagicMock()
+    lifecycle.status.return_value = sl_cmd.LifecycleStatus(sl_cmd.DaemonPresence.ARTEMIS)
+    lifecycle.stop.return_value = True
+    result_value = MagicMock(ok=True, detail="")
+    monkeypatch.setattr(sl_cmd, "ArtemisLifecycleAdapter", MagicMock(return_value=lifecycle))
+    monkeypatch.setattr(sl_cmd, "WindowsTrayRuntimeAdapter", MagicMock())
+    ensure = MagicMock(return_value=result_value)
+    monkeypatch.setattr(sl_cmd, "ensure_background_runtime", ensure)
     monkeypatch.setattr(sl_cmd, "ensure_showcase_built", lambda console: None)
-
+    monkeypatch.setattr(sl_cmd, "load_session_reconciler", MagicMock())
+    monkeypatch.setattr(sl_cmd, "read_server_info", lambda port: {"pid": 54321})
     result = runner.invoke(app, ["restart", "--port", "8888", "--no-open"])
     assert result.exit_code == 0
-    assert stopped["port"] == 8888
-    assert spawned["port"] == 8888
+    lifecycle.stop.assert_called_once_with(timeout=12.0)
+    assert ensure.call_args.kwargs["port"] == 8888
     assert "PID: 54321" in result.output
 
 
-def test_cli_restart_foreground_command(monkeypatch):
-    """Verify 'artemis restart --foreground' runs the server attached via ui_command."""
+def test_cli_restart_foreground_preserves_dev_behavior(monkeypatch):
     from artemis.interfaces.cli.commands import server_lifecycle as sl_cmd
-    from artemis.runtime import server_lifecycle
 
-    stopped = {}
-    ui_called = {}
-
-    def mock_stop(port, timeout=4.0, force=False):
-        stopped["port"] = port
-        return True, "Stopped server", [12345]
-
-    def mock_ui(host, port, open_browser, reload):
-        ui_called["host"] = host
-        ui_called["port"] = port
-        ui_called["open_browser"] = open_browser
-
-    monkeypatch.setattr(server_lifecycle, "find_server_pids", lambda port: [12345])
-    monkeypatch.setattr(sl_cmd, "stop_server", mock_stop)
-    monkeypatch.setattr(sl_cmd, "ui_command", mock_ui)
-
+    lifecycle = MagicMock()
+    lifecycle.status.return_value = sl_cmd.LifecycleStatus(sl_cmd.DaemonPresence.STOPPED)
+    monkeypatch.setattr(sl_cmd, "ArtemisLifecycleAdapter", MagicMock(return_value=lifecycle))
+    ui = MagicMock()
+    monkeypatch.setattr(sl_cmd, "ui_command", ui)
     result = runner.invoke(app, ["restart", "--port", "8888", "--no-open", "--foreground"])
     assert result.exit_code == 0
-    assert stopped["port"] == 8888
-    assert ui_called["port"] == 8888
-    assert ui_called["open_browser"] is False
+    ui.assert_called_once_with(host="127.0.0.1", port=8888, open_browser=False, reload=False)
 
 
 def test_cli_server_lifecycle_aliases(monkeypatch):
-    """Verify 'artemis server status/stop/restart' subcommands are accessible."""
-    from artemis.runtime import server_lifecycle
+    from artemis.interfaces.cli.commands import server_lifecycle as sl_cmd
 
-    monkeypatch.setattr(server_lifecycle, "is_port_in_use", lambda port, **kwargs: False)
-    monkeypatch.setattr(server_lifecycle, "find_server_pids", lambda port: [])
-    monkeypatch.setattr(server_lifecycle, "read_server_info", lambda: None)
-
+    lifecycle = MagicMock()
+    lifecycle.status.return_value = sl_cmd.LifecycleStatus(sl_cmd.DaemonPresence.STOPPED)
+    monkeypatch.setattr(sl_cmd, "ArtemisLifecycleAdapter", MagicMock(return_value=lifecycle))
     result = runner.invoke(app, ["server", "status", "--port", "59998"])
     assert result.exit_code == 0
     assert "OFFLINE" in result.output or "STOPPED" in result.output

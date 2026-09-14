@@ -343,6 +343,16 @@ class TaskQueueService:
             pass
 
     @classmethod
+    async def wait_drained(cls) -> None:
+        """Wait until all work accepted before drain has reached a terminal state."""
+        while not state.is_drained:
+            try:
+                await asyncio.wait_for(state.wake_event.wait(), timeout=0.3)
+                state.wake_event.clear()
+            except TimeoutError:
+                pass
+
+    @classmethod
     def _concurrency_limit(cls) -> int:
         """Return 0 for per-device concurrency, or the global task limit."""
         return DeviceExecutionLock.resolve_env_concurrency()
@@ -387,7 +397,9 @@ class TaskQueueService:
 
     @classmethod
     def _dispatch_pending_tasks(cls) -> None:
-        """Launch every pending task admissible under the current concurrency limit."""
+        """Launch accepted pending tasks, including while admission is draining."""
+        if state.is_shutting_down:
+            return
         limit = cls._concurrency_limit()
         state.prune_finished_runs()
         if limit == 1 and state.is_running:
@@ -703,7 +715,9 @@ class TaskQueueService:
         try:
             from admin_console.services.email_notification_service import email_notification_service
         except ImportError:
-            from apps.admin_console.services.email_notification_service import email_notification_service
+            from apps.admin_console.services.email_notification_service import (
+                email_notification_service,
+            )
         email_notification_service.create_for_session(str(sess_id), new_status)
         return new_status
 
@@ -914,15 +928,29 @@ class TaskQueueService:
             await cls._finish_output_forwarder(output_task)
             if sess_id:
                 try:
-                    from admin_console.database.repositories.schedule_repository import schedule_repo
-                    from admin_console.services.email_notification_service import email_notification_service
+                    from admin_console.database.repositories.schedule_repository import (
+                        schedule_repo,
+                    )
+                    from admin_console.services.email_notification_service import (
+                        email_notification_service,
+                    )
                 except ImportError:
-                    from apps.admin_console.database.repositories.schedule_repository import schedule_repo
-                    from apps.admin_console.services.email_notification_service import email_notification_service
+                    from apps.admin_console.database.repositories.schedule_repository import (
+                        schedule_repo,
+                    )
+                    from apps.admin_console.services.email_notification_service import (
+                        email_notification_service,
+                    )
                 try:
                     schedule_run = schedule_repo.get_run_by_session(str(sess_id))
-                    if schedule_run and schedule_run.get("status") in {"completed", "failed", "cancelled"}:
-                        email_notification_service.create_for_session(str(sess_id), schedule_run["status"])
+                    if schedule_run and schedule_run.get("status") in {
+                        "completed",
+                        "failed",
+                        "cancelled",
+                    }:
+                        email_notification_service.create_for_session(
+                            str(sess_id), schedule_run["status"]
+                        )
                 except Exception:
                     logger.exception("[QueueWorker] Could not persist email notification intent")
             # 5. Clean up the finished task and release this run's scheduling slot

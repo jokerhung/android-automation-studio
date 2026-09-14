@@ -1,6 +1,8 @@
+import asyncio
 import json
 import sqlite3
 import smtplib
+import threading
 
 import pytest
 
@@ -108,6 +110,75 @@ def test_worker_bounds_retry_and_marks_unknown_without_resend(tmp_path):
     ident2,_=svc.record_terminal_intent("run-1","failed",context={"password":"hidden"})
     smtp.outcome=TimeoutError("ack lost"); svc.process_one("w")
     assert svc.repository.get(ident2)["status"]=="delivery_unknown" and svc.process_one("w") is False
+
+
+class BlockingSMTP(FakeSMTP):
+    def __init__(self, outcome=None):
+        super().__init__(outcome)
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def send_message(self, message):
+        self.messages.append(message)
+        self.entered.set()
+        assert self.release.wait(2), "test did not release fake SMTP"
+        if isinstance(self.outcome, Exception):
+            raise self.outcome
+        return self.outcome
+
+
+@pytest.mark.asyncio
+async def test_drain_stops_new_claims_and_stop_waits_for_inflight(tmp_path):
+    db = tmp_path / "n.db"
+    schema(db)
+    seed(db)
+    now = [50.0]
+    smtp = BlockingSMTP()
+    svc = service(db, smtp, now)
+    svc.reconcile = lambda: None
+    first, _ = svc.record_terminal_intent("run-1", "completed")
+    second, _ = svc.record_terminal_intent("run-1", "failed")
+
+    await svc.start()
+    assert await asyncio.to_thread(smtp.entered.wait, 1)
+    assert svc.status()["inflight_count"] == 1
+    svc.begin_drain()
+    assert svc.status()["accepting_deliveries"] is False
+
+    smtp.release.set()
+    assert await svc.stop(timeout=1) is True
+    assert svc.repository.get(first)["status"] == "accepted"
+    assert svc.repository.get(second)["status"] == "pending"
+    assert svc.status()["inflight_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_stop_timeout_keeps_smtp_tracked_and_preserves_unknown_result(tmp_path):
+    db = tmp_path / "n.db"
+    schema(db)
+    seed(db)
+    now = [50.0]
+    smtp = BlockingSMTP(TimeoutError("ack lost"))
+    svc = service(db, smtp, now)
+    svc.reconcile = lambda: None
+    ident, _ = svc.record_terminal_intent("run-1", "completed")
+
+    await svc.start()
+    assert await asyncio.to_thread(smtp.entered.wait, 1)
+    assert await svc.stop(timeout=0.01) is False
+    assert svc.status()["inflight_count"] == 1
+    assert svc.status()["draining"] is True
+    assert svc.status()["accepting_deliveries"] is False
+    # A shutdown timeout does not invent a send result or release the claim.
+    assert svc.repository.get(ident)["status"] == "sending"
+
+    smtp.release.set()
+    for _ in range(100):
+        if not svc.busy:
+            break
+        await asyncio.sleep(0.01)
+    assert svc.repository.get(ident)["status"] == "delivery_unknown"
+    assert svc.busy is False
 
 
 def test_suppression_and_reconcile_hooks_are_idempotent(tmp_path):

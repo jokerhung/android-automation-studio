@@ -46,10 +46,21 @@ def test_write_read_clear_server_info(tmp_path, monkeypatch):
     # Initial read should be None
     assert read_server_info() is None
 
-    # Write info
+    monkeypatch.setattr(
+        "artemis.runtime.server_lifecycle._process_snapshot",
+        lambda pid: {
+            "process_create_time": 123.0,
+            "sys_executable": "python",
+            "cmdline": ["python", "-m", "apps.admin_console.server"],
+            "cwd": str(tmp_path),
+        },
+    )
+    monkeypatch.setattr("artemis.runtime.server_lifecycle.ROOT_DIR", tmp_path)
+
+    # Write info to the workspace+port scoped path.
     written = write_server_info(port=8888, host="127.0.0.1", pid=99999)
-    assert written == fake_info_file
-    assert fake_info_file.exists()
+    assert written != fake_info_file
+    assert written.exists()
 
     # Read back
     info = read_server_info()
@@ -61,35 +72,125 @@ def test_write_read_clear_server_info(tmp_path, monkeypatch):
 
     # A stop targeting another port must not erase this server's metadata.
     clear_server_info(port=9999)
-    assert fake_info_file.exists()
+    assert written.exists()
 
     # Clear matching info
     clear_server_info(port=8888)
-    assert not fake_info_file.exists()
+    assert not written.exists()
     assert read_server_info() is None
 
 
-def test_find_server_pids_from_metadata(tmp_path, monkeypatch):
-    """Verify find_server_pids discovers PID saved in metadata file."""
-    fake_info_file = tmp_path / "test_server.json"
-    fake_info_file.write_text(
-        json.dumps({"pid": os.getpid(), "port": 8000, "started_at": 100.0}),
-        encoding="utf-8",
+def test_find_server_pids_from_verified_metadata(tmp_path, monkeypatch):
+    """PID discovery requires every persisted and live identity attribute."""
+    monkeypatch.setattr("artemis.runtime.server_lifecycle.ROOT_DIR", tmp_path)
+    snapshot = {
+        "process_create_time": 100.0,
+        "sys_executable": str(tmp_path / "python.exe"),
+        "cmdline": ["python", "-m", "apps.admin_console.server"],
+        "cwd": str(tmp_path),
+    }
+    monkeypatch.setattr("artemis.runtime.server_lifecycle._process_snapshot", lambda pid: snapshot)
+    monkeypatch.setattr("artemis.runtime.server_lifecycle._listener_pids", lambda port: {4321})
+    monkeypatch.setattr(
+        "artemis.runtime.server_lifecycle.get_server_info_file", lambda: tmp_path / "server.json"
+    )
+    write_server_info(port=8000, pid=4321, lifecycle_token="secret")
+
+    assert find_server_pids(8000) == [4321]
+
+    monkeypatch.setattr("artemis.runtime.server_lifecycle._listener_pids", lambda port: {9999})
+    assert find_server_pids(8000) == []
+
+
+def _valid_identity(tmp_path):
+    snapshot = {
+        "process_create_time": 100.0,
+        "sys_executable": str(tmp_path / "python.exe"),
+        "cmdline": ["python", "-m", "apps.admin_console.server"],
+        "cwd": str(tmp_path),
+    }
+    info = {
+        "pid": 4321,
+        "port": 8000,
+        "lifecycle_token": "secret",
+        "workspace": str(tmp_path),
+        "workspace_id": "workspace-id",
+        **snapshot,
+    }
+    return info, snapshot
+
+
+@pytest.mark.parametrize(
+    ("mutation", "listener_pids"),
+    [
+        ({"lifecycle_token": ""}, {4321}),
+        ({"port": 8001}, {4321}),
+        ({"pid": 4322}, {4321}),
+        ({"workspace_id": "other"}, {4321}),
+        ({"workspace": "other"}, {4321}),
+        ({"process_create_time": 101.0}, {4321}),
+        ({"sys_executable": "other-python"}, {4321}),
+        ({"cmdline": ["python", "foreign.py"]}, {4321}),
+        ({"cwd": "other"}, {4321}),
+        ({}, {9999}),
+    ],
+)
+def test_identity_validation_fails_closed(tmp_path, monkeypatch, mutation, listener_pids):
+    from artemis.runtime import server_lifecycle
+
+    info, snapshot = _valid_identity(tmp_path)
+    info.update(mutation)
+    monkeypatch.setattr(server_lifecycle, "ROOT_DIR", tmp_path)
+    monkeypatch.setattr(server_lifecycle, "_workspace_identity", lambda: "workspace-id")
+    monkeypatch.setattr(server_lifecycle, "_listener_pids", lambda port: listener_pids)
+    monkeypatch.setattr(server_lifecycle, "_process_snapshot", lambda pid: snapshot)
+
+    assert server_lifecycle._metadata_identity_is_valid(info, 8000) is False
+
+
+def test_read_server_info_accepts_safe_legacy_file(tmp_path, monkeypatch):
+    legacy = tmp_path / "server.json"
+    legacy.write_text(
+        json.dumps({"pid": 7, "port": 8000, "cwd": str(tmp_path)}), encoding="utf-8"
+    )
+    monkeypatch.setattr("artemis.runtime.server_lifecycle.ROOT_DIR", tmp_path)
+    monkeypatch.setattr(
+        "artemis.runtime.server_lifecycle.get_server_info_file", lambda: legacy
+    )
+
+    assert read_server_info(8000)["pid"] == 7
+    assert read_server_info(8001) is None
+
+
+def test_stop_server_refuses_unverified_listener(monkeypatch):
+    terminate = MagicMock()
+    cleanup = MagicMock()
+    clear = MagicMock()
+    monkeypatch.setattr("artemis.runtime.server_lifecycle.find_server_pids", lambda port: [])
+    monkeypatch.setattr("artemis.runtime.server_lifecycle.is_port_in_use", lambda port: True)
+    monkeypatch.setattr(
+        "artemis.runtime.server_lifecycle.ProcessSupervisor.terminate_tree", terminate
     )
     monkeypatch.setattr(
-        "artemis.runtime.server_lifecycle.get_server_info_file", lambda: fake_info_file
+        "artemis.runtime.server_lifecycle.DeviceExecutionLock.cleanup_stale_locks", cleanup
     )
-    monkeypatch.setattr("artemis.runtime.server_lifecycle.is_port_in_use", lambda port, **k: True)
+    monkeypatch.setattr("artemis.runtime.server_lifecycle.clear_server_info", clear)
 
-    pids = find_server_pids(8000)
-    assert os.getpid() in pids
+    success, message, stopped = stop_server(8000, timeout=0)
+
+    assert success is False
+    assert stopped == []
+    assert "refusing" in message
+    terminate.assert_not_called()
+    cleanup.assert_not_called()
+    clear.assert_not_called()
 
 
 def test_get_server_status_offline(monkeypatch):
     """Verify get_server_status returns correct structure when server is offline."""
     monkeypatch.setattr("artemis.runtime.server_lifecycle.is_port_in_use", lambda port, **k: False)
     monkeypatch.setattr("artemis.runtime.server_lifecycle.find_server_pids", lambda port: [])
-    monkeypatch.setattr("artemis.runtime.server_lifecycle.read_server_info", lambda: None)
+    monkeypatch.setattr("artemis.runtime.server_lifecycle.read_server_info", lambda port=None: None)
 
     status = get_server_status(8000)
     assert status["running"] is False
@@ -104,7 +205,7 @@ def test_get_server_status_online(monkeypatch):
     monkeypatch.setattr("artemis.runtime.server_lifecycle.find_server_pids", lambda port: [12345])
     monkeypatch.setattr(
         "artemis.runtime.server_lifecycle.read_server_info",
-        lambda: {"pid": 12345, "port": 8000, "started_at": 1000.0},
+        lambda port=None: {"pid": 12345, "port": 8000, "started_at": 1000.0},
     )
 
     status = get_server_status(8000)
@@ -142,13 +243,17 @@ def test_request_graceful_shutdown_uses_metadata_token(monkeypatch):
     response.__enter__.return_value = response
     monkeypatch.setattr(
         "artemis.runtime.server_lifecycle.read_server_info",
-        lambda: {"port": 9123, "lifecycle_token": "local-secret"},
+        lambda port=None: {"pid": 123, "port": 9123, "lifecycle_token": "local-secret"},
     )
-    urlopen = MagicMock(return_value=response)
+    monkeypatch.setattr("artemis.runtime.server_lifecycle._metadata_identity_is_valid", lambda info, port: True)
+    status_response = MagicMock(status=200)
+    status_response.read.return_value = b'{"port": 9123, "current_pid": 123}'
+    status_response.__enter__.return_value = status_response
+    urlopen = MagicMock(side_effect=[status_response, response])
     monkeypatch.setattr("artemis.runtime.server_lifecycle.urllib.request.urlopen", urlopen)
 
     assert request_graceful_shutdown(9123) is True
-    request = urlopen.call_args.args[0]
+    request = urlopen.call_args_list[-1].args[0]
     assert request.full_url == "http://127.0.0.1:9123/api/system/shutdown"
     assert request.get_header("X-artemis-lifecycle-token") == "local-secret"
 
@@ -223,6 +328,19 @@ async def test_api_server_status():
         assert "port" in data
         assert "running" in data
         assert "current_pid" in data
+
+
+@pytest.mark.asyncio
+async def test_api_lifecycle_identity_requires_token():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost") as client:
+        denied = await client.get("/api/system/lifecycle-identity")
+        assert denied.status_code == 403
+        response = await client.get(
+            "/api/system/lifecycle-identity",
+            headers={"X-Artemis-Lifecycle-Token": LIFECYCLE_TOKEN},
+        )
+    assert response.status_code == 200
+    assert response.json()["current_pid"] == os.getpid()
 
 
 @pytest.mark.asyncio

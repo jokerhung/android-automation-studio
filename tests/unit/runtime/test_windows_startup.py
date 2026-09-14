@@ -60,27 +60,27 @@ def test_unsupported_platform(monkeypatch):
         startup.set_startup_enabled(True, 8009)
 
 
-def test_logon_skips_occupied_port(tmp_path, monkeypatch):
+def test_logon_orchestrates_identity_aware_background_runtime(tmp_path, monkeypatch):
     monkeypatch.setattr(
         startup.sys, "argv", ["startup", "--working-directory", str(tmp_path), "--port", "8009"]
     )
+    result = MagicMock(ok=True, daemon_started=True, tray_running=True, detail="")
     with (
         patch.object(startup.os, "chdir"),
-        patch.object(startup.socket, "create_connection"),
-        patch("artemis.runtime.daemon_client.spawn_daemon") as spawn,
+        patch(
+            "artemis.runtime.background_runtime.ensure_background_runtime", return_value=result
+        ) as ensure,
+        patch("artemis.runtime.background_runtime.WindowsTrayRuntimeAdapter") as tray,
+        patch("artemis.runtime.tray_controller.ArtemisLifecycleAdapter") as lifecycle,
+        patch("artemis.runtime.tray_launcher._configure_launcher_logging"),
     ):
         startup.main()
-    spawn.assert_not_called()
-
-
-def test_logon_spawns_background_daemon(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        startup.sys, "argv", ["startup", "--working-directory", str(tmp_path), "--port", "8009"]
+    tray.assert_called_once_with(workspace=tmp_path)
+    lifecycle.assert_called_once_with(host="127.0.0.1", port=8009)
+    ensure.assert_called_once_with(
+        host="127.0.0.1",
+        port=8009,
+        lifecycle=lifecycle.return_value,
+        tray=tray.return_value,
+        wait_timeout=60.0,
     )
-    with (
-        patch.object(startup.os, "chdir"),
-        patch.object(startup.socket, "create_connection", side_effect=OSError),
-        patch("artemis.runtime.daemon_client.spawn_daemon") as spawn,
-    ):
-        startup.main()
-    spawn.assert_called_once_with(host="127.0.0.1", port=8009)

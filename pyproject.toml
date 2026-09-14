@@ -61,6 +61,7 @@ dependencies = [
     "sseclient-py>=1.8.0",
     # Image, Video & Multimodal Perception
     "pillow>=10.0.0",
+    "pystray>=0.19.5; sys_platform == 'win32'",
     "opencv-python>=4.9.0.80",
     "imageio-ffmpeg>=0.5.1",
     "matplotlib>=3.8.0",

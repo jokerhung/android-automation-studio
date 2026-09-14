@@ -31,11 +31,17 @@ from artemis.interfaces.cli.commands.ui import (
     load_session_reconciler,
     ui_command,
 )
-from artemis.runtime.daemon_client import daemon_log_path, is_daemon_running, spawn_daemon
-from artemis.runtime.server_lifecycle import (
-    find_server_pids,
-    get_server_status,
-    stop_server,
+from artemis.config.paths import ROOT_DIR
+from artemis.runtime.background_runtime import (
+    WindowsTrayRuntimeAdapter,
+    ensure_background_runtime,
+)
+from artemis.runtime.daemon_client import daemon_log_path
+from artemis.runtime.server_lifecycle import read_server_info
+from artemis.runtime.tray_controller import (
+    ArtemisLifecycleAdapter,
+    DaemonPresence,
+    LifecycleStatus,
 )
 
 console = Console()
@@ -109,93 +115,66 @@ def restart_command(
         ),
     ] = True,
 ) -> None:
-    """Restart the Artemis Web UI server, terminating any existing instance on the port."""
+    """Restart only an identity-verified Artemis daemon on the target port."""
     console.print()
     if reload and daemon:
-        # uvicorn auto-reload requires an attached terminal session.
         console.print("   [dim]ℹ --reload requested: switching to foreground mode.[/dim]")
         daemon = False
     console.print(
         Panel(
             f"[bold cyan]🔄 Artemis Server Restart[/bold cyan]\n"
-            f"[dim]Inspecting port {port} and recycling any running Artemis instances...[/dim]",
+            f"[dim]Verifying the Artemis instance on port {port}...[/dim]",
             border_style="cyan",
             expand=False,
         )
     )
 
-    # 1. Stop existing server
-    existing_pids = find_server_pids(port)
-    if existing_pids:
-        pid_str = ", ".join(map(str, existing_pids))
-        console.print(
-            f"   [yellow]🛑 Terminating running Artemis instance (PID: {pid_str})...[/yellow]"
-        )
+    lifecycle = ArtemisLifecycleAdapter(host=host, port=port)
+    current = lifecycle.status()
+    if current.presence is DaemonPresence.PORT_CONFLICT:
+        console.print(f"   [red]⚠ {current.detail} Refusing to stop or replace it.[/red]\n")
+        raise typer.Exit(code=1)
+    if current.presence is DaemonPresence.ARTEMIS:
+        load_session_reconciler()
+        console.print("   [yellow]🛑 Requesting verified graceful shutdown...[/yellow]")
+        if not lifecycle.stop(timeout=12.0):
+            console.print("   [red]⚠ Verified daemon did not stop; no PID was terminated.[/red]\n")
+            raise typer.Exit(code=1)
     else:
-        console.print(f"   [dim]ℹ No active Artemis server found on port {port}.[/dim]")
+        console.print(f"   [dim]ℹ No verified Artemis daemon found on port {port}.[/dim]")
 
-    load_session_reconciler()
-    success, msg, stopped_pids = stop_server(port=port, force=force, timeout=12.0)
-    if stopped_pids:
-        console.print(f"   [green]✓ {msg}[/green]\n")
-    elif not success:
-        console.print(f"   [red]⚠ {msg}[/red]\n")
-    else:
-        console.print(f"   [green]✓ Port {port} is clear and ready.[/green]\n")
-
-    # 2. Launch fresh server instance
     local_url = f"http://localhost:{port}"
     if daemon:
         ensure_showcase_built(console)
-        console.print("   [cyan]🚀 Starting Artemis in detached background daemon mode...[/cyan]")
-        proc = spawn_daemon(host=host, port=port)
-        if not proc:
-            console.print("   [red]❌ Failed to spawn background daemon.[/red]\n")
-            raise typer.Exit(code=1)
-
-        # Wait until the daemon answers HTTP before declaring success (cold
-        # start includes DB/trace initialization and can take tens of seconds).
-        ready = False
-        deadline = time.monotonic() + 60.0
-        while time.monotonic() < deadline:
-            if is_daemon_running(host="127.0.0.1", port=port, timeout=0.5):
-                ready = True
-                break
-            if proc.poll() is not None:
-                # Parent exited: either it crashed, or it handed the socket off
-                # to a child worker. Give the worker a short grace period.
-                grace = time.monotonic() + 5.0
-                while time.monotonic() < grace:
-                    if is_daemon_running(host="127.0.0.1", port=port, timeout=0.5):
-                        ready = True
-                        break
-                    time.sleep(0.3)
-                break
-            time.sleep(0.3)
-
+        tray = WindowsTrayRuntimeAdapter(workspace=ROOT_DIR)
+        result = ensure_background_runtime(
+            host=host,
+            port=port,
+            lifecycle=lifecycle,
+            tray=tray,
+            wait_timeout=60.0,
+        )
         log_path = daemon_log_path(port)
-        if ready:
+        if not result.ok:
             console.print(
-                f"   [bold green]✓ Artemis server running in background (PID: {proc.pid})[/bold green]\n"
-                f"   🌐 [cyan]{local_url}[/cyan]\n"
-                f"   🛠️  [cyan]{local_url}/admin[/cyan]\n"
-                f"   📄 [dim]Logs: {log_path}[/dim]\n"
-                f"   [dim]💡 Stop with [bold]artemis stop[/bold]; run in-terminal with [bold]artemis restart --foreground[/bold].[/dim]\n"
-            )
-            if open_browser:
-                webbrowser.open(local_url)
-        else:
-            console.print(
-                f"   [red]❌ Background daemon did not become ready on port {port}.[/red]\n"
+                f"   [red]❌ Background daemon did not become identity-verified.[/red]\n"
+                f"   [dim]{result.detail}[/dim]\n"
                 f"   📄 [dim]Check logs: {log_path}[/dim]\n"
             )
             raise typer.Exit(code=1)
+        metadata = read_server_info(port) or {}
+        pid = metadata.get("pid", "Unknown")
+        console.print(
+            f"   [bold green]✓ Artemis server running in background (PID: {pid})[/bold green]\n"
+            f"   🌐 [cyan]{local_url}[/cyan]\n"
+            f"   🛠️  [cyan]{local_url}/admin[/cyan]\n"
+            f"   📄 [dim]Logs: {log_path}[/dim]\n"
+        )
+        if open_browser:
+            webbrowser.open(local_url)
         return
 
-    # Foreground mode (--foreground / --reload)
-    console.print(
-        "   [cyan]🚀 Launching unified Artemis Showcase UI in current terminal...[/cyan]\n"
-    )
+    console.print("   [cyan]🚀 Launching Artemis in the current terminal...[/cyan]\n")
     ui_command(host=host, port=port, open_browser=open_browser, reload=reload)
 
 
@@ -213,48 +192,47 @@ def stop_command(
         ),
     ] = False,
 ) -> None:
-    """Stop any running Artemis Web UI / server instance on the given port."""
+    """Stop the verified Artemis daemon; never terminate a port owner by PID."""
     console.print()
-    existing_pids = find_server_pids(port)
-    if existing_pids:
-        pid_str = ", ".join(map(str, existing_pids))
-        console.print(
-            f"   [yellow]🛑 Stopping Artemis server on port {port} (PID: {pid_str})...[/yellow]"
-        )
-    else:
-        console.print(f"   [dim]Scanning port {port}...[/dim]")
-
-    load_session_reconciler()
-    success, msg, stopped_pids = stop_server(port=port, force=force, timeout=12.0)
-    if stopped_pids:
+    lifecycle = ArtemisLifecycleAdapter(port=port)
+    current = lifecycle.status()
+    if current.presence is DaemonPresence.STOPPED:
         console.print(
             Panel(
-                f"[bold green]✓ Artemis server stopped successfully.[/bold green]\n\n"
-                f"[dim]{msg}[/dim]",
-                title="🛑 Server Stopped",
-                border_style="green",
-                expand=False,
-            )
-        )
-    elif not success:
-        console.print(
-            Panel(
-                f"[bold red]⚠ Failed to fully stop server on port {port}[/bold red]\n\n{msg}",
-                title="⚠ Warning",
-                border_style="red",
-                expand=False,
-            )
-        )
-        raise typer.Exit(code=1)
-    else:
-        console.print(
-            Panel(
-                f"[dim]No active Artemis server found on port {port}. Port is free.[/dim]",
+                f"[dim]No verified Artemis daemon found on port {port}.[/dim]",
                 title="ℹ Status",
                 border_style="dim",
                 expand=False,
             )
         )
+        return
+    if current.presence is not DaemonPresence.ARTEMIS:
+        console.print(
+            Panel(
+                f"[bold red]⚠ {current.detail}[/bold red]\n\n"
+                "Refusing to terminate an unverified process.",
+                title="⚠ Port Conflict",
+                border_style="red",
+                expand=False,
+            )
+        )
+        raise typer.Exit(code=1)
+    if force:
+        console.print(
+            "   [dim]ℹ --force does not bypass daemon identity or graceful shutdown.[/dim]"
+        )
+    load_session_reconciler()
+    if not lifecycle.stop(timeout=12.0):
+        console.print("   [red]⚠ Verified daemon did not stop; no PID was terminated.[/red]")
+        raise typer.Exit(code=1)
+    console.print(
+        Panel(
+            "[bold green]✓ Artemis server stopped gracefully.[/bold green]",
+            title="🛑 Server Stopped",
+            border_style="green",
+            expand=False,
+        )
+    )
 
 
 def status_command(
@@ -263,66 +241,56 @@ def status_command(
         typer.Option("--port", "-p", help="Port to query for Artemis server status."),
     ] = 8000,
 ) -> None:
-    """Check whether the Artemis server is currently running and display runtime metadata."""
+    """Display identity-aware Artemis daemon status for the target port."""
     console.print()
-    status = get_server_status(port=port)
-
-    if status["running"]:
-        pids_str = (
-            ", ".join(map(str, status["pids"]))
-            if status["pids"]
-            else str(status["active_pid"] or "Unknown")
-        )
-        uptime_str = _format_uptime(status["uptime_seconds"])
-        metadata = status.get("metadata") or {}
-
-        started_at_str = "Unknown"
+    lifecycle = ArtemisLifecycleAdapter(port=port)
+    state: LifecycleStatus = lifecycle.status()
+    metadata = read_server_info(port) or {}
+    if state.presence is DaemonPresence.ARTEMIS:
+        uptime = None
+        if isinstance(metadata.get("started_at"), (int, float)):
+            uptime = max(0.0, time.time() - metadata["started_at"])
+        started_at = "Unknown"
         if metadata.get("started_at"):
             try:
-                dt = datetime.datetime.fromtimestamp(metadata["started_at"])
-                started_at_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+                started_at = datetime.datetime.fromtimestamp(metadata["started_at"]).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
             except (TypeError, ValueError, OSError, OverflowError):
-                # Malformed or out-of-range timestamp in metadata: show "Unknown".
                 pass
-
         table = Table(show_header=False, box=None, padding=(0, 2))
         table.add_row(
-            "[bold cyan]Status[/bold cyan]", "[bold green]● ONLINE / RUNNING[/bold green]"
+            "[bold cyan]Status[/bold cyan]", "[bold green]● VERIFIED ARTEMIS[/bold green]"
         )
-        table.add_row("[bold cyan]PID(s)[/bold cyan]", f"[yellow]{pids_str}[/yellow]")
-        table.add_row("[bold cyan]Port[/bold cyan]", f"[white]{port}[/white]")
-        table.add_row("[bold cyan]Uptime[/bold cyan]", f"[white]{uptime_str}[/white]")
-        table.add_row("[bold cyan]Started At[/bold cyan]", f"[dim]{started_at_str}[/dim]")
-        table.add_row("[bold cyan]Showcase UI[/bold cyan]", f"[cyan]{status['url']}[/cyan]")
         table.add_row(
-            "[bold cyan]Admin Debug[/bold cyan]", f"[magenta]{status['admin_url']}[/magenta]"
+            "[bold cyan]PID[/bold cyan]", f"[yellow]{metadata.get('pid', 'Unknown')}[/yellow]"
         )
-
+        table.add_row("[bold cyan]Port[/bold cyan]", f"[white]{port}[/white]")
+        table.add_row("[bold cyan]Uptime[/bold cyan]", f"[white]{_format_uptime(uptime)}[/white]")
+        table.add_row("[bold cyan]Started At[/bold cyan]", f"[dim]{started_at}[/dim]")
+        table.add_row("[bold cyan]Showcase UI[/bold cyan]", f"[cyan]http://localhost:{port}[/cyan]")
         if metadata.get("cwd"):
             table.add_row("[bold cyan]Workspace[/bold cyan]", f"[dim]{metadata['cwd']}[/dim]")
-
+        console.print(
+            Panel(table, title="🚀 Artemis Server Status", border_style="green", expand=False)
+        )
+        return
+    if state.presence is DaemonPresence.PORT_CONFLICT:
         console.print(
             Panel(
-                table,
-                title="🚀 Artemis Server Status",
-                border_style="green",
+                f"[bold red]● PORT CONFLICT[/bold red]\n\n{state.detail}\n"
+                "[dim]No process ownership or Artemis status is inferred from port liveness alone.[/dim]",
+                title="⚠ Artemis Server Status",
+                border_style="red",
                 expand=False,
             )
         )
-        console.print(
-            "   [dim]💡 To restart: [bold]artemis restart[/bold] | To stop: [bold]artemis stop[/bold][/dim]\n"
+        raise typer.Exit(code=1)
+    console.print(
+        Panel(
+            f"[dim]○ OFFLINE / STOPPED[/dim]\n\nNo Artemis daemon is listening on port {port}.",
+            title="ℹ Artemis Server Status",
+            border_style="dim",
+            expand=False,
         )
-    else:
-        console.print(
-            Panel(
-                f"[dim]○ OFFLINE / STOPPED[/dim]\n\n"
-                f"Port [cyan]{port}[/cyan] is currently free.\n"
-                f"[dim]No active Artemis server process detected.[/dim]",
-                title="ℹ Artemis Server Status",
-                border_style="dim",
-                expand=False,
-            )
-        )
-        console.print(
-            "   [dim]💡 To start: [bold]artemis ui[/bold] or [bold]./start.sh[/bold][/dim]\n"
-        )
+    )

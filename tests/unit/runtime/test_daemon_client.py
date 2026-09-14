@@ -40,17 +40,58 @@ def test_is_standalone_forced(monkeypatch):
 
 
 def test_is_daemon_running_success():
-    mock_resp = MagicMock()
-    mock_resp.status = 200
-    mock_resp.__enter__.return_value = mock_resp
-
-    with patch("urllib.request.urlopen", return_value=mock_resp):
+    with patch("artemis.runtime.daemon_client.is_artemis_daemon", return_value=True):
         assert is_daemon_running() is True
 
 
 def test_is_daemon_running_failure():
     with patch("urllib.request.urlopen", side_effect=OSError("Connection refused")):
         assert is_daemon_running() is False
+
+
+def test_is_artemis_daemon_requires_matching_authenticated_http_identity():
+    from artemis.runtime.daemon_client import is_artemis_daemon
+
+    response = MagicMock(status=200)
+    response.read.return_value = b'{"port": 8000, "current_pid": 4321}'
+    response.__enter__.return_value = response
+    with (
+        patch(
+            "artemis.runtime.daemon_client.read_server_info",
+            return_value={"pid": 4321, "lifecycle_token": "secret"},
+        ),
+        patch("artemis.runtime.daemon_client.find_server_pids", return_value=[4321]),
+        patch("artemis.runtime.daemon_client.urllib.request.urlopen", return_value=response) as open_,
+    ):
+        assert is_artemis_daemon(port=8000) is True
+    request = open_.call_args.args[0]
+    assert request.full_url.endswith("/api/system/lifecycle-identity")
+    assert request.get_header("X-artemis-lifecycle-token") == "secret"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b'{"port": 8001, "current_pid": 4321}',
+        b'{"port": 8000, "current_pid": 9999}',
+        b'not-json',
+    ],
+)
+def test_is_artemis_daemon_rejects_http_identity_mismatch(payload):
+    from artemis.runtime.daemon_client import is_artemis_daemon
+
+    response = MagicMock(status=200)
+    response.read.return_value = payload
+    response.__enter__.return_value = response
+    with (
+        patch(
+            "artemis.runtime.daemon_client.read_server_info",
+            return_value={"pid": 4321, "lifecycle_token": "secret"},
+        ),
+        patch("artemis.runtime.daemon_client.find_server_pids", return_value=[4321]),
+        patch("artemis.runtime.daemon_client.urllib.request.urlopen", return_value=response),
+    ):
+        assert is_artemis_daemon(port=8000) is False
 
 
 def test_spawn_daemon(tmp_path):
@@ -76,29 +117,24 @@ def test_spawn_daemon(tmp_path):
         assert cmd[3:] == ["--host", "127.0.0.1", "--port", "9123"]
 
 
-def test_ensure_daemon_running_when_already_active():
-    with patch("artemis.runtime.daemon_client.is_daemon_running", return_value=True):
+def test_ensure_daemon_running_uses_shared_identity_orchestration():
+    status = MagicMock(presence=MagicMock(value="artemis"))
+    result = MagicMock(ok=True, daemon_status=status, detail="")
+    with patch(
+        "artemis.runtime.background_runtime.ensure_background_runtime", return_value=result
+    ) as ensure:
         ok, base_url = ensure_daemon_running(host="127.0.0.1", port=8000)
-        assert ok is True
-        assert base_url == "http://127.0.0.1:8000"
+    assert ok is True
+    assert base_url == "http://127.0.0.1:8000"
+    assert ensure.call_args.kwargs["port"] == 8000
 
 
-def test_ensure_daemon_running_standalone_override(monkeypatch):
-    monkeypatch.setenv("ARTEMIS_STANDALONE", "1")
-    ok, base_url = ensure_daemon_running()
+def test_ensure_daemon_running_fails_closed_on_conflict():
+    result = MagicMock(ok=False, detail="Port conflict")
+    with patch("artemis.runtime.background_runtime.ensure_background_runtime", return_value=result):
+        ok, base_url = ensure_daemon_running(timeout=1.0, wait_ready=True)
     assert ok is False
     assert base_url is None
-
-
-def test_ensure_daemon_running_auto_spawns():
-    with (
-        patch("artemis.runtime.daemon_client.is_daemon_running", side_effect=[False, True]),
-        patch("artemis.runtime.daemon_client.spawn_daemon") as mock_spawn,
-    ):
-        ok, base_url = ensure_daemon_running(timeout=1.0, wait_ready=True)
-        assert ok is True
-        assert base_url == "http://127.0.0.1:8000"
-        mock_spawn.assert_called_once()
 
 
 def test_submit_task_to_daemon():

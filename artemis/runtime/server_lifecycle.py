@@ -21,6 +21,8 @@ of which terminal or process spawned them.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -52,6 +54,46 @@ def is_port_in_use(port: int, host: str = "127.0.0.1", timeout: float = 0.5) -> 
             return False
 
 
+def _workspace_identity() -> str:
+    """Return a stable identifier for this source/install workspace."""
+    workspace = os.path.normcase(str(ROOT_DIR.resolve()))
+    return hashlib.sha256(workspace.encode("utf-8")).hexdigest()[:16]
+
+
+def _scoped_server_info_file(port: int) -> Path:
+    """Return metadata path scoped to this workspace and TCP port."""
+    legacy = get_server_info_file()
+    return legacy.with_name(f"{legacy.stem}.{_workspace_identity()}.{port}{legacy.suffix}")
+
+
+def _metadata_candidates(port: int | None = None) -> list[Path]:
+    legacy = get_server_info_file()
+    if port is not None:
+        return [_scoped_server_info_file(port), legacy]
+    pattern = f"{legacy.stem}.{_workspace_identity()}.*{legacy.suffix}"
+    scoped = sorted(
+        legacy.parent.glob(pattern), key=lambda item: item.stat().st_mtime, reverse=True
+    )
+    return [*scoped, legacy]
+
+
+def _process_snapshot(pid: int) -> dict[str, Any] | None:
+    """Read security-relevant process attributes, failing closed."""
+    try:
+        import psutil
+
+        proc = psutil.Process(pid)
+        return {
+            "process_create_time": proc.create_time(),
+            "sys_executable": proc.exe(),
+            "cmdline": proc.cmdline(),
+            "cwd": proc.cwd(),
+        }
+    except Exception as exc:
+        logger.debug(f"Could not inspect process {pid}: {exc}")
+        return None
+
+
 def write_server_info(
     port: int,
     host: str = "127.0.0.1",
@@ -59,17 +101,22 @@ def write_server_info(
     lifecycle_token: str | None = None,
 ) -> Path:
     """Persist current Artemis server runtime metadata to well-known path."""
-    info_file = get_server_info_file()
+    info_file = _scoped_server_info_file(port)
     try:
         info_file.parent.mkdir(parents=True, exist_ok=True)
+        server_pid = pid or os.getpid()
+        snapshot = _process_snapshot(server_pid) or {}
         data = {
-            "pid": pid or os.getpid(),
+            "pid": server_pid,
             "port": port,
             "host": host,
             "started_at": time.time(),
-            "cwd": str(ROOT_DIR),
-            "sys_executable": sys.executable,
-            "cmdline": sys.argv,
+            "workspace": str(ROOT_DIR.resolve()),
+            "workspace_id": _workspace_identity(),
+            "cwd": snapshot.get("cwd"),
+            "sys_executable": snapshot.get("sys_executable"),
+            "cmdline": snapshot.get("cmdline"),
+            "process_create_time": snapshot.get("process_create_time"),
         }
         if lifecycle_token:
             data["lifecycle_token"] = lifecycle_token
@@ -80,20 +127,27 @@ def write_server_info(
     return info_file
 
 
-def read_server_info() -> dict[str, Any] | None:
-    """Read and validate the persisted server runtime metadata if present."""
-    info_file = get_server_info_file()
-    if not info_file.exists():
-        return None
-    try:
-        content = info_file.read_text(encoding="utf-8").strip()
-        if not content:
-            return None
-        data = json.loads(content)
-        if isinstance(data, dict) and "pid" in data:
+def read_server_info(port: int | None = None) -> dict[str, Any] | None:
+    """Read scoped metadata, with a conservative legacy-file fallback."""
+    workspace = os.path.normcase(str(ROOT_DIR.resolve()))
+    for info_file in _metadata_candidates(port):
+        if not info_file.exists():
+            continue
+        try:
+            content = info_file.read_text(encoding="utf-8").strip()
+            data = json.loads(content) if content else None
+            if not isinstance(data, dict) or not isinstance(data.get("pid"), int):
+                continue
+            if port is not None and data.get("port") != port:
+                continue
+            recorded_workspace = data.get("workspace", data.get("cwd"))
+            if not isinstance(recorded_workspace, str):
+                continue
+            if os.path.normcase(str(Path(recorded_workspace).resolve())) != workspace:
+                continue
             return data
-    except Exception as e:
-        logger.debug(f"Failed to read server info from {info_file}: {e}")
+        except Exception as exc:
+            logger.debug(f"Failed to read server info from {info_file}: {exc}")
     return None
 
 
@@ -102,26 +156,52 @@ def clear_server_info(
     port: int | None = None,
     lifecycle_token: str | None = None,
 ) -> None:
-    """Remove persisted metadata, optionally only for the matching server.
-
-    Scoped removal keeps ``artemis stop --port <unused>`` and a late shutdown
-    finalizer from deleting metadata written by a different server instance.
-    """
-    info_file = get_server_info_file()
-    try:
-        if info_file.exists():
-            if port is not None or lifecycle_token is not None:
-                info = read_server_info()
-                if not info:
-                    return
-                if port is not None and info.get("port") != port:
-                    return
-                if lifecycle_token is not None and info.get("lifecycle_token") != lifecycle_token:
-                    return
+    """Remove only metadata belonging to this workspace and requested identity."""
+    workspace = os.path.normcase(str(ROOT_DIR.resolve()))
+    for info_file in _metadata_candidates(port):
+        try:
+            if not info_file.exists():
+                continue
+            data = json.loads(info_file.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                continue
+            recorded_workspace = data.get("workspace", data.get("cwd"))
+            if not isinstance(recorded_workspace, str) or (
+                os.path.normcase(str(Path(recorded_workspace).resolve())) != workspace
+            ):
+                continue
+            if port is not None and data.get("port") != port:
+                continue
+            if lifecycle_token is not None and not hmac.compare_digest(
+                str(data.get("lifecycle_token", "")), lifecycle_token
+            ):
+                continue
             info_file.unlink()
             logger.debug(f"Cleared server info file at {info_file}")
-    except Exception as e:
-        logger.debug(f"Error clearing server info file {info_file}: {e}")
+        except Exception as exc:
+            logger.debug(f"Error clearing server info file {info_file}: {exc}")
+
+
+def _http_identity_matches(info: dict[str, Any], port: int, timeout: float) -> bool:
+    """Require the HTTP endpoint to claim the verified metadata PID and port."""
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/api/system/lifecycle-identity",
+        headers={
+            "User-Agent": "Artemis-Lifecycle-Client/1.0",
+            "X-Artemis-Lifecycle-Token": str(info.get("lifecycle_token", "")),
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8", errors="replace") or "null")
+        return (
+            response.status == 200
+            and isinstance(payload, dict)
+            and payload.get("port") == port
+            and payload.get("current_pid") == info.get("pid")
+        )
+    except Exception:
+        return False
 
 
 def request_graceful_shutdown(port: int, timeout: float = 1.5) -> bool:
@@ -132,11 +212,13 @@ def request_graceful_shutdown(port: int, timeout: float = 1.5) -> bool:
     using the same port. A missing/stale token simply makes the caller fall back
     to process termination.
     """
-    info = read_server_info()
-    if not info or info.get("port") != port:
+    info = read_server_info(port)
+    if not info or not _metadata_identity_is_valid(info, port):
         return False
     token = info.get("lifecycle_token")
     if not isinstance(token, str) or not token:
+        return False
+    if not _http_identity_matches(info, port, timeout=min(timeout, 0.75)):
         return False
 
     request = urllib.request.Request(
@@ -188,135 +270,100 @@ def _any_pid_alive(pids: list[int]) -> bool:
     return any(pid_is_alive(pid) for pid in pids)
 
 
+def _listener_pids(port: int) -> set[int]:
+    """Return kernel-reported listener PIDs; inability to inspect is unsafe."""
+    try:
+        import psutil
+
+        return {
+            conn.pid
+            for conn in psutil.net_connections(kind="inet")
+            if conn.pid
+            and conn.laddr
+            and conn.laddr.port == port
+            and conn.status == psutil.CONN_LISTEN
+        }
+    except Exception as exc:
+        logger.debug(f"Could not identify listener on port {port}: {exc}")
+        return set()
+
+
+def _same_path(left: Any, right: Any) -> bool:
+    if not isinstance(left, str) or not isinstance(right, str) or not left or not right:
+        return False
+    try:
+        return os.path.normcase(str(Path(left).resolve())) == os.path.normcase(
+            str(Path(right).resolve())
+        )
+    except (OSError, ValueError):
+        return False
+
+
+def _metadata_identity_is_valid(info: dict[str, Any], port: int) -> bool:
+    """Verify metadata, process birth identity, listener ownership, and workspace."""
+    pid = info.get("pid")
+    token = info.get("lifecycle_token")
+    if (
+        not isinstance(pid, int)
+        or pid <= 0
+        or info.get("port") != port
+        or not isinstance(token, str)
+        or not token
+        or info.get("workspace_id") != _workspace_identity()
+        or not _same_path(info.get("workspace"), str(ROOT_DIR))
+        or pid not in _listener_pids(port)
+    ):
+        return False
+    snapshot = _process_snapshot(pid)
+    if snapshot is None:
+        return False
+    recorded_birth = info.get("process_create_time")
+    if (
+        not isinstance(recorded_birth, (int, float))
+        or abs(snapshot["process_create_time"] - recorded_birth) > 0.01
+    ):
+        return False
+    return (
+        _same_path(snapshot.get("sys_executable"), info.get("sys_executable"))
+        and snapshot.get("cmdline") == info.get("cmdline")
+        and _same_path(snapshot.get("cwd"), info.get("cwd"))
+    )
+
+
 def find_server_pids(port: int = 8000) -> list[int]:
-    """Find all process IDs associated with the Artemis server listening on `port`.
-
-    Uses a multi-tiered discovery strategy:
-    1. Check persisted server metadata file.
-    2. Check port listeners via lsof (macOS/Linux), fuser (Linux), or netstat (Windows).
-    3. Fallback to psutil net_connections and process table scan.
-    """
-    discovered: set[int] = set()
-
-    # 1. Check metadata file
-    info = read_server_info()
-    if info and info.get("port") == port:
-        saved_pid = info.get("pid")
-        if saved_pid and isinstance(saved_pid, int):
-            if pid_is_alive(saved_pid):
-                discovered.add(saved_pid)
-
-    # 2. Check port listeners with platform-native tools
-    # 2a. lsof (macOS & Linux)
-    if shutil.which("lsof"):
-        try:
-            res = subprocess.run(
-                ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=2.0,
-            )
-            if res.returncode == 0 and res.stdout.strip():
-                for token in res.stdout.strip().splitlines():
-                    token = token.strip()
-                    if token.isdigit():
-                        discovered.add(int(token))
-        except (OSError, ValueError, subprocess.SubprocessError):
-            pass
-
-    # 2b. fuser (Linux fallback)
-    if not discovered and shutil.which("fuser"):
-        try:
-            res = subprocess.run(
-                ["fuser", f"{port}/tcp"],
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=2.0,
-            )
-            for token in res.stdout.strip().split():
-                token = token.strip()
-                if token.isdigit():
-                    discovered.add(int(token))
-        except (OSError, ValueError, subprocess.SubprocessError):
-            pass
-
-    # 2c. netstat (Windows fallback)
-    if not discovered and sys.platform == "win32":
-        try:
-            res = subprocess.run(
-                ["netstat", "-ano"],
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=3.0,
-            )
-            if res.returncode == 0:
-                for line in res.stdout.splitlines():
-                    if f":{port}" in line and "LISTENING" in line.upper():
-                        parts = line.strip().split()
-                        if parts and parts[-1].isdigit():
-                            discovered.add(int(parts[-1]))
-        except (OSError, ValueError, subprocess.SubprocessError):
-            pass
-
-    # 2d. psutil net_connections fallback
-    if not discovered:
-        try:
-            import psutil
-
-            for conn in psutil.net_connections(kind="inet"):
-                if conn.laddr and conn.laddr.port == port:
-                    if conn.pid:
-                        discovered.add(conn.pid)
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            # psutil is optional and net_connections() fails in platform-specific ways.
-            logger.debug(f"psutil net_connections port scan skipped: {exc}", exc_info=True)
-
-    # 3. Process table scan if still nothing found on port but port is in use
-    if not discovered and is_port_in_use(port):
-        try:
-            import psutil
-
-            for proc in psutil.process_iter(["pid", "cmdline"]):
-                try:
-                    cmdline = " ".join(proc.info.get("cmdline") or [])
-                    if "apps.admin_console.server" in cmdline or (
-                        "artemis" in cmdline and "ui" in cmdline
-                    ):
-                        if proc.info.get("pid"):
-                            discovered.add(proc.info["pid"])
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            # psutil is optional and process_iter() fails in platform-specific ways.
-            logger.debug(f"psutil process table scan skipped: {exc}", exc_info=True)
-
-    return sorted(discovered)
+    """Return only the PID whose complete Artemis identity is verified."""
+    info = read_server_info(port)
+    if not info or not _metadata_identity_is_valid(info, port):
+        return []
+    return [info["pid"]]
 
 
 def get_server_status(port: int = 8000) -> dict[str, Any]:
     """Retrieve detailed status of the Artemis server on given port."""
     in_use = is_port_in_use(port)
     pids = find_server_pids(port)
-    info = read_server_info()
+    candidate_info = read_server_info(port)
+    info = candidate_info if pids and candidate_info and candidate_info.get("pid") in pids else None
 
     uptime_seconds: float | None = None
     if info and "started_at" in info and isinstance(info["started_at"], (int, float)):
         uptime_seconds = max(0.0, time.time() - info["started_at"])
 
-    is_running = in_use or bool(pids)
+    # An occupied port or stale metadata is not proof that Artemis owns it.
+    is_running = bool(pids)
 
     return {
         "running": is_running,
         "port": port,
         "pids": pids,
-        "active_pid": pids[0] if pids else (info.get("pid") if info else None),
+        "active_pid": pids[0] if pids else None,
         "uptime_seconds": uptime_seconds,
         "url": f"http://localhost:{port}" if is_running else None,
         "admin_url": f"http://localhost:{port}/admin" if is_running else None,
         "metadata": info,
+        "port_in_use": in_use,
+        "identity_verified": is_running,
+        "identity_failure": "unverified_listener" if in_use and not is_running else None,
     }
 
 
@@ -342,10 +389,14 @@ def stop_server(
         DeviceExecutionLock.cleanup_stale_locks()
         return True, f"No active server detected on port {port}.", []
 
-    # If no PID was discovered but port is still in use, try one more aggressive discovery
-    if not pids and is_port_in_use(port):
-        time.sleep(0.2)
-        pids = find_server_pids(port)
+    # Never signal, clean shared state, or erase metadata for an unverified listener.
+    if not pids:
+        return (
+            False,
+            f"Port {port} is occupied by a process that could not be verified as Artemis; "
+            "refusing to stop it.",
+            [],
+        )
 
     stopped_pids: list[int] = []
     current_pid = os.getpid()

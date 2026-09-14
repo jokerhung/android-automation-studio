@@ -31,6 +31,7 @@ class ServerState:
         self.port: int = 8000
         self.host: str = "127.0.0.1"
         self.is_shutting_down: bool = False
+        self.is_draining: bool = False
 
         self.current_process: asyncio.subprocess.Process | None = None
         self.current_goal: str | None = None
@@ -56,6 +57,7 @@ class ServerState:
         self.queue_items: list[dict[str, Any]] = []
         self._wake_event: asyncio.Event | None = None
         self._shutdown_event: asyncio.Event | None = None
+        self._admission_lock: asyncio.Lock | None = None
         self.worker_task: asyncio.Task | None = None
 
     @property
@@ -88,6 +90,21 @@ class ServerState:
         ):
             self._shutdown_event = asyncio.Event()
         return self._shutdown_event
+
+    @property
+    def admission_lock(self) -> asyncio.Lock:
+        """Serialize the admission commit with closing admission for drain."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if self._admission_lock is None or (
+            loop
+            and getattr(self._admission_lock, "_loop", None) is not None
+            and self._admission_lock._loop != loop
+        ):
+            self._admission_lock = asyncio.Lock()
+        return self._admission_lock
 
     @property
     def task_queue(self) -> list[dict[str, Any]]:
@@ -176,6 +193,22 @@ class ServerState:
             return False
 
         return True
+
+    @property
+    def active_task_count(self) -> int:
+        """Count launched and launching runs without double-counting them."""
+        self.prune_finished_runs()
+        running_ids = {
+            str(item.get("session_id"))
+            for item in self.queue_items
+            if isinstance(item, dict) and item.get("status") == "running"
+        }
+        return len(set(self.active_runs) | running_ids)
+
+    @property
+    def is_drained(self) -> bool:
+        """Whether every item accepted before admission closed has settled."""
+        return not self.queue_tasks and self.active_task_count == 0
 
     @property
     def is_paused(self) -> bool:

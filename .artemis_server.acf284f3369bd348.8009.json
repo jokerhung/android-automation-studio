@@ -1,0 +1,21 @@
+{
+  "pid": 18276,
+  "port": 8009,
+  "host": "127.0.0.1",
+  "started_at": 1789378432.3937337,
+  "workspace": "C:\\hungnm\\artemis",
+  "workspace_id": "acf284f3369bd348",
+  "cwd": "C:\\hungnm\\artemis",
+  "sys_executable": "C:\\Users\\jkhung\\AppData\\Roaming\\uv\\python\\cpython-3.14.7-windows-x86_64-none\\python.exe",
+  "cmdline": [
+    "C:\\Users\\jkhung\\AppData\\Roaming\\uv\\python\\cpython-3.14-windows-x86_64-none\\python.exe",
+    "-m",
+    "apps.admin_console.server",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8009"
+  ],
+  "process_create_time": 1789378429.9381235,
+  "lifecycle_token": "1fjU0_g9O-jQiCCgllljhmGnkvaGHB-Ca0AwRycyHVE"
+}

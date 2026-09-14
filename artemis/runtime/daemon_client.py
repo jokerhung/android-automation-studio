@@ -28,6 +28,7 @@ import urllib.error
 import urllib.request
 
 from artemis.config.paths import ROOT_DIR
+from artemis.runtime.server_lifecycle import find_server_pids, read_server_info
 from artemis.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -46,21 +47,8 @@ def is_daemon_running(
     port: int = DEFAULT_DAEMON_PORT,
     timeout: float = 0.3,
 ) -> bool:
-    """Fast probe to check if the Artemis Daemon HTTP server is responding."""
-    url = f"http://{host}:{port}/api/system/readiness"
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Artemis-Daemon-Probe"})
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            return response.status in (200, 400, 404, 503)
-    except Exception:
-        # Fallback probe to root endpoint
-        try:
-            root_url = f"http://{host}:{port}/"
-            req = urllib.request.Request(root_url, headers={"User-Agent": "Artemis-Daemon-Probe"})
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                return response.status in (200, 301, 302, 404)
-        except Exception:
-            return False
+    """Return true only for an identity-verified local ARTEMIS daemon."""
+    return is_artemis_daemon(host, port, timeout)
 
 
 def is_artemis_daemon(
@@ -68,24 +56,37 @@ def is_artemis_daemon(
     port: int = DEFAULT_DAEMON_PORT,
     timeout: float = 0.5,
 ) -> bool:
-    """Identity probe: is the process on ``host:port`` the Artemis daemon?
+    """Verify local metadata/process identity and the daemon's HTTP PID claim."""
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        return False
+    info = read_server_info(port)
+    if not info or not isinstance(info.get("lifecycle_token"), str):
+        return False
+    verified_pids = find_server_pids(port)
+    if len(verified_pids) != 1:
+        return False
 
-    :func:`is_daemon_running` is a liveness probe that accepts any HTTP
-    listener (a dev server on port 8000 answers ``200`` on ``/``). Diagnostics
-    need to tell the daemon apart from a port squatter, so this asks the
-    daemon's lightweight ``/api/system/server-status`` route and requires the
-    JSON shape only Artemis serves.
-    """
-    url = f"http://{host}:{port}/api/system/server-status"
+    url = f"http://{host}:{port}/api/system/lifecycle-identity"
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Artemis-Daemon-Probe"})
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Artemis-Daemon-Probe",
+                "X-Artemis-Lifecycle-Token": info["lifecycle_token"],
+            },
+        )
         with urllib.request.urlopen(req, timeout=timeout) as response:
             if response.status != 200:
                 return False
             payload = json.loads(response.read().decode("utf-8", errors="replace") or "null")
-    except (OSError, ValueError, HTTPException):
+    except (OSError, ValueError, HTTPException, urllib.error.URLError):
         return False
-    return isinstance(payload, dict) and "current_pid" in payload and "port" in payload
+    return (
+        isinstance(payload, dict)
+        and payload.get("port") == port
+        and payload.get("current_pid") == verified_pids[0]
+        and info.get("pid") == verified_pids[0]
+    )
 
 
 def daemon_log_path(port: int = DEFAULT_DAEMON_PORT) -> Path:
@@ -157,7 +158,6 @@ def spawn_daemon(
         logger.warning(f"Could not auto-spawn Artemis Daemon: {exc}")
         return None
     finally:
-        # The child inherited the handle; the parent's copy is no longer needed.
         if log_handle is not subprocess.DEVNULL:
             try:
                 log_handle.close()
@@ -171,39 +171,26 @@ def ensure_daemon_running(
     timeout: float = 2.0,
     wait_ready: bool = False,
 ) -> tuple[bool, str | None]:
-    """Ensure the Artemis Daemon is running, auto-spawning it if necessary.
-
-    Args:
-        host: Daemon host to probe.
-        port: Daemon port to probe.
-        timeout: Maximum seconds to wait if wait_ready is True.
-        wait_ready: If True, blocks until Daemon is healthy or timeout reached.
-                    If False, spawns asynchronously and returns immediately.
-
-    Returns:
-        (True, base_url) if Daemon is accessible.
-        (False, None) if standalone mode is forced or Daemon could not be reached.
-    """
+    """Ensure an identity-verified daemon through shared background orchestration."""
     if is_standalone_forced():
         return False, None
 
-    if is_daemon_running(host, port):
+    from artemis.runtime.background_runtime import (
+        WindowsTrayRuntimeAdapter,
+        ensure_background_runtime,
+    )
+    from artemis.runtime.tray_controller import ArtemisLifecycleAdapter
+
+    result = ensure_background_runtime(
+        host=host,
+        port=port,
+        lifecycle=ArtemisLifecycleAdapter(host=host, port=port),
+        tray=WindowsTrayRuntimeAdapter(workspace=ROOT_DIR),
+        wait_timeout=timeout if wait_ready else 0.0,
+    )
+    if result.ok:
         return True, f"http://{host}:{port}"
-
-    # Auto-spawn Daemon in background
-    spawn_daemon(host, port)
-
-    if not wait_ready:
-        return True, f"http://{host}:{port}"
-
-    # Poll until ready or timeout
-    started = time.monotonic()
-    while time.monotonic() - started < timeout:
-        time.sleep(0.1)
-        if is_daemon_running(host, port):
-            return True, f"http://{host}:{port}"
-
-    logger.warning(f"Daemon did not respond within {timeout}s. Falling back to standalone mode.")
+    logger.warning(result.detail or f"Daemon on port {port} could not be identity-verified.")
     return False, None
 
 

@@ -77,7 +77,17 @@ try:
     from admin_console.database.repositories.session_repository import session_repo
     from admin_console.database.repositories.step_repository import step_repo
     from admin_console.database.repositories.trace_repository import trace_repo
-    from admin_console.routers import email_settings, media, replay, schedules, sessions, steps, stream, system, tasks
+    from admin_console.routers import (
+        email_settings,
+        media,
+        replay,
+        schedules,
+        sessions,
+        steps,
+        stream,
+        system,
+        tasks,
+    )
     from admin_console.routers.replay import replay_manager
     from admin_console.services.email_notification_service import email_notification_service
     from admin_console.services.ipc_service import ipc_service
@@ -89,7 +99,17 @@ except ImportError:
     from apps.admin_console.core.security import SameOriginBoundaryMiddleware
     from apps.admin_console.core.state import state
     from apps.admin_console.database.repositories.session_repository import session_repo
-    from apps.admin_console.routers import email_settings, media, replay, schedules, sessions, steps, stream, system, tasks
+    from apps.admin_console.routers import (
+        email_settings,
+        media,
+        replay,
+        schedules,
+        sessions,
+        steps,
+        stream,
+        system,
+        tasks,
+    )
     from apps.admin_console.routers.replay import replay_manager
     from apps.admin_console.services.email_notification_service import email_notification_service
     from apps.admin_console.services.ipc_service import ipc_service
@@ -125,6 +145,7 @@ app.add_middleware(SameOriginBoundaryMiddleware)
 async def on_startup():
     """Startup lifecycle hooks."""
     state.is_shutting_down = False
+    state.is_draining = False
     state.shutdown_event.clear()
     write_server_info(
         port=getattr(state, "port", 8000),
@@ -168,11 +189,13 @@ async def on_startup():
 
 
 async def on_shutdown():
-    """Stop task and IPC children before the UI server exits."""
+    """Stop services, preserving work that completed during an explicit drain."""
+    await scheduler_service.stop()
+    if state.is_draining:
+        await task_queue_service.wait_drained()
     state.is_shutting_down = True
     state.shutdown_event.set()
     await email_notification_service.stop()
-    await scheduler_service.stop()
     task_queue_service._broadcast_event("server_shutdown", {"status": "stopping"})
     owned_session_ids = {
         str(item["session_id"])
@@ -192,8 +215,9 @@ async def on_shutdown():
     # Cancel in-flight run coroutines and wait for their finalizers (DB status,
     # session_ended broadcast, trace sync, recording recovery) to run.
     run_tasks = [t for t in list(task_queue_service._run_tasks) if not t.done()]
-    for run_task in run_tasks:
-        run_task.cancel()
+    if not state.is_draining:
+        for run_task in run_tasks:
+            run_task.cancel()
     if run_tasks:
         try:
             await asyncio.wait_for(asyncio.gather(*run_tasks, return_exceptions=True), timeout=5.0)

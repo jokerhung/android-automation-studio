@@ -29,6 +29,13 @@ from artemis.core.diagnostics.adb_server_connection import (
 )
 from artemis.core.diagnostics.schema import SystemReadinessReport
 
+try:
+    from admin_console.core.state import state
+    from admin_console.services.scheduler_service import scheduler_service
+except ImportError:
+    from apps.admin_console.core.state import state
+    from apps.admin_console.services.scheduler_service import scheduler_service
+
 router = APIRouter(prefix="/api/system", tags=["system"])
 
 
@@ -559,6 +566,15 @@ async def get_server_runtime_status():
     }
 
 
+@router.get("/lifecycle-identity")
+async def get_lifecycle_identity(request: Request):
+    """Return process identity only to a token-authenticated local lifecycle client."""
+    import os
+
+    _require_local_lifecycle_request(request)
+    return {"current_pid": os.getpid(), "port": state.port}
+
+
 @router.post("/restart")
 async def restart_server_endpoint(request: Request):
     """Request a graceful restart of the Artemis server from thin clients/UI."""
@@ -605,6 +621,59 @@ async def restart_server_endpoint(request: Request):
     }
 
 
+@router.get("/tray-status")
+async def tray_status():
+    """Return local lifecycle facts needed by the Windows tray."""
+    state.prune_finished_runs()
+    try:
+        from admin_console.services.email_notification_service import email_notification_service
+    except ImportError:
+        from apps.admin_console.services.email_notification_service import (
+            email_notification_service,
+        )
+
+    email_status = email_notification_service.status()
+    email_inflight = int(email_status["inflight_count"])
+    active = state.active_task_count
+    queued = len(state.queue_tasks)
+    paused = state.is_paused
+    scheduler = scheduler_service.status()
+    return {
+        "running": not state.is_shutting_down,
+        "draining": state.is_draining,
+        "drained": state.is_drained and email_inflight == 0,
+        "active": active,
+        "queued": queued,
+        "paused": paused,
+        "scheduler": scheduler,
+        "active_tasks": active,
+        "pending_tasks": queued,
+        "paused_tasks": active if paused else 0,
+        "email_sending": email_inflight > 0,
+        "email_inflight": email_inflight,
+        "email_accepting_deliveries": email_status["accepting_deliveries"],
+        "busy": bool(active or queued or paused or email_inflight),
+        "port": state.port,
+    }
+
+
+@router.post("/drain")
+async def begin_drain():
+    """Atomically close admission and schedule claiming; let accepted work drain."""
+    async with scheduler_service.claim_lock:
+        async with state.admission_lock:
+            state.is_draining = True
+    state.wake_event.set()
+    try:
+        from admin_console.services.email_notification_service import email_notification_service
+    except ImportError:
+        from apps.admin_console.services.email_notification_service import (
+            email_notification_service,
+        )
+    email_notification_service.begin_drain()
+    return await tray_status()
+
+
 @router.post("/shutdown", status_code=202)
 async def shutdown_server_endpoint(request: Request):
     """Request a graceful shutdown of the Artemis server."""
@@ -624,6 +693,12 @@ async def shutdown_server_endpoint(request: Request):
         # Let Starlette flush the accepted response before Uvicorn leaves its
         # main loop and invokes the FastAPI shutdown lifecycle.
         await asyncio.sleep(0.05)
+        if state.is_draining:
+            try:
+                from admin_console.services.task_queue_service import task_queue_service
+            except ImportError:
+                from apps.admin_console.services.task_queue_service import task_queue_service
+            await task_queue_service.wait_drained()
         state.is_shutting_down = True
         state.shutdown_event.set()
         server.should_exit = True
