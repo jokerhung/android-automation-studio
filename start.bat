@@ -24,12 +24,16 @@ echo       Artemis Autonomous Mobile Agent UI
 echo ======================================================
 echo.
 
-rem Run the PowerShell bootstrap with execution policy bypass
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start.ps1" %*
+rem Run the PowerShell bootstrap with execution policy bypass.
+rem Port defaults to 8009 in start.ps1; pass -Port <number> to override it.
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start.ps1" %*
+set "ARTEMIS_EXIT_CODE=%ERRORLEVEL%"
 
-if %ERRORLEVEL% NEQ 0 (
+if not "%ARTEMIS_EXIT_CODE%"=="0" (
     echo.
     echo An error occurred while starting Artemis.
     pause
 )
+
+exit /b %ARTEMIS_EXIT_CODE%
 

@@ -14,7 +14,8 @@
 
 [CmdletBinding()]
 param(
-    [int]$Port = 8000,
+    [ValidateRange(1, 65535)]
+    [int]$Port = 8009,
     [switch]$NoOpen = $false
 )
 
@@ -367,13 +368,33 @@ if (-not (Test-Path ".env")) {
 
 # 5. Synchronize dependencies
 Write-Host "   [INFO] Synchronizing Python runtime and project dependencies..." -ForegroundColor Cyan
-uv sync --quiet
+uv sync --locked --quiet
 
-# 6. Check and build Showcase UI if not already compiled
+# 6. Build Showcase UI when missing or older than its source/configuration
 $ShowcaseIndex = "$RootDir\apps\showcase_ui\dist\frontend\browser\index.html"
 $ShowcaseIndexAlt1 = "$RootDir\apps\showcase_ui\dist\browser\index.html"
 $ShowcaseIndexAlt2 = "$RootDir\apps\showcase_ui\dist\index.html"
-if ((-not (Test-Path $ShowcaseIndex)) -and (-not (Test-Path $ShowcaseIndexAlt1)) -and (-not (Test-Path $ShowcaseIndexAlt2))) {
+$showcaseCandidates = @($ShowcaseIndex, $ShowcaseIndexAlt1, $ShowcaseIndexAlt2)
+$existingShowcaseIndex = $showcaseCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+$frontendBuildRequired = -not $existingShowcaseIndex
+if ($existingShowcaseIndex) {
+    $builtAt = (Get-Item $existingShowcaseIndex).LastWriteTimeUtc
+    $frontendInputs = @(
+        "$RootDir\apps\showcase_ui\src",
+        "$RootDir\apps\showcase_ui\public"
+    ) | Where-Object { Test-Path $_ } | ForEach-Object {
+        Get-ChildItem -Path $_ -Recurse -File -ErrorAction SilentlyContinue
+    }
+    $frontendInputs += @(
+        "$RootDir\apps\showcase_ui\package.json",
+        "$RootDir\apps\showcase_ui\package-lock.json",
+        "$RootDir\apps\showcase_ui\angular.json",
+        "$RootDir\apps\showcase_ui\tsconfig.json",
+        "$RootDir\apps\showcase_ui\tsconfig.app.json"
+    ) | Where-Object { Test-Path $_ } | ForEach-Object { Get-Item $_ }
+    $frontendBuildRequired = $null -ne ($frontendInputs | Where-Object { $_.LastWriteTimeUtc -gt $builtAt } | Select-Object -First 1)
+}
+if ($frontendBuildRequired) {
     if (-not (Test-NodeCompatible)) {
         if (Test-CommandExists "node") {
             $curVer = (& node -v 2>$null)
@@ -421,7 +442,7 @@ if ((-not (Test-Path $ShowcaseIndex)) -and (-not (Test-Path $ShowcaseIndexAlt1))
     if (Test-NodeCompatible) {
         $nodeVer = (& node -v 2>$null)
         Write-Host "   [OK] Node.js $nodeVer is ready." -ForegroundColor Green
-        Write-Host "   [INFO] Showcase UI build not found. Compiling Angular Showcase UI..." -ForegroundColor Yellow
+        Write-Host "   [INFO] Showcase UI build is missing or stale. Compiling Angular Showcase UI..." -ForegroundColor Yellow
         Push-Location "$RootDir\apps\showcase_ui"
         try {
             $npmExec = if (Test-CommandExists "npm.cmd") { "npm.cmd" } else { "npm" }

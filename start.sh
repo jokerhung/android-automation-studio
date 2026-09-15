@@ -25,6 +25,27 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
+# Use the project UI port by default while preserving an explicit CLI override.
+UI_PORT="${ARTEMIS_DAEMON_PORT:-8009}"
+HAS_PORT_ARG=false
+START_ARGS=("$@")
+for ((i = 0; i < ${#START_ARGS[@]}; i++)); do
+    case "${START_ARGS[$i]}" in
+        --port|-p)
+            HAS_PORT_ARG=true
+            if ((i + 1 < ${#START_ARGS[@]})); then UI_PORT="${START_ARGS[$((i + 1))]}"; fi
+            ;;
+        --port=*|-p=*)
+            HAS_PORT_ARG=true
+            UI_PORT="${START_ARGS[$i]#*=}"
+            ;;
+    esac
+done
+if ! [[ "${UI_PORT}" =~ ^[0-9]+$ ]] || ((UI_PORT < 1 || UI_PORT > 65535)); then
+    echo "Invalid Artemis UI port: ${UI_PORT}" >&2
+    exit 2
+fi
+
 echo -e "${BOLD}${CYAN}======================================================${NC}"
 echo -e "${BOLD}${CYAN}      ✨ Artemis Autonomous Mobile Agent UI          ${NC}"
 echo -e "${BOLD}${CYAN}======================================================${NC}"
@@ -258,13 +279,34 @@ fi
 
 # 5. Synchronize Python runtime & dependencies
 echo -e "   ${BLUE}📦 Synchronizing Python runtime and project dependencies...${NC}"
-uv sync --quiet
+uv sync --locked --quiet
 
-# 6. Check and build Showcase UI if not already compiled
+# 6. Build Showcase UI when missing or older than its source/configuration
 SHOWCASE_INDEX="${SCRIPT_DIR}/apps/showcase_ui/dist/frontend/browser/index.html"
 SHOWCASE_INDEX_ALT1="${SCRIPT_DIR}/apps/showcase_ui/dist/browser/index.html"
 SHOWCASE_INDEX_ALT2="${SCRIPT_DIR}/apps/showcase_ui/dist/index.html"
-if [ ! -f "${SHOWCASE_INDEX}" ] && [ ! -f "${SHOWCASE_INDEX_ALT1}" ] && [ ! -f "${SHOWCASE_INDEX_ALT2}" ]; then
+EXISTING_SHOWCASE_INDEX=""
+for candidate in "${SHOWCASE_INDEX}" "${SHOWCASE_INDEX_ALT1}" "${SHOWCASE_INDEX_ALT2}"; do
+    if [ -f "${candidate}" ]; then
+        EXISTING_SHOWCASE_INDEX="${candidate}"
+        break
+    fi
+done
+FRONTEND_BUILD_REQUIRED=false
+if [ -z "${EXISTING_SHOWCASE_INDEX}" ]; then
+    FRONTEND_BUILD_REQUIRED=true
+elif find \
+    "${SCRIPT_DIR}/apps/showcase_ui/src" \
+    "${SCRIPT_DIR}/apps/showcase_ui/public" \
+    "${SCRIPT_DIR}/apps/showcase_ui/package.json" \
+    "${SCRIPT_DIR}/apps/showcase_ui/package-lock.json" \
+    "${SCRIPT_DIR}/apps/showcase_ui/angular.json" \
+    "${SCRIPT_DIR}/apps/showcase_ui/tsconfig.json" \
+    "${SCRIPT_DIR}/apps/showcase_ui/tsconfig.app.json" \
+    -type f -newer "${EXISTING_SHOWCASE_INDEX}" -print -quit 2>/dev/null | grep -q .; then
+    FRONTEND_BUILD_REQUIRED=true
+fi
+if [ "${FRONTEND_BUILD_REQUIRED}" = true ]; then
     # First: Try loading existing nvm or user-installed node in environment
     export NVM_DIR="${HOME}/.nvm"
     if [ -s "${NVM_DIR}/nvm.sh" ]; then
@@ -347,7 +389,7 @@ if [ ! -f "${SHOWCASE_INDEX}" ] && [ ! -f "${SHOWCASE_INDEX_ALT1}" ] && [ ! -f "
 
     if is_node_compatible; then
         echo -e "   ${GREEN}✓ Node.js $(node -v 2>/dev/null) and npm $(npm -v 2>/dev/null) ready.${NC}"
-        echo -e "   ${YELLOW}🎨 Showcase UI build not found. Compiling Angular Showcase UI...${NC}"
+        echo -e "   ${YELLOW}🎨 Showcase UI build is missing or stale. Compiling Angular Showcase UI...${NC}"
         (
             cd "${SCRIPT_DIR}/apps/showcase_ui"
             npm install --silent
@@ -404,8 +446,8 @@ if [ "${IS_REMOTE}" = true ]; then
     HOSTNAME_STR="$(hostname 2>/dev/null || echo 'cloud-host')"
     USER_STR="$(whoami 2>/dev/null || echo 'user')"
     echo -e "   ${CYAN}☁️  Cloud / Remote environment detected:${NC}"
-    echo -e "      • Access locally via SSH tunnel: ${BOLD}ssh -L 8000:localhost:8000 ${USER_STR}@${HOSTNAME_STR}${NC}"
-    echo -e "      • Or access via Cloudtop / VS Code / Cursor Port Forwarding (Port 8000)"
+    echo -e "      • Access locally via SSH tunnel: ${BOLD}ssh -L ${UI_PORT}:localhost:${UI_PORT} ${USER_STR}@${HOSTNAME_STR}${NC}"
+    echo -e "      • Or access via Cloudtop / VS Code / Cursor Port Forwarding (Port ${UI_PORT})"
     if [ -z "${DISPLAY:-}" ]; then
         echo -e "      • Headless session detected (browser auto-open disabled)."
         OPEN_FLAG="--no-open"
@@ -420,4 +462,7 @@ fi
 
 # Launch via `python -m artemis` (not the `artemis` console-script shim) so the
 # long-running server never pins .venv/Scripts/artemis[.exe] against reinstalls.
-exec uv run python -m artemis ui "${OPEN_FLAG}" "$@"
+if [ "${HAS_PORT_ARG}" = false ]; then
+    START_ARGS+=(--port "${UI_PORT}")
+fi
+exec uv run python -m artemis ui "${OPEN_FLAG}" "${START_ARGS[@]}"

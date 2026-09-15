@@ -106,7 +106,3 @@ class EmailSettingsService:
 
 def create_email_settings_service() -> EmailSettingsService:
     return EmailSettingsService(create_secret_store())
-
-
-email_settings_service = create_email_settings_service()
-
