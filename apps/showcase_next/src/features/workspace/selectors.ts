@@ -1,0 +1,6 @@
+import type { SessionId, SessionSummary, WorkspaceState } from './types';
+export function selectSessionById(state: WorkspaceState, id: SessionId | null): SessionSummary | null { return id ? state.sessions.find(session=>session.session_id===id) ?? null : null; }
+export function selectSelectedSession(state: WorkspaceState): SessionSummary | null { return selectSessionById(state,state.selectedSessionId); }
+export function selectActiveSessions(state: WorkspaceState): readonly SessionSummary[] { return state.sessions.filter(session=>session.status==='running'||session.status==='paused'||session.status==='queued'||session.status==='pending'); }
+export function selectSessionsByQuery(state: WorkspaceState, query: string, statuses?: ReadonlySet<string>): readonly SessionSummary[] { const needle=query.trim().toLocaleLowerCase(); return state.sessions.filter(session=>(!statuses||statuses.has(session.status))&&(!needle||[session.session_id,session.goal,session.initial_goal,session.device_id,session.device_serial].some(value=>typeof value==='string'&&value.toLocaleLowerCase().includes(needle)))); }
+export function selectSessionDetails(state: WorkspaceState,id:SessionId|null){return id ? state.details[id] ?? null : null;}

@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
+import json
 import os
+import subprocess
 from pathlib import Path
 import shutil
 
@@ -21,23 +24,34 @@ from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.sdist import sdist as _sdist
 
 USE_CYTHON = os.environ.get("USE_CYTHON", "0") == "1"
+_FRONTENDS = {
+    "next": {"app": "showcase_next", "resource": "showcase_next"},
+}
 
 
-def _showcase_dist(source_root: Path) -> Path | None:
-    """Locate a complete Angular browser build in a source or sdist tree."""
-    base_dist = source_root / "apps" / "showcase_ui" / "dist"
+def _selected_frontend() -> str:
+    """Select the framework packaged into a distribution (Next.js only)."""
+    framework = os.environ.get(
+        "ARTEMIS_FRONTEND_PACKAGE", os.environ.get("ARTEMIS_FRONTEND", "next")
+    ).strip().lower()
+    if framework not in _FRONTENDS:
+        raise RuntimeError(
+            "ARTEMIS_FRONTEND_PACKAGE/ARTEMIS_FRONTEND must be 'next' (Angular has been removed)"
+        )
+    return framework
+
+
+def _showcase_dist(source_root: Path, framework: str) -> Path | None:
+    """Locate a complete build for the selected frontend."""
     candidates = (
-        base_dist / "frontend" / "browser",
-        base_dist / "browser",
-        base_dist / "frontend",
-        base_dist,
-        source_root / "artemis" / "resources" / "showcase_ui",
+        source_root / "apps" / "showcase_next" / "out",
+        source_root / "artemis" / "resources" / "showcase_next",
     )
     return next((path for path in candidates if (path / "index.html").is_file()), None)
 
 
 def _copy_release_resources(source_root: Path, resource_root: Path) -> None:
-    """Stage immutable runtime resources into a wheel or source distribution."""
+    """Stage config and the selected immutable frontend tree."""
     config_candidates = (
         source_root / "config" / "artemis.jsonc",
         source_root / "artemis" / "resources" / "config" / "artemis.jsonc",
@@ -46,21 +60,63 @@ def _copy_release_resources(source_root: Path, resource_root: Path) -> None:
     if config_source is None:
         raise RuntimeError("Cannot build Artemis: config/artemis.jsonc is missing.")
 
-    showcase_source = _showcase_dist(source_root)
+    framework = _selected_frontend()
+    showcase_source = _showcase_dist(source_root, framework)
     if showcase_source is None:
+        app_name = _FRONTENDS[framework]["app"]
         raise RuntimeError(
-            "Cannot build an Artemis distribution without the Showcase UI. "
-            "Run `npm ci --prefix apps/showcase_ui` and "
-            "`npm run build --prefix apps/showcase_ui` first."
+            f"Cannot build an Artemis distribution without the {framework} Showcase UI. "
+            f"Run npm ci --prefix apps/{app_name} and npm run build --prefix apps/{app_name} first."
         )
     config_target = resource_root / "config"
     config_target.mkdir(parents=True, exist_ok=True)
     shutil.copy2(config_source, config_target / "artemis.jsonc")
 
-    showcase_target = resource_root / "showcase_ui"
-    if showcase_target.exists():
-        shutil.rmtree(showcase_target)
+    showcase_target = resource_root / _FRONTENDS[framework]["resource"]
+    for resource_name in ("showcase_ui", "showcase_angular", "showcase_next"):
+        stale_target = resource_root / resource_name
+        if stale_target.exists():
+            shutil.rmtree(stale_target)
     shutil.copytree(showcase_source, showcase_target)
+    app_root = source_root / "apps" / _FRONTENDS[framework]["app"]
+    lock_path = app_root / "package-lock.json"
+    package_path = app_root / "package.json"
+    inherited_manifest_path = showcase_source / "frontend-manifest.json"
+    inherited_manifest = (
+        json.loads(inherited_manifest_path.read_text(encoding="utf-8"))
+        if inherited_manifest_path.is_file()
+        else {}
+    )
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=source_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        commit = inherited_manifest.get("commit")
+    manifest = {
+        "schemaVersion": 1,
+        "framework": framework,
+        "artifact": "out" if framework == "next" else "dist",
+        "source": "apps/" + _FRONTENDS[framework]["app"],
+        "commit": commit,
+        "packageSha256": (
+            hashlib.sha256(package_path.read_bytes()).hexdigest()
+            if package_path.is_file()
+            else inherited_manifest.get("packageSha256")
+        ),
+        "lockSha256": (
+            hashlib.sha256(lock_path.read_bytes()).hexdigest()
+            if lock_path.is_file()
+            else inherited_manifest.get("lockSha256")
+        ),
+    }
+    (showcase_target / "frontend-manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
 
 
 class build_py(_build_py):
@@ -72,9 +128,10 @@ class build_py(_build_py):
         if self.editable_mode:
             return
         # Older builds may have copied frontend sources and node_modules here.
-        excluded_showcase = Path(self.build_lib) / "apps" / "showcase_ui"
-        if excluded_showcase.exists():
-            shutil.rmtree(excluded_showcase)
+        for app_name in ("showcase_ui", "showcase_next"):
+            excluded_showcase = Path(self.build_lib) / "apps" / app_name
+            if excluded_showcase.exists():
+                shutil.rmtree(excluded_showcase)
         _copy_release_resources(
             Path.cwd(),
             Path(self.build_lib) / "artemis" / "resources",
@@ -87,14 +144,19 @@ class sdist(_sdist):
     def make_release_tree(self, base_dir: str, files: list[str]) -> None:
         # Old egg-info manifests may include Python packages from node_modules.
         filtered_files = [
-            path for path in files if not Path(path).as_posix().startswith("apps/showcase_ui/")
+            path
+            for path in files
+            if not Path(path).as_posix().startswith(
+                ("apps/showcase_ui/", "apps/showcase_next/")
+            )
         ]
         super().make_release_tree(base_dir, filtered_files)
         # Protect local rebuilds from stale egg-info/SOURCES.txt manifests
         # generated before package discovery was narrowed.
-        excluded_showcase = Path(base_dir) / "apps" / "showcase_ui"
-        if excluded_showcase.exists():
-            shutil.rmtree(excluded_showcase)
+        for app_name in ("showcase_ui", "showcase_next"):
+            excluded_showcase = Path(base_dir) / "apps" / app_name
+            if excluded_showcase.exists():
+                shutil.rmtree(excluded_showcase)
         _copy_release_resources(
             Path.cwd(),
             Path(base_dir) / "artemis" / "resources",
@@ -150,8 +212,8 @@ setup(
         "artemis": ["**/*.json", "**/*.md", "resources/tray/*.png"],
         "artemis.resources": [
             "config/*.jsonc",
-            "showcase_ui/*",
-            "showcase_ui/**/*",
+            "showcase_next/*",
+            "showcase_next/**/*",
             "tray/*.png",
         ],
         "apps.admin_console": ["index.html"],

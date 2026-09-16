@@ -45,7 +45,7 @@ for _p in (str(_workspace_root), str(_apps_dir), str(_admin_console_dir), str(_c
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 import uvicorn
 
@@ -279,24 +279,39 @@ except ImportError:
 
 
 # ------------------------------------------------------------------------------
-# Showcase UI (Angular 19) Unified Single-Port SPA Static Hosting
+# Showcase UI unified single-port static hosting (Next.js export)
 # ------------------------------------------------------------------------------
-def _get_showcase_dist() -> Path:
-    """Return the source build, or the immutable build bundled in a wheel."""
-    base_dist = _workspace_root / "apps" / "showcase_ui" / "dist"
-    candidates = [
-        base_dist / "frontend" / "browser",
-        base_dist / "browser",
-        base_dist / "frontend",
-        base_dist,
-    ]
+_NEXT_ROUTES = {
+    "": "index.html",
+    "workspace": "workspace/index.html",
+    "task-schedule": "task-schedule/index.html",
+    "settings": "settings/index.html",
+    "check": "check/index.html",
+}
+_PROTECTED_UI_PREFIXES = (
+    "api/", "images/", "videos/", "local_file", "docs", "openapi.json", "redoc",
+)
+
+
+def _get_frontend_framework() -> str:
+    """Return the explicitly selected frontend, Next.js only."""
+    framework = os.environ.get("ARTEMIS_FRONTEND", "next").strip().lower()
+    if framework not in {"next"}:
+        raise RuntimeError("ARTEMIS_FRONTEND must be 'next' (Angular has been removed)")
+    return framework
+
+
+def _get_showcase_dist(framework: str | None = None) -> Path:
+    """Return the selected source build, or its immutable wheel resource."""
+    framework = framework or _get_frontend_framework()
+    source_dist = _workspace_root / "apps" / "showcase_next" / "out"
+    candidates = [source_dist]
+
     for candidate in candidates:
-        if candidate.is_dir() and (candidate / "index.html").exists():
+        if candidate.is_dir() and (candidate / "index.html").is_file():
             return candidate
-    bundled_dist = get_bundled_showcase_dist()
-    if bundled_dist is not None:
-        return bundled_dist
-    return base_dist / "frontend" / "browser"
+    bundled_dist = get_bundled_showcase_dist(framework)
+    return bundled_dist if bundled_dist is not None else source_dist
 
 
 def _resolve_static_file(root: Path, relative_path: str) -> Path | None:
@@ -311,122 +326,76 @@ def _resolve_static_file(root: Path, relative_path: str) -> Path | None:
     return None
 
 
+def _static_headers(relative_path: str, *, html: bool = False) -> dict[str, str]:
+    if html or relative_path.endswith((".html", ".json", ".webmanifest")):
+        return {"Cache-Control": "no-cache"}
+    if relative_path.startswith("_next/static/"):
+        return {"Cache-Control": "public, max-age=31536000, immutable"}
+    return {"Cache-Control": "public, max-age=3600"}
+
+
+def _file_response(path: Path, relative_path: str, *, status_code: int = 200) -> FileResponse:
+    return FileResponse(
+        path,
+        status_code=status_code,
+        headers=_static_headers(relative_path, html=path.suffix.lower() == ".html"),
+    )
+
+
 @app.get("/", include_in_schema=False)
 async def serve_showcase_root():
-    """Explicitly serve the Showcase UI at the root path by default."""
+    """Explicitly serve the selected Showcase UI at the root path."""
     return await serve_showcase_spa("")
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_showcase_spa(full_path: str):
-    # Do not intercept API, media, or replay paths
-    if (
-        full_path.startswith("api/")
-        or full_path.startswith("images/")
-        or full_path.startswith("videos/")
-        or full_path.startswith("local_file")
-        or full_path == "docs"
-        or full_path == "openapi.json"
-        or full_path.startswith("redoc")
-    ):
-        from fastapi import HTTPException
-
-        raise HTTPException(status_code=404, detail="Endpoint not found")
-
     clean_path = full_path.strip("/")
 
-    # Admin / Debug Console routes
-    if (
-        clean_path in ("admin", "debug")
-        or clean_path.startswith("admin/")
-        or clean_path.startswith("debug/")
-    ):
+    if any(clean_path == prefix.rstrip("/") or clean_path.startswith(prefix) for prefix in _PROTECTED_UI_PREFIXES):
+        raise HTTPException(status_code=404, detail="Endpoint not found")
+
+    if clean_path in ("admin", "debug") or clean_path.startswith(("admin/", "debug/")):
         admin_index = _admin_console_dir / "index.html"
-        if admin_index.exists():
-            return HTMLResponse(admin_index.read_text(encoding="utf-8"))
+        if admin_index.is_file():
+            return _file_response(admin_index, "index.html")
+        raise HTTPException(status_code=404, detail="Admin console not found")
 
-    showcase_dist = _get_showcase_dist()
+    framework = _get_frontend_framework()
+    showcase_dist = _get_showcase_dist(framework)
 
-    # Exact static file match (js, css, images, fonts, favicon, logo).
-    # Resolve and re-anchor under the static root so encoded traversal
-    # sequences cannot address files outside the build directories.
+    # Serve every emitted file exactly, including the complete _next tree and
+    # any version-specific static navigation payloads.
     if clean_path:
         target_file = _resolve_static_file(showcase_dist, clean_path)
         if target_file is not None:
-            return FileResponse(target_file)
+            return _file_response(target_file, clean_path)
 
-        # Fallback for icons/logos if showcase UI hasn't been built yet
-        public_root = _workspace_root / "apps" / "showcase_ui" / "public"
-        public_file = _resolve_static_file(public_root, clean_path)
-        if public_file is not None:
-            return FileResponse(public_file)
+    route_file = _NEXT_ROUTES.get(clean_path)
+    if route_file is not None:
+        target_file = _resolve_static_file(showcase_dist, route_file)
+        if target_file is not None:
+            return _file_response(target_file, route_file)
+    elif clean_path.startswith("_next/") or Path(clean_path).suffix:
+        raise HTTPException(status_code=404, detail="Static asset not found")
 
-    # Serve Showcase UI Angular SPA index.html
-    index_file = showcase_dist / "index.html"
-    if index_file.exists():
-        return HTMLResponse(index_file.read_text(encoding="utf-8"))
-
-    # Fallback message if Showcase UI is not built
-    fallback_html = """<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Artemis Showcase UI - Not Built</title>
-    <style>
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: #0f172a;
-            color: #f8fafc;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .card {
-            background: #1e293b;
-            padding: 2.5rem;
-            border-radius: 1rem;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-            max-width: 500px;
-            text-align: center;
-            border: 1px solid #334155;
-        }
-        h1 { color: #38bdf8; margin-top: 0; }
-        code {
-            background: #0f172a;
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.375rem;
-            color: #e2e8f0;
-            font-size: 0.9em;
-        }
-        .btn {
-            display: inline-block;
-            margin-top: 1.5rem;
-            padding: 0.75rem 1.5rem;
-            background: #38bdf8;
-            color: #0f172a;
-            font-weight: bold;
-            text-decoration: none;
-            border-radius: 0.5rem;
-            transition: background 0.2s;
-        }
-        .btn:hover { background: #0284c7; color: #fff; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h1>✨ Artemis Showcase UI</h1>
-        <p>The Showcase UI (Angular frontend) has not been built yet.</p>
-        <p>To compile the Showcase UI, run:</p>
-        <p><code>cd apps/showcase_ui && npm install && npm run build</code></p>
-        <p>Or launch using <code>./start.sh</code> or <code>artemis ui</code> to build automatically.</p>
-        <a class="btn" href="/admin">Go to Admin Debug Console →</a>
-    </div>
-</body>
-</html>"""
-    return HTMLResponse(fallback_html)
+    not_found = _resolve_static_file(showcase_dist, "404.html")
+    if not_found is not None:
+        return _file_response(not_found, "404.html", status_code=404)
+    if (showcase_dist / "index.html").is_file():
+        raise HTTPException(status_code=404, detail="UI route not found")
+    app_dir = "showcase_next"
+    output = "out"
+    fallback_html = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Artemis Showcase UI - Not Built</title></head><body>
+<h1>Artemis Showcase UI</h1>
+<p>The selected {framework} frontend has not been built yet.</p>
+<p>Run <code>cd apps/{app_dir} &amp;&amp; npm install &amp;&amp; npm run build</code>.</p>
+<p>Expected build output: <code>apps/{app_dir}/{output}</code>.</p>
+<p><a href="/admin">Go to Admin Debug Console</a></p>
+</body></html>"""
+    return HTMLResponse(fallback_html, headers={"Cache-Control": "no-cache"})
 
 
 # ------------------------------------------------------------------------------

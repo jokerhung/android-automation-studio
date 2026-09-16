@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: help test test-integration test-device test-all install install-deps setup start ui restart stop status build-ui doctor clean precommit-install precommit lint format typecheck quality-ratchet
+.PHONY: help test test-integration test-device test-all install install-deps setup start ui restart stop status build-ui build-ui-next doctor clean precommit-install precommit lint format typecheck quality-ratchet
+
+FRONTEND ?= next
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -35,9 +37,11 @@ stop: ## Stop running Artemis Web UI & server
 status: ## Display Artemis Web UI & server status
 	@uv run artemis status
 
-build-ui: ## Build the Showcase UI Angular frontend
-	@echo "🎨 Building Showcase UI..."
-	@cd apps/showcase_ui && npm install && npm run build
+build-ui: build-ui-next ## Build the Next.js frontend
+
+build-ui-next: ## Build the Next.js static export frontend
+	@echo "🎨 Building Next.js Showcase UI..."
+	@cd apps/showcase_next && npm ci --no-audit --no-fund && npm run build
 
 doctor: ## Run system, device, and toolchain diagnostics
 	@uv run artemis doctor
@@ -106,7 +110,7 @@ precommit: ## Run pre-commit hooks manually on all files
 
 clean: ## Clean up generated files, caches, and traces
 	@echo "🧹 Cleaning up caches and temporary files..."
-	@rm -rf .pytest_cache .ruff_cache .artemis_paused traces scratch .venv apps/showcase_ui/.angular build dist
+	@rm -rf .pytest_cache .ruff_cache .artemis_paused traces scratch .venv apps/showcase_next/.next apps/showcase_next/out apps/showcase_next/coverage build dist
 	@find . -type d -name "outputs" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name ".artemis_paused" -delete 2>/dev/null || true
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

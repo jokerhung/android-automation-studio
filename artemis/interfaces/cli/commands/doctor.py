@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import json
+import os
 import platform as sys_platform
 import shutil
 import subprocess
@@ -160,20 +161,25 @@ def _npm_row() -> ExtraRow:
         detail=f"Not found in PATH. ({hint})",
     )
 
-
 def _showcase_row() -> ExtraRow:
     from artemis.resources import get_bundled_showcase_dist
 
-    base_dist = ROOT_DIR / "apps" / "showcase_ui" / "dist"
-    candidates = [
-        base_dist / "frontend" / "browser" / "index.html",
-        base_dist / "browser" / "index.html",
-        base_dist / "frontend" / "index.html",
-        base_dist / "index.html",
-    ]
+    framework = os.environ.get("ARTEMIS_FRONTEND", "next").strip().lower()
+    if framework not in {"next"}:
+        return ExtraRow(
+            key="showcase_ui",
+            title="Showcase UI",
+            status="missing",
+            status_markup="[bold red]✖ Invalid selection[/bold red]",
+            summary="Invalid selection",
+            detail="ARTEMIS_FRONTEND must be 'next' (Angular has been removed).",
+        )
+    app_dir = ROOT_DIR / "apps" / "showcase_next"
+    candidates = [app_dir / "out" / "index.html"]
+    display_name = "Next.js"
     found_showcase = next((p for p in candidates if p.exists()), None)
     if found_showcase is None:
-        bundled_showcase = get_bundled_showcase_dist()
+        bundled_showcase = get_bundled_showcase_dist(framework)
         if bundled_showcase is not None:
             found_showcase = bundled_showcase / "index.html"
     if found_showcase:
@@ -183,7 +189,7 @@ def _showcase_row() -> ExtraRow:
             status="pass",
             status_markup="[bold green]✔ Compiled[/bold green]",
             summary="Compiled",
-            detail=f"{found_showcase.parent} (Angular ready)",
+            detail=f"{found_showcase.parent} ({display_name} ready)",
         )
     return ExtraRow(
         key="showcase_ui",
@@ -191,7 +197,7 @@ def _showcase_row() -> ExtraRow:
         status="missing",
         status_markup="[bold yellow]○ Not Compiled[/bold yellow]",
         summary="Not Compiled",
-        detail="Run ./start.sh or artemis ui to auto-compile.",
+        detail=f"Build apps/{app_dir.name} with npm ci && npm run build.",
     )
 
 

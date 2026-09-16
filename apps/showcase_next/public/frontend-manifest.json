@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "frontend": "next",
+  "frameworkVersion": "15.5.25",
+  "artifactDirectory": "out",
+  "trailingSlash": true,
+  "routes": ["/", "/workspace/", "/task-schedule/", "/settings/", "/check/"],
+  "preferenceStorageKey": "artemis.ui.preferences.v1"
+}

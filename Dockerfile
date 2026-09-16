@@ -13,17 +13,18 @@
 # limitations under the License.
 
 FROM node:22-bookworm-slim AS frontend-builder
-
-WORKDIR /build/apps/showcase_ui
-COPY apps/showcase_ui/package.json apps/showcase_ui/package-lock.json ./
+WORKDIR /build/apps/showcase_next
+COPY apps/showcase_next/package.json apps/showcase_next/package-lock.json ./
 RUN npm ci
-COPY apps/showcase_ui/angular.json apps/showcase_ui/tsconfig*.json ./
-COPY apps/showcase_ui/public/ ./public/
-COPY apps/showcase_ui/src/ ./src/
-RUN npm run build
+COPY apps/showcase_next/next.config.ts apps/showcase_next/tsconfig.json apps/showcase_next/next-env.d.ts apps/showcase_next/eslint.config.mjs apps/showcase_next/postcss.config.mjs ./
+COPY apps/showcase_next/public/ ./public/
+COPY apps/showcase_next/src/ ./src/
+RUN npm run build && mkdir -p /frontend && cp -a out/. /frontend/
 
 
 FROM python:3.12-slim AS wheel-builder
+ARG ARTEMIS_FRONTEND=next
+ENV ARTEMIS_FRONTEND_PACKAGE=${ARTEMIS_FRONTEND}
 
 WORKDIR /build
 COPY artemis/ ./artemis/
@@ -32,7 +33,9 @@ COPY mcp_server/ ./mcp_server/
 COPY packages/artemis-client/ ./packages/artemis-client/
 COPY config/ ./config/
 COPY pyproject.toml setup.py README.md LICENSE ./
-COPY --from=frontend-builder /build/apps/showcase_ui/dist/ ./apps/showcase_ui/dist/
+# Stage the selected immutable artifact in both recognized source layouts; setup.py
+# packages only ARTEMIS_FRONTEND_PACKAGE and removes the other framework.
+COPY --from=frontend-builder /frontend/ ./apps/showcase_next/out/
 
 # Build wheels for the runtime image.
 RUN python -m pip wheel --no-cache-dir --no-deps --wheel-dir /wheels ./packages/artemis-client \
@@ -40,6 +43,7 @@ RUN python -m pip wheel --no-cache-dir --no-deps --wheel-dir /wheels ./packages/
 
 
 FROM python:3.12-slim
+ARG ARTEMIS_FRONTEND=next
 
 WORKDIR /app
 
@@ -47,6 +51,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     adb \
     curl \
     git \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libxcb1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=wheel-builder /wheels/ /wheels/
@@ -55,6 +65,7 @@ RUN pip install --no-cache-dir /wheels/artemis_client-*.whl \
     && rm -rf /wheels
 
 ENV PYTHONUNBUFFERED=1
+ENV ARTEMIS_FRONTEND=${ARTEMIS_FRONTEND}
 ENV ARTEMIS_APP_DIR=/app
 ENV PORT=8080
 

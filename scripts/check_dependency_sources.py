@@ -20,7 +20,10 @@ Uses only the Python 3.12+ standard library so CI can run it before uv sync.
 
 import json
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 compatibility
+    import tomli as tomllib
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -52,10 +55,16 @@ def main() -> int:
         for artifact in artifacts:
             check_url(f"{label}: artifact", artifact.get("url", ""), "files.pythonhosted.org")
 
-    npm_lock = json.loads((ROOT / "apps/showcase_ui/package-lock.json").read_text(encoding="utf-8"))
-    for name, package in npm_lock["packages"].items():
-        if "resolved" in package:
-            check_url(f"package-lock.json: {name}", package["resolved"], "registry.npmjs.org")
+    for app_name in ("showcase_next",):
+        lock_path = ROOT / "apps" / app_name / "package-lock.json"
+        npm_lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        for name, package in npm_lock["packages"].items():
+            if "resolved" in package:
+                check_url(
+                    f"apps/{app_name}/package-lock.json: {name}",
+                    package["resolved"],
+                    "registry.npmjs.org",
+                )
 
     if errors:
         print("Dependency source check failed:\n" + "\n".join(errors), file=sys.stderr)

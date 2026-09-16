@@ -1,0 +1,138 @@
+/* The three independent panes mirror the Angular workspace:
+   activity | portrait device viewer | task queue/history. */
+.workspace-page.ws-three-columns {
+  --task-rail: clamp(300px, 33vw, 550px);
+  --device-pane: clamp(260px, 19vw, 340px);
+  --activity-width: calc(100vw - var(--task-rail) - var(--device-pane));
+  padding: 60px 0 0;
+  height: 100dvh;
+  overflow: hidden;
+}
+.workspace-page.ws-three-columns .ws-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--device-pane) var(--task-rail);
+  gap: 0;
+  height: calc(100dvh - 60px);
+  min-height: 0;
+  align-items: stretch;
+}
+.workspace-page.ws-three-columns .ws-main {
+  grid-column: 1; grid-row: 1;
+  min-height: 0; height: 100%; overflow-y: auto; overflow-x: hidden;
+  padding: 0 10px 120px;
+  border: 0; border-radius: 0; background: var(--bg); box-shadow: none;
+  scrollbar-gutter: stable;
+}
+.workspace-page.ws-three-columns .ws-rail {
+  grid-column: 3; grid-row: 1;
+  position: static; min-height: 0; height: 100%; max-height: none;
+  overflow: auto; border: 0; border-left: 1px solid var(--line);
+  border-radius: 0; background: var(--bg); scrollbar-gutter: stable;
+}
+.workspace-page.ws-three-columns .ws-viewer-column {
+  grid-column: 2; grid-row: 1;
+  min-width: 0; min-height: 0; height: 100%;
+  overflow: auto; padding: 3px 12px 20px 4px;
+  background: var(--bg); scrollbar-width: thin;
+}
+.workspace-page.ws-three-columns .ws-runtime-grid {
+  display: block; padding: 0; min-width: 0;
+}
+.workspace-page.ws-three-columns .ws-details {
+  border: 0; background: transparent; border-radius: 0;
+}
+.workspace-page.ws-three-columns .ws-detail-card { padding: 14px 10px; min-height: 0; }
+.workspace-page.ws-three-columns .ws-detail-card pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.workspace-page.ws-three-columns .ws-tabs { flex-wrap: wrap; padding: 8px 0; }
+.workspace-page.ws-three-columns .ws-session-header {
+  padding: 10px 0; gap: 12px; background: transparent; border-radius: 0;
+}
+.workspace-page.ws-three-columns .ws-session-header>div:first-child { min-width: 0; }
+.workspace-page.ws-three-columns .ws-session-header h2 { font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.workspace-page.ws-three-columns .ws-session-header p { overflow-wrap: anywhere; font-size: 10px; }
+.workspace-page.ws-three-columns .ws-session-actions { flex-shrink: 0; }
+.workspace-page.ws-three-columns .ws-device-card {
+  width: 100%; border-radius: 16px; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--line);
+}
+.workspace-page.ws-three-columns .ws-device-card header {
+  display: flex; flex-wrap: wrap; gap: 8px; padding: 10px;
+  background: var(--theme-bg-surface-raised);
+}
+.workspace-page.ws-three-columns .ws-device-card header>div:first-child { min-width: 0; flex: 1; }
+.workspace-page.ws-three-columns .ws-device-card h2 { font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.workspace-page.ws-three-columns .ws-device-card .ws-kicker { display: none; }
+.workspace-page.ws-three-columns .ws-view-tabs { flex-wrap: wrap; }
+.workspace-page.ws-three-columns .ws-view-tabs button { padding: 4px 7px; height: 26px; font-size: 10px; }
+.workspace-page.ws-three-columns .ws-device-stage {
+  display: grid; place-items: center;
+  min-height: 0; height: auto; aspect-ratio: 9/19.5; background: #080b10;
+}
+.workspace-page.ws-three-columns .ws-device-stage img,
+.workspace-page.ws-three-columns .ws-device-stage video {
+  width: 100%; height: 100%; max-height: 68dvh; min-height: 0;
+  object-fit: contain; background: #080b10;
+}
+.workspace-page.ws-three-columns .ws-device-stage p { padding: 16px; color: #94a3b8; font-size: 12px; }
+.workspace-page.ws-three-columns .ws-device-controls {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: 8px; padding: 12px 10px; min-height: 56px;
+  border-top: 1px solid var(--line); background: var(--theme-bg-surface-raised);
+}
+.workspace-page.ws-three-columns .ws-device-controls button,.workspace-page.ws-three-columns .ws-device-controls select {
+  min-height: 30px; padding: 4px 8px; font-size: 11px; border-radius: 8px;
+  color: var(--text); background: var(--surface); border: 1px solid var(--line);
+}
+.workspace-page.ws-three-columns .ws-device-controls span { font-size: 11px; overflow-wrap: anywhere; }
+.workspace-page.ws-three-columns .ws-viewer-placeholder {
+  display: grid; align-content: center; justify-items: center;
+  min-height: 320px; padding: 24px 16px; text-align: center;
+  border: 1px dashed var(--line); border-radius: 16px; color: var(--muted);
+}
+.workspace-page.ws-three-columns .ws-viewer-placeholder>span { font-size: 44px; }
+.workspace-page.ws-three-columns .ws-viewer-placeholder h2 { font-size: 13px; margin: 12px 0; }
+.workspace-page.ws-three-columns .ws-viewer-placeholder p { font-size: 12px; }
+.workspace-page.ws-three-columns .ws-task-list { gap: 8px; }
+.workspace-page.ws-three-columns .ws-task {
+  height: auto; min-height: 100px; padding: 12px;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: var(--surface); white-space: normal;
+  grid-template-columns: minmax(0,1fr) auto;
+}
+.workspace-page.ws-three-columns .ws-task .ws-status-dot { display: none; }
+.workspace-page.ws-three-columns .ws-task-copy strong {
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  white-space: normal; overflow: hidden; line-height: 1.5; font-size: 12px;
+}
+.workspace-page.ws-three-columns .ws-task-copy small { margin-top: 10px; }
+.workspace-page.ws-three-columns .ws-task-meta { align-self: start; font-size: 10px; }
+.workspace-page.ws-three-columns .ws-list-empty { border: 1px dashed var(--line); border-radius: 8px; padding: 12px; text-align: center; }
+.workspace-page.ws-three-columns .ws-composer {
+  left: calc(var(--activity-width) / 2);
+  width: min(720px, calc(var(--activity-width) - 32px));
+  bottom: 18px; padding: 8px 10px; gap: 6px;
+  grid-template-columns: auto minmax(0,1fr) auto;
+}
+.workspace-page.ws-three-columns .ws-profile button { padding: 5px 7px; font-size: 10px; }
+.workspace-page.ws-three-columns .ws-composer textarea { font-size: 12px; }
+.workspace-page.ws-three-columns .ws-submit { font-size: 11px; padding: 7px; }
+.workspace-page.ws-three-columns>.ws-alert { position: absolute; top: 60px; left: 12px; z-index: 10; max-width: calc(var(--activity-width) - 24px); }
+@media(max-width:1100px) and (min-width:761px) {
+  .workspace-page.ws-three-columns { --task-rail: 27vw; --device-pane: 25vw; }
+  .workspace-page.ws-three-columns .ws-composer { grid-template-columns: minmax(0,1fr) auto; }
+  .workspace-page.ws-three-columns .ws-profile { grid-column: 1/-1; width: max-content; }
+  .workspace-page.ws-three-columns .ws-task { grid-template-columns: minmax(0,1fr); }
+  .workspace-page.ws-three-columns .ws-task-meta { display: flex; gap: 8px; }
+}
+@media(max-width:760px) {
+  .workspace-page.ws-three-columns { padding: 60px 10px 140px; height: auto; overflow: visible; }
+  .workspace-page.ws-three-columns .ws-layout { display: flex; flex-direction: column; height: auto; gap: 14px; }
+  .workspace-page.ws-three-columns .ws-rail { order: 0; height: auto; max-height: 260px; border: 1px solid var(--line); border-radius: 12px; }
+  .workspace-page.ws-three-columns .ws-main { order: 1; min-height: 260px; height: auto; overflow: visible; padding: 0; }
+  .workspace-page.ws-three-columns .ws-viewer-column { order: 2; width: 100%; height: auto; padding: 0; overflow: visible; }
+  .workspace-page.ws-three-columns .ws-device-card { max-width: 360px; margin: auto; }
+  .workspace-page.ws-three-columns .ws-composer { left: 50%; width: calc(100% - 24px); grid-template-columns: minmax(0,1fr) auto; }
+  .workspace-page.ws-three-columns .ws-profile { grid-column: 1/-1; width: max-content; }
+  .workspace-page.ws-three-columns>.ws-alert { position: static; max-width: none; }
+}
+/* Header and tab bar never belong to the log's scroll container. */

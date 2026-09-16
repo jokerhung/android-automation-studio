@@ -25,10 +25,30 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
+ARTEMIS_FRONTEND="${ARTEMIS_FRONTEND:-next}"
+START_ARGS=("$@")
+for ((i = 0; i < ${#START_ARGS[@]}; i++)); do
+    case "${START_ARGS[$i]}" in
+        --frontend)
+            if ((i + 1 >= ${#START_ARGS[@]})); then echo "--frontend requires next" >&2; exit 2; fi
+            ARTEMIS_FRONTEND="${START_ARGS[$((i + 1))]}"
+            unset 'START_ARGS[i]' 'START_ARGS[i+1]'
+            START_ARGS=("${START_ARGS[@]}")
+            break
+            ;;
+        --frontend=*) ARTEMIS_FRONTEND="${START_ARGS[$i]#*=}"; unset 'START_ARGS[i]'; START_ARGS=("${START_ARGS[@]}"); break ;;
+    esac
+done
+ARTEMIS_FRONTEND="$(printf '%s' "${ARTEMIS_FRONTEND}" | tr '[:upper:]' '[:lower:]')"
+case "${ARTEMIS_FRONTEND}" in
+    next) FRONTEND_APP="showcase_next"; FRONTEND_LABEL="Next.js" ;;
+    *) echo "ARTEMIS_FRONTEND must be 'next' (Angular has been removed) (got: ${ARTEMIS_FRONTEND})." >&2; exit 2 ;;
+esac
+export ARTEMIS_FRONTEND
+
 # Use the project UI port by default while preserving an explicit CLI override.
 UI_PORT="${ARTEMIS_DAEMON_PORT:-8009}"
 HAS_PORT_ARG=false
-START_ARGS=("$@")
 for ((i = 0; i < ${#START_ARGS[@]}; i++)); do
     case "${START_ARGS[$i]}" in
         --port|-p)
@@ -116,25 +136,19 @@ request_sudo() {
     return 1
 }
 
-# Helper to check if Node.js & npm meet Angular CLI 22 requirement (>= 22.22.0, >= 24.15.0, or >= 26.0.0)
+# Check Node.js/npm against the selected frontend's package requirements.
 is_node_compatible() {
-    if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-        return 1
-    fi
-    local node_ver
+    if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then return 1; fi
+    local node_ver major minor
     node_ver="$(node -v 2>/dev/null | tr -d 'v')"
     [ -z "${node_ver}" ] && return 1
-    local major minor
-    major="$(echo "${node_ver}" | cut -d. -f1)"
-    minor="$(echo "${node_ver}" | cut -d. -f2)"
-    if [ "${major}" -ge 26 ] 2>/dev/null; then
-        return 0
-    elif [ "${major}" -ge 24 ] 2>/dev/null; then
-        [ "${minor}" -ge 15 ] 2>/dev/null && return 0
-    elif [ "${major}" -ge 22 ] 2>/dev/null; then
-        [ "${minor}" -ge 22 ] 2>/dev/null && return 0
-    fi
-    return 1
+    major="${node_ver%%.*}"
+    minor="$(printf '%s' "${node_ver}" | cut -d. -f2)"
+    [ "${major}" -gt 20 ] 2>/dev/null || { [ "${major}" -eq 20 ] 2>/dev/null && [ "${minor}" -ge 9 ] 2>/dev/null; }
+}
+
+node_requirement() {
+    printf '%s' '>= 20.9.0'
 }
 
 # 2. Check or install uv (Fast Python package manager)
@@ -281,30 +295,21 @@ fi
 echo -e "   ${BLUE}📦 Synchronizing Python runtime and project dependencies...${NC}"
 uv sync --locked --quiet
 
-# 6. Build Showcase UI when missing or older than its source/configuration
-SHOWCASE_INDEX="${SCRIPT_DIR}/apps/showcase_ui/dist/frontend/browser/index.html"
-SHOWCASE_INDEX_ALT1="${SCRIPT_DIR}/apps/showcase_ui/dist/browser/index.html"
-SHOWCASE_INDEX_ALT2="${SCRIPT_DIR}/apps/showcase_ui/dist/index.html"
+# 6. Build the selected frontend when missing or older than its source/configuration
+FRONTEND_DIR="${SCRIPT_DIR}/apps/${FRONTEND_APP}"
+FRONTEND_CANDIDATES=("${FRONTEND_DIR}/out/index.html")
+FRONTEND_INPUTS=("${FRONTEND_DIR}/src" "${FRONTEND_DIR}/public" "${FRONTEND_DIR}/package.json" "${FRONTEND_DIR}/package-lock.json" "${FRONTEND_DIR}/next.config.ts" "${FRONTEND_DIR}/postcss.config.mjs" "${FRONTEND_DIR}/tsconfig.json")
 EXISTING_SHOWCASE_INDEX=""
-for candidate in "${SHOWCASE_INDEX}" "${SHOWCASE_INDEX_ALT1}" "${SHOWCASE_INDEX_ALT2}"; do
-    if [ -f "${candidate}" ]; then
-        EXISTING_SHOWCASE_INDEX="${candidate}"
-        break
-    fi
+for candidate in "${FRONTEND_CANDIDATES[@]}"; do
+    if [ -f "${candidate}" ]; then EXISTING_SHOWCASE_INDEX="${candidate}"; break; fi
 done
 FRONTEND_BUILD_REQUIRED=false
 if [ -z "${EXISTING_SHOWCASE_INDEX}" ]; then
     FRONTEND_BUILD_REQUIRED=true
-elif find \
-    "${SCRIPT_DIR}/apps/showcase_ui/src" \
-    "${SCRIPT_DIR}/apps/showcase_ui/public" \
-    "${SCRIPT_DIR}/apps/showcase_ui/package.json" \
-    "${SCRIPT_DIR}/apps/showcase_ui/package-lock.json" \
-    "${SCRIPT_DIR}/apps/showcase_ui/angular.json" \
-    "${SCRIPT_DIR}/apps/showcase_ui/tsconfig.json" \
-    "${SCRIPT_DIR}/apps/showcase_ui/tsconfig.app.json" \
-    -type f -newer "${EXISTING_SHOWCASE_INDEX}" -print -quit 2>/dev/null | grep -q .; then
-    FRONTEND_BUILD_REQUIRED=true
+else
+    for input in "${FRONTEND_INPUTS[@]}"; do
+        if [ -e "${input}" ] && find "${input}" -type f -newer "${EXISTING_SHOWCASE_INDEX}" -print -quit 2>/dev/null | grep -q .; then FRONTEND_BUILD_REQUIRED=true; break; fi
+    done
 fi
 if [ "${FRONTEND_BUILD_REQUIRED}" = true ]; then
     # First: Try loading existing nvm or user-installed node in environment
@@ -325,9 +330,9 @@ if [ "${FRONTEND_BUILD_REQUIRED}" = true ]; then
     if ! is_node_compatible; then
         OS_NAME="$(uname -s)"
         if command -v node >/dev/null 2>&1; then
-            echo -e "   ${YELLOW}⚡ Detected Node.js $(node -v 2>/dev/null), but Angular CLI requires Node.js >= v22.22.0. Upgrading Node.js...${NC}"
+            echo -e "   ${YELLOW}⚡ Detected Node.js $(node -v 2>/dev/null), but ${FRONTEND_LABEL} requires Node.js $(node_requirement). Upgrading Node.js...${NC}"
         else
-            echo -e "   ${YELLOW}⚡ Node.js/npm not found. Auto-installing Node.js 22 LTS for Showcase UI compilation...${NC}"
+            echo -e "   ${YELLOW}⚡ Node.js/npm not found. Auto-installing Node.js 22 LTS for ${FRONTEND_LABEL} compilation...${NC}"
         fi
 
         # 1. Try installing Node 22 via nvm if available
@@ -344,7 +349,7 @@ if [ "${FRONTEND_BUILD_REQUIRED}" = true ]; then
 
         # 3. Try Linux package managers with sudo / root
         if ! is_node_compatible && [ "${OS_NAME}" = "Linux" ]; then
-            if request_sudo "install or upgrade Node.js to >= 22.22.0"; then
+            if request_sudo "install or upgrade Node.js 22 LTS"; then
                 SUDO_PREFIX=""
                 if [ "$(id -u)" -ne 0 ]; then SUDO_PREFIX="sudo"; fi
                 if command -v apt-get >/dev/null 2>&1; then
@@ -387,26 +392,24 @@ if [ "${FRONTEND_BUILD_REQUIRED}" = true ]; then
         fi
     fi
 
-    if is_node_compatible; then
-        echo -e "   ${GREEN}✓ Node.js $(node -v 2>/dev/null) and npm $(npm -v 2>/dev/null) ready.${NC}"
-        echo -e "   ${YELLOW}🎨 Showcase UI build is missing or stale. Compiling Angular Showcase UI...${NC}"
-        (
-            cd "${SCRIPT_DIR}/apps/showcase_ui"
-            npm install --silent
-            # Auto-patch Angular CLI node version constraint if running on Node 22.22.x (e.g. Cloudtop / Debian)
-            CLI_NODE_VERSION="${SCRIPT_DIR}/apps/showcase_ui/node_modules/@angular/cli/src/utilities/node-version.js"
-            if [ -f "${CLI_NODE_VERSION}" ]; then
-                if [ "$(uname -s)" = "Darwin" ]; then
-                    sed -i '' 's/22\.22\.3/22.22.0/g' "${CLI_NODE_VERSION}" 2>/dev/null || true
-                else
-                    sed -i 's/22\.22\.3/22.22.0/g' "${CLI_NODE_VERSION}" 2>/dev/null || true
-                fi
-            fi
-            npm run build
-        )
-    else
-        echo -e "   ${YELLOW}⚠ Could not configure compatible Node.js (>= 22.22.0). Showcase UI will serve fallback build notice.${NC}"
+    if ! is_node_compatible; then
+        echo "Cannot build ${FRONTEND_LABEL}: Node.js $(node_requirement) and npm are required." >&2
+        exit 1
     fi
+    echo -e "   ${GREEN}✓ Node.js $(node -v) and npm $(npm -v) ready for ${FRONTEND_LABEL}.${NC}"
+    echo -e "   ${YELLOW}🎨 ${FRONTEND_LABEL} build is missing or stale. Building selected frontend...${NC}"
+    if ! (
+        cd "${FRONTEND_DIR}"
+        if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+        npm run build
+    ); then
+        echo "${FRONTEND_LABEL} frontend build failed; the previous artifact, if any, was not removed." >&2
+        exit 1
+    fi
+    BUILT_FRONTEND_INDEX=""
+    for candidate in "${FRONTEND_CANDIDATES[@]}"; do if [ -f "${candidate}" ]; then BUILT_FRONTEND_INDEX="${candidate}"; break; fi; done
+    if [ -z "${BUILT_FRONTEND_INDEX}" ]; then echo "${FRONTEND_LABEL} build completed but expected artifact was not found: ${FRONTEND_CANDIDATES[*]}" >&2; exit 1; fi
+    echo -e "   ${GREEN}✓ ${FRONTEND_LABEL} frontend compiled successfully.${NC}"
 fi
 
 # 7. Optionally configure MCP for detected AI IDEs

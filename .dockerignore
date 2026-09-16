@@ -5,9 +5,11 @@
 .ruff_cache
 **/__pycache__
 **/*.pyc
-apps/showcase_ui/.angular
-apps/showcase_ui/dist
-apps/showcase_ui/node_modules
+apps/showcase_next/.next
+apps/showcase_next/out
+apps/showcase_next/node_modules
+apps/showcase_next/coverage
+apps/showcase_next/playwright-report
 build
 dist
 traces

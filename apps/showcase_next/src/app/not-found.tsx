@@ -1,0 +1,1 @@
+'use client'; import Link from 'next/link'; import { useAppPreferences } from './providers'; export default function NotFound(){const {t}=useAppPreferences();return <main className="centerPage"><span className="errorCode">404</span><h1>{t('notFound.title')}</h1><p>{t('notFound.body')}</p><Link className="primary linkButton" href="/">{t('common.home')}</Link></main>}

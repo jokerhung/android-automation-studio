@@ -104,14 +104,17 @@ cd artemis
 
 > **Tip**: Opens `http://localhost:8000` in your default browser with a device connection wizard, live screen mirroring, prompt sandbox, and execution replays. You can also run directly from CLI: `uv run artemis run "Open Settings, find Battery and tell me current level" --profile flash`.
 
-<a id="mcp-setup"></a>
-<a id="mcp"></a>
-<details>
-<summary><b>MCP Setup for Codex / Antigravity / Claude Code / Windsurf (Click to expand)</b></summary>
+### Frontend migration developer preview
 
-<br>
+The frontend is now Next.js only (`apps/showcase_next`). FastAPI serves its static export on port 8009; no Node server is required in production.
 
-ARTEMIS includes a native **Model Context Protocol (MCP)** server. Connect your real phone directly into AI IDEs:
+- Windows: `start.bat`
+- Linux/macOS: `bash start.sh`
+- Build: `npm ci --prefix apps/showcase_next`, then `npm run build --prefix apps/showcase_next`.
+- Package: `uv build` after building the frontend. Wheels contain the full Next export.
+- `ARTEMIS_FRONTEND=next` is optional for older automation; `angular` is no longer supported.
+- Existing settings, schedules, traces and browser preferences are unchanged.
+
 
 ### 1. One-Click Auto Install (Recommended)
 

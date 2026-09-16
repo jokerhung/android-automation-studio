@@ -24,6 +24,12 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
+$Frontend = if ([string]::IsNullOrWhiteSpace($env:ARTEMIS_FRONTEND)) { "next" } else { $env:ARTEMIS_FRONTEND.Trim().ToLowerInvariant() }
+if ($Frontend -notin @("next")) { throw "ARTEMIS_FRONTEND must be 'next' (Angular has been removed) (got: $Frontend)." }
+$env:ARTEMIS_FRONTEND = $Frontend
+$FrontendApp = "showcase_next"
+$FrontendLabel = "Next.js"
+$NodeRequirement = ">= 20.9.0"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Ensure modern TLS protocols are enabled for downloads (GitHub releases, nodejs.org, Google repositories)
@@ -222,20 +228,9 @@ function Install-PortableScrcpy {
 function Test-NodeCompatible {
     if (-not (Test-CommandExists "node") -or (-not (Test-CommandExists "npm") -and -not (Test-CommandExists "npm.cmd"))) { return $false }
     try {
-        $verRaw = (& node -v 2>$null)
-        if (-not $verRaw) { return $false }
-        $verStr = $verRaw.ToString().Trim().TrimStart('v')
-        $parts = $verStr.Split('.')
-        if ($parts.Count -ge 2) {
-            $major = [int]$parts[0]
-            $minor = [int]$parts[1]
-            if ($major -ge 26) { return $true }
-            if ($major -eq 24 -and $minor -ge 15) { return $true }
-            if ($major -eq 22 -and $minor -ge 22) { return $true }
-        }
-    } catch {
-        return $false
-    }
+        $version = [version]((& node -v 2>$null).ToString().Trim().TrimStart('v'))
+        return $version -ge [version]"20.9.0"
+    } catch { return $false }
     return $false
 }
 
@@ -394,92 +389,41 @@ if (-not (Test-Path ".env")) {
     Write-Host "   [OK] .env configuration file exists." -ForegroundColor Green
 }
 
-# 5. Check and Build Showcase UI (Angular)
-Write-Host "`n5. Checking Showcase UI Build (Angular)..." -ForegroundColor Yellow
-$ShowcaseIndex = "$RootDir\apps\showcase_ui\dist\frontend\browser\index.html"
-$ShowcaseIndexAlt1 = "$RootDir\apps\showcase_ui\dist\browser\index.html"
-$ShowcaseIndexAlt2 = "$RootDir\apps\showcase_ui\dist\index.html"
-if ((-not (Test-Path $ShowcaseIndex)) -and (-not (Test-Path $ShowcaseIndexAlt1)) -and (-not (Test-Path $ShowcaseIndexAlt2))) {
-    if (-not (Test-NodeCompatible)) {
-        if (Test-CommandExists "node") {
-            $curVer = (& node -v 2>$null)
-            Write-Host "   [WARN] Detected Node.js $curVer, but Angular CLI requires Node.js >= v22.22.0." -ForegroundColor Yellow
-        } else {
-            Write-Host "   [WARN] Node.js/npm not found (required for Showcase UI)." -ForegroundColor Cyan
-        }
-
-        # 1. Try nvm if available on Windows
-        if (Test-CommandExists "nvm") {
-            Write-Host "   [INFO] Installing Node.js 22 LTS via nvm..." -ForegroundColor Cyan
-            & nvm install 22.23.2 | Out-Null
-            & nvm use 22.23.2 | Out-Null
-            Update-EnvironmentPath
-        }
-
-        # 2. Try WinGet
-        if (-not (Test-NodeCompatible)) {
-            $useWinGetNode = $false
-            if (Test-CommandExists "winget") {
-                if ([Console]::IsInputRedirected -eq $false) {
-                    $ans = Read-Host "   Install/Upgrade Node.js via WinGet (may require Administrator)? [Y/n]"
-                    if ($ans -eq "" -or $ans -match "^[Yy]") {
-                        $useWinGetNode = $true
-                    }
-                } else {
-                    $useWinGetNode = $true
-                }
-            }
-
-            if ($useWinGetNode) {
-                Write-Host "   [INFO] Installing/Upgrading Node.js LTS via WinGet..." -ForegroundColor Cyan
-                winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements --silent 2>$null | Out-Null
-                Update-EnvironmentPath
-            }
-        }
-
-        # 3. Zero-admin user-space fallback for Node.js if still not compatible
-        if (-not (Test-NodeCompatible)) {
-            Install-PortableNode
-        }
-    }
-
-    if (Test-NodeCompatible) {
-        $nodeVer = (& node -v 2>$null)
-        Write-Host "   [OK] Node.js $nodeVer is ready." -ForegroundColor Green
-        Write-Host "   [INFO] Compiling Angular Showcase UI..." -ForegroundColor Cyan
-        Push-Location "$RootDir\apps\showcase_ui"
-        try {
-            $npmExec = if (Test-CommandExists "npm.cmd") { "npm.cmd" } else { "npm" }
-            Write-Host "   [INFO] Installing frontend npm dependencies..." -ForegroundColor Cyan
-            & $npmExec install --no-audit --no-fund --loglevel=error
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "   [WARN] npm install returned exit code $LASTEXITCODE. Trying silent install..." -ForegroundColor DarkYellow
-                & $npmExec install --silent
-            }
-            $cliNodeVersion = "$RootDir\apps\showcase_ui\node_modules\@angular\cli\src\utilities\node-version.js"
-            if (Test-Path $cliNodeVersion) {
-                (Get-Content $cliNodeVersion) -replace '22\.22\.3', '22.22.0' | Set-Content $cliNodeVersion
-            }
-            Write-Host "   [INFO] Building Angular frontend application..." -ForegroundColor Cyan
-            & $npmExec run build
-            if (Test-Path $ShowcaseIndex) {
-                Write-Host "   [OK] Showcase UI compiled successfully." -ForegroundColor Green
-            } elseif (Test-Path $ShowcaseIndexAlt1) {
-                Write-Host "   [OK] Showcase UI compiled successfully." -ForegroundColor Green
-            } else {
-                Write-Host "   [WARN] Showcase UI build finished but index.html was not found in expected dist directory." -ForegroundColor DarkYellow
-            }
-        } catch {
-            Write-Host "   [WARN] Failed to build Showcase UI: $_" -ForegroundColor DarkYellow
-        } finally {
-            Pop-Location
-        }
-    } else {
-        Write-Host "   [WARN] Could not configure compatible Node.js (>= 22.22.0). Showcase UI will show fallback notice on launch." -ForegroundColor DarkYellow
-    }
-} else {
-    Write-Host "   [OK] Showcase UI build already exists." -ForegroundColor Green
+# Build the selected frontend when its artifact is missing or stale
+Write-Host "`nChecking selected frontend build ($FrontendLabel)..." -ForegroundColor Yellow
+$FrontendDir = Join-Path $RootDir "apps\$FrontendApp"
+$FrontendCandidates = @((Join-Path $FrontendDir "out\index.html"))
+$InputRoots = @("src", "public")
+$InputFiles = @("package.json", "package-lock.json", "next.config.ts", "postcss.config.mjs", "tsconfig.json")
+$ExistingFrontendIndex = $FrontendCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+$FrontendBuildRequired = -not $ExistingFrontendIndex
+if ($ExistingFrontendIndex) {
+    $BuiltAt = (Get-Item $ExistingFrontendIndex).LastWriteTimeUtc
+    $FrontendInputs = foreach ($relative in $InputRoots) { $path = Join-Path $FrontendDir $relative; if (Test-Path $path) { Get-ChildItem $path -Recurse -File -ErrorAction SilentlyContinue } }
+    $FrontendInputs += foreach ($relative in $InputFiles) { $path = Join-Path $FrontendDir $relative; if (Test-Path $path) { Get-Item $path } }
+    $FrontendBuildRequired = $null -ne ($FrontendInputs | Where-Object { $_.LastWriteTimeUtc -gt $BuiltAt } | Select-Object -First 1)
 }
+if ($FrontendBuildRequired) {
+    if (-not (Test-NodeCompatible) -and (Test-CommandExists "nvm")) { & nvm use 22 | Out-Null; Update-EnvironmentPath }
+    if (-not (Test-NodeCompatible)) { Install-PortableNode | Out-Null; Update-EnvironmentPath }
+    if (-not (Test-NodeCompatible)) { Write-Error "Cannot build ${FrontendLabel}: Node.js $NodeRequirement and npm are required."; exit 1 }
+    $npmExec = if (Test-CommandExists "npm.cmd") { "npm.cmd" } else { "npm" }
+    Push-Location $FrontendDir
+    try {
+        Write-Host "   [INFO] Installing $FrontendLabel dependencies..." -ForegroundColor Cyan
+        if (Test-Path "package-lock.json") { & $npmExec ci --no-audit --no-fund } else { & $npmExec install --no-audit --no-fund }
+        if ($LASTEXITCODE -ne 0) { throw "npm dependency install failed with exit code $LASTEXITCODE" }
+        Write-Host "   [INFO] Building $FrontendLabel frontend application..." -ForegroundColor Cyan
+        & $npmExec run build
+        if ($LASTEXITCODE -ne 0) { throw "$FrontendLabel build failed with exit code $LASTEXITCODE" }
+    } catch {
+        Write-Error "$FrontendLabel frontend build failed; the previous artifact, if any, was not removed. $_"
+        exit 1
+    } finally { Pop-Location }
+    $BuiltFrontendIndex = $FrontendCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $BuiltFrontendIndex) { Write-Error "$FrontendLabel build completed but expected artifact was not found: $($FrontendCandidates -join ', ')"; exit 1 }
+    Write-Host "   [OK] $FrontendLabel frontend compiled successfully." -ForegroundColor Green
+} else { Write-Host "   [OK] Selected $FrontendLabel frontend artifact is current." -ForegroundColor Green }
 
 # 6. Toolchain Readiness Summary
 Write-Host "`n6. Toolchain Readiness Summary:" -ForegroundColor Yellow
