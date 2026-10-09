@@ -13,7 +13,7 @@ const text = (value: unknown): string | undefined => typeof value === 'string' &
 const number = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 const pretty = (value: unknown): string => typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value, null, 2);
 const goalOf = (session: SessionSummary) => session.goal ?? session.initial_goal ?? 'Untitled task';
-const profileOf = (session: SessionSummary) => text(record(session.model_info).architecture) ?? text(record(session.device_info).profile) ?? 'flash';
+const profileOf = (session: SessionSummary) => (text(record(session.model_info).architecture) ?? text(record(session.device_info).profile) ?? 'flash').replace(/\bartemis\b/gi, 'AAS');
 const formatTime = (value?: string | number) => { if (value === undefined) return 'Time unavailable'; const normalized=typeof value === 'number' && value < 10_000_000_000 ? value*1000 : value; const date=typeof normalized === 'number' ? new Date(normalized) : new Date(normalized); return Number.isNaN(date.valueOf()) ? String(value) : date.toLocaleString(); };
 const imageUrl = (step: SessionStep): string | undefined => { const name=text(step.post_image_name) ?? text(step.pre_image_name) ?? text(step.image_name); return name ? '/api/images/'+encodeURIComponent(name.replace(/\.jpg$/i,'')) : text(step.image_url) ?? text(step.screenshot_url); };
 
