@@ -166,10 +166,48 @@ Write-Host "   [OK] $FrontendLabel frontend rebuilt successfully." -ForegroundCo
 #    identity-verified lifecycle commands (never by killing a PID directly).
 if ($Daemon) {
     Write-Host "`n[2/2] Restarting Artemis API + GUI server on port $Port (background daemon)..." -ForegroundColor Yellow
-    if ($NoOpen) {
-        uv run python -m artemis restart --port $Port --daemon --no-open
+    $daemonArgs = @("-m", "artemis", "restart", "--port", "$Port", "--daemon")
+    $daemonArgs += if ($NoOpen) { "--no-open" } else { "--open" }
+    # Launch the venv's pythonw.exe directly (not `python.exe`, and not
+    # through `uv run`). Two layers were tried and both still leaked a
+    # visible console on this launch chain:
+    #   - `uv run python -m artemis restart --daemon`: `uv` re-execs the
+    #     Python process through its own child launcher, which opens a
+    #     fresh console for it regardless of `uv`'s own window state.
+    #   - venv's `python.exe` directly: on a uv-managed venv, that is a thin
+    #     stub that re-execs the real base CPython interpreter — and that
+    #     redirect does not propagate CREATE_NO_WINDOW either.
+    # `pythonw.exe` (the windowless/GUI-subsystem build) does not have this
+    # problem at any layer, because there is no console subsystem to ever
+    # attach one to, in the stub or in the base interpreter it re-execs.
+    # uv sync already ran earlier in this script, so the venv is current.
+    $venvPythonW = Join-Path $RootDir ".venv\Scripts\pythonw.exe"
+    if (-not (Test-Path $venvPythonW)) {
+        Write-Host "   [ERROR] venv pythonw.exe not found at $venvPythonW. Run 'uv sync' first." -ForegroundColor Red
+        exit 1
+    }
+    # This CLI call only verifies the port and spawns the actual detached
+    # daemon (apps.admin_console.server, itself already CREATE_NO_WINDOW),
+    # then exits. Its exit code is not reliable under pythonw.exe (Rich/Typer
+    # console output can fail with no console attached), so success is
+    # judged solely by polling the port below, not by $LASTEXITCODE here.
+    Start-Process -FilePath $venvPythonW -ArgumentList $daemonArgs -WindowStyle Hidden -WorkingDirectory $RootDir
+    $daemonUp = $false
+    for ($i = 0; $i -lt 60; $i++) {
+        Start-Sleep -Milliseconds 1000
+        $test = Test-NetConnection -ComputerName "127.0.0.1" -Port $Port -InformationLevel Quiet -WarningAction SilentlyContinue
+        if ($test) { $daemonUp = $true; break }
+    }
+    if ($daemonUp) {
+        $LASTEXITCODE = 0
+        Write-Host "   [OK] Artemis server is running in the background." -ForegroundColor Green
+        Write-Host "   Web UI: http://localhost:$Port" -ForegroundColor Cyan
+        Write-Host "   Check status anytime with: uv run python -m artemis status --port $Port" -ForegroundColor Cyan
+        Write-Host "   Stop it with: .\scripts\rebuild.ps1 -Stop -Port $Port" -ForegroundColor Cyan
     } else {
-        uv run python -m artemis restart --port $Port --daemon --open
+        $LASTEXITCODE = 1
+        Write-Host "   [ERROR] Background daemon did not come up on port $Port within 60s." -ForegroundColor Red
+        Write-Host "   Check logs under: $env:LOCALAPPDATA\Artemis\logs\daemon-$Port.log" -ForegroundColor Yellow
     }
 } else {
     Write-Host "`n[2/2] Restarting Artemis API + GUI server on port $Port (foreground)..." -ForegroundColor Yellow
