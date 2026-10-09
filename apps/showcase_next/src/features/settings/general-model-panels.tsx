@@ -171,7 +171,7 @@ export function ModelSettingsPanel() {
       try {
         const state = await settingsApi.serverStatus(lifetime.current?.signal);
         if (state.current_pid && state.current_pid !== previousPid) {
-          setMessage('ARTEMIS restarted and reconnected.');
+          setMessage('AAS restarted and reconnected.');
           await load(lifetime.current?.signal);
           return;
         }
@@ -179,7 +179,7 @@ export function ModelSettingsPanel() {
         // The server is expected to be temporarily unavailable during restart.
       }
     }
-    setError('ARTEMIS did not reconnect within 90 seconds. Check the server and reload.');
+    setError('AAS did not reconnect within 90 seconds. Check the server and reload.');
     setMessage('');
   }
 
@@ -203,10 +203,10 @@ export function ModelSettingsPanel() {
       setApiKey('');
       if (result.status !== 'restarting' || typeof result.previous_pid !== 'number') {
         setMessage('');
-        setError(result.message || 'Saved, but ARTEMIS must be restarted manually.');
+        setError(result.message || 'Saved, but AAS must be restarted manually.');
         return;
       }
-      setMessage('Restarting ARTEMIS; reconnecting…');
+      setMessage('Restarting AAS; reconnecting…');
       await reconnect(result.previous_pid);
     } catch (reason) {
       if (!lifetime.current?.signal.aborted) {

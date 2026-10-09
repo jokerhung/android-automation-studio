@@ -17,9 +17,16 @@ param(
     [ValidateRange(1, 65535)]
     [int]$Port = 8009,
     [switch]$NoOpen = $false,
+    [switch]$Daemon = $false,
+    [switch]$Stop = $false,
     [ValidateSet("next")]
     [string]$Frontend = $(if ([string]::IsNullOrWhiteSpace($env:ARTEMIS_FRONTEND)) { "next" } else { $env:ARTEMIS_FRONTEND.Trim().ToLowerInvariant() })
 )
+
+if ($Daemon -and $Stop) {
+    Write-Host "   [ERROR] -Daemon and -Stop are mutually exclusive." -ForegroundColor Red
+    exit 1
+}
 
 $ErrorActionPreference = "Continue"
 if ($Frontend -notin @("next")) { throw "ARTEMIS_FRONTEND must be 'next' (Angular has been removed) (got: $Frontend)." }
@@ -306,6 +313,14 @@ if (-not (Test-CommandExists "uv")) {
     exit 1
 }
 
+# -Stop: just shut down the verified Artemis daemon on -Port and exit, no
+# toolchain checks, no dependency sync, no frontend build.
+if ($Stop) {
+    Write-Host "   [INFO] Stopping Artemis server on port $Port..." -ForegroundColor Yellow
+    uv run python -m artemis stop --port $Port
+    exit $LASTEXITCODE
+}
+
 # 3. Check and try installing missing system toolchains (ADB, FFmpeg, scrcpy)
 $missingCore = @()
 if (-not (Test-CommandExists "adb")) { $missingCore += "adb" }
@@ -430,17 +445,26 @@ if ($installMcp -match "^[Yy]") {
 }
 Write-Host ""
 
-# 8. Launch unified Showcase UI & open browser
+# 8. Launch unified Showcase UI & open browser (or detach as a background daemon)
 # Ensure local ADB daemon is warm & listening
 Start-LocalAdbServer
 
 # Launch via `python -m artemis` (not the `artemis.exe` console-script shim) so the
 # long-running server never locks .venv\Scripts\artemis.exe against `uv sync` reinstalls.
-Write-Host "   [INFO] Launching Artemis Showcase UI & Admin Console..." -ForegroundColor Green
-if ($NoOpen) {
-    uv run python -m artemis ui --port $Port --no-open
+if ($Daemon) {
+    Write-Host "   [INFO] Launching Artemis Showcase UI & Admin Console as a background daemon..." -ForegroundColor Green
+    if ($NoOpen) {
+        uv run python -m artemis restart --port $Port --daemon --no-open
+    } else {
+        uv run python -m artemis restart --port $Port --daemon --open
+    }
 } else {
-    uv run python -m artemis ui --port $Port --open
+    Write-Host "   [INFO] Launching Artemis Showcase UI & Admin Console..." -ForegroundColor Green
+    if ($NoOpen) {
+        uv run python -m artemis ui --port $Port --no-open
+    } else {
+        uv run python -m artemis ui --port $Port --open
+    }
 }
 
 if ($LASTEXITCODE -ne 0) {

@@ -56,6 +56,24 @@ To use another port or skip opening a browser:
 .\start.bat -Port 8010 -NoOpen
 ```
 
+**Run as a background daemon, or stop it** — `start.bat` forwards its arguments to `scripts/start.ps1`, which can also launch the server detached from the console (via `artemis restart --daemon`) and stop the identity-verified daemon on a port:
+
+```powershell
+.\start.bat -Daemon      # build (if stale) + run detached in the background
+.\start.bat -Stop        # stop the running server, no build
+```
+
+**Rebuild the frontend and restart** — `scripts/rebuild.ps1` always rebuilds the Next.js Showcase UI (unlike `start.bat`, which only rebuilds when sources changed) and then restarts the unified API + GUI server:
+
+```powershell
+.\scripts\rebuild.ps1            # rebuild + run in this console (foreground)
+.\scripts\rebuild.ps1 -Daemon    # rebuild + run detached in the background
+.\scripts\rebuild.ps1 -Stop      # stop the server, no rebuild
+.\scripts\rebuild.ps1 -Port 8010 -NoOpen
+```
+
+Both scripts stop and start the server through Artemis's own identity-verified lifecycle commands (`artemis ui --restart`, `artemis restart --daemon`, `artemis stop`), never by killing a PID found on the port directly.
+
 ### macOS
 
 Install the prerequisites, connect an authorized device, then:

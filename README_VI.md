@@ -56,6 +56,24 @@ uv run python -m artemis ui --port 8009 --open
 .\start.bat -Port 8010 -NoOpen
 ```
 
+**Chạy ngầm (background) hoặc dừng server** — `start.bat` chuyển tiếp các tham số sang `scripts/start.ps1`, script này cũng có thể khởi chạy server tách khỏi console (qua `artemis restart --daemon`) và dừng daemon đã xác thực identity trên một port:
+
+```powershell
+.\start.bat -Daemon      # build (nếu cần) + chạy ngầm ở background
+.\start.bat -Stop        # dừng server đang chạy, không build
+```
+
+**Build lại frontend rồi khởi động lại** — `scripts/rebuild.ps1` luôn build lại Next.js Showcase UI (khác với `start.bat` chỉ build khi source thay đổi) rồi khởi động lại server API + GUI thống nhất:
+
+```powershell
+.\scripts\rebuild.ps1            # build lại + chạy trong console hiện tại (foreground)
+.\scripts\rebuild.ps1 -Daemon    # build lại + chạy ngầm ở background
+.\scripts\rebuild.ps1 -Stop      # dừng server, không build lại
+.\scripts\rebuild.ps1 -Port 8010 -NoOpen
+```
+
+Cả hai script đều dừng/khởi động server qua các lệnh lifecycle chính thức của Artemis (`artemis ui --restart`, `artemis restart --daemon`, `artemis stop`), không bao giờ tự ý kill PID tìm được trên port.
+
 ### macOS
 
 Cài các công cụ cần thiết, kết nối thiết bị đã được cấp quyền, rồi chạy:

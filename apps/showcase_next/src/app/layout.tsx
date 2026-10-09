@@ -15,5 +15,5 @@ import './angular-tokens.css';
 import './globals.css';
 import './angular-parity.css';
 
-export const metadata: Metadata={title:{default:'ARTEMIS',template:'%s · ARTEMIS'},description:'ARTEMIS Android agent operations console'};
+export const metadata: Metadata={title:{default:'AAS',template:'%s · AAS'},description:'AAS Android agent operations console'};
 export default function RootLayout({children}:{children:ReactNode}){return <html lang="en" data-theme="light" suppressHydrationWarning><head><script id="artemis-preferences-bootstrap" dangerouslySetInnerHTML={{__html:UI_PREFERENCES_BOOTSTRAP}}/></head><body><AppProviders><Navigation/>{children}</AppProviders></body></html>}

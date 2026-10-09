@@ -26,6 +26,10 @@ echo.
 
 rem Run the PowerShell bootstrap with execution policy bypass.
 rem Port defaults to 8009 in start.ps1; pass -Port <number> to override it.
+rem   start.bat             -> build (if stale) + run in this console (foreground)
+rem   start.bat -Daemon     -> build (if stale) + run detached in the background
+rem   start.bat -Stop       -> stop the running Artemis server, no build
+rem   start.bat -NoOpen     -> skip auto-opening the browser
 powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start.ps1" %*
 set "ARTEMIS_EXIT_CODE=%ERRORLEVEL%"
 
