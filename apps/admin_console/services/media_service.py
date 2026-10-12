@@ -310,6 +310,26 @@ class MediaService:
         return idx
 
     @classmethod
+    def resolve_recorded_path(cls, value: str) -> Path:
+        """Locate the same recording after a trace folder gains a result suffix."""
+        path = Path(value)
+        if path.exists():
+            return path
+        parent_name = cls.strip_trace_status_suffix(path.parent.name)
+        roots = (path.parent.parent, TRACES_PATH, WORKSPACE_ROOT / "artemis-traces")
+        for root in dict.fromkeys(roots):
+            try:
+                candidates = sorted(root.iterdir(), key=lambda item: item.name)
+            except OSError:
+                continue
+            for folder in candidates:
+                if folder.is_dir() and cls.strip_trace_status_suffix(folder.name) == parent_name:
+                    candidate = folder / path.name
+                    if candidate.is_file():
+                        return candidate
+        return path
+
+    @classmethod
     def resolve_video_url(
         cls,
         row_dict: dict[str, Any],
@@ -324,14 +344,16 @@ class MediaService:
         )
         v_url = None
         v_fp = row_dict.get("video_filepath")
-        if v_fp and os.path.exists(v_fp):
-            p = cls.ensure_browser_playable_video(Path(v_fp))
-            if cls.is_browser_playable(p):
-                v_url = cls.path_to_video_url(p)
+        if v_fp:
+            p = cls.resolve_recorded_path(str(v_fp))
+            if p.is_file():
+                p = cls.ensure_browser_playable_video(p)
+                if cls.is_browser_playable(p):
+                    v_url = cls.path_to_video_url(p)
 
         orig_rec = video_rec_map.get(s_id)
         if not v_url and orig_rec:
-            p = Path(orig_rec)
+            p = cls.resolve_recorded_path(str(orig_rec))
             if p.exists():
                 p = cls.ensure_browser_playable_video(p)
                 if cls.is_browser_playable(p):

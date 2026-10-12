@@ -77,6 +77,11 @@ def build_scrcpy_record_command(
         "--serial",
         device_id,
         "--no-window",
+        # This process only records the screen. Device input uses the driver,
+        # not scrcpy's control channel; audio is not needed for screen replay.
+        # Keep one video channel to avoid audio/control transport failures.
+        "--no-audio",
+        "--no-control",
         "--record",
         str(output_path),
         "--record-format",

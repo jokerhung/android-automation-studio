@@ -75,6 +75,9 @@ def test_scrcpy_recording_locks_each_segment_orientation(tmp_path):
     command = build_scrcpy_record_command("scrcpy", "device-1", output_path)
 
     assert "--capture-orientation=@" in command
+    assert "--no-audio" in command
+    assert "--no-control" in command
+    assert "--no-video" not in command
     assert command[command.index("--record") + 1] == str(output_path)
 
 
