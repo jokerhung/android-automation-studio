@@ -136,6 +136,10 @@
   .workspace-page.ws-three-columns>.ws-alert { position: static; max-width: none; }
 }
 /* Header and tab bar never belong to the log's scroll container. */
+.ws-section-heading { flex-wrap: wrap; }
+.ws-history-delete { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 100%; }
+.ws-history-delete button { height: 28px; padding: 4px 10px; font-size: 12px; }
+.ws-history-delete span[role="status"] { flex-basis: 100%; font-size: 11px; text-align: right; }
 .ws-history-dates { margin: 12px; padding: 12px; min-width: 0; border: 1px solid var(--line); border-radius: 10px; }
 .ws-history-dates legend { padding: 0 4px; font-size: 12px; color: var(--muted); }
 .ws-history-date-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }

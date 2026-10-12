@@ -3,7 +3,7 @@ import { useAppPreferences } from '@/app/providers';
 import { ExecutionLog } from './execution-log';
 import { Button } from '@/components/ui/button';
 /* eslint-disable @next/next/no-img-element -- device MJPEG and trace frames are runtime media */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useWorkspace } from '../provider';
 import { directMediaUrl, locateTimelineTime } from '../media';
 import type { SessionDetails, SessionStep, SessionSummary } from '../types';
@@ -17,8 +17,8 @@ const profileOf = (session: SessionSummary) => (text(record(session.model_info).
 const formatTime = (value?: string | number) => { if (value === undefined) return 'Time unavailable'; const normalized=typeof value === 'number' && value < 10_000_000_000 ? value*1000 : value; const date=typeof normalized === 'number' ? new Date(normalized) : new Date(normalized); return Number.isNaN(date.valueOf()) ? String(value) : date.toLocaleString(); };
 const imageUrl = (step: SessionStep): string | undefined => { const name=text(step.post_image_name) ?? text(step.pre_image_name) ?? text(step.image_name); return name ? '/api/images/'+encodeURIComponent(name.replace(/\.jpg$/i,'')) : text(step.image_url) ?? text(step.screenshot_url); };
 
-export function TaskList({ title, empty, tasks, selectedId, onSelect }: { title:string; empty:string; tasks:readonly SessionSummary[]; selectedId:string|null; onSelect(id:string):void }) {
- return <section className="ws-list-section" aria-label={title}><div className="ws-section-heading"><h2>{title}</h2><span>{tasks.length}</span></div>{tasks.length===0?<p className="ws-muted ws-list-empty">{empty}</p>:<ol className="ws-task-list">{tasks.map(task=><li key={task.session_id}><Button variant="outline" type="button" className={task.session_id===selectedId?'ws-task active':'ws-task'} onClick={()=>onSelect(task.session_id)} aria-current={task.session_id===selectedId?'true':undefined}><span className={'ws-status-dot is-'+task.status} aria-hidden/><span className="ws-task-copy"><strong>{goalOf(task)}</strong><small>{formatTime(task.created_at ?? task.start_time)}</small></span><span className="ws-task-meta"><b>{profileOf(task)}</b><small>{task.status}</small></span></Button></li>)}</ol>}</section>;
+export function TaskList({ title, empty, tasks, selectedId, onSelect, headerAction }: { title:string; empty:string; tasks:readonly SessionSummary[]; selectedId:string|null; onSelect(id:string):void; headerAction?:ReactNode }) {
+ return <section className="ws-list-section" aria-label={title}><div className="ws-section-heading"><h2>{title}</h2><span>{tasks.length}</span>{headerAction}</div>{tasks.length===0?<p className="ws-muted ws-list-empty">{empty}</p>:<ol className="ws-task-list">{tasks.map(task=><li key={task.session_id}><Button variant="outline" type="button" className={task.session_id===selectedId?'ws-task active':'ws-task'} onClick={()=>onSelect(task.session_id)} aria-current={task.session_id===selectedId?'true':undefined}><span className={'ws-status-dot is-'+task.status} aria-hidden/><span className="ws-task-copy"><strong>{goalOf(task)}</strong><small>{formatTime(task.created_at ?? task.start_time)}</small></span><span className="ws-task-meta"><b>{profileOf(task)}</b><small>{task.status}</small></span></Button></li>)}</ol>}</section>;
 }
 
 function PlainTextPanel({label,value,placeholder}:{label:string;value:unknown;placeholder:string}) { const rendered=pretty(value); return <section className="ws-detail-card"><h3>{label}</h3>{rendered?<pre>{rendered}</pre>:<p className="ws-muted">{placeholder}</p>}</section>; }
