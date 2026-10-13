@@ -121,6 +121,26 @@ describe('WorkspaceProvider integration lifecycle', () => {
     expect(requestCount('/api/sessions')).toBe(hiddenSessions + 1);
   });
 
+  it('stops fallback polling while SSE is open and ignores heartbeat events', async () => {
+    render(<AppProviders><Probe /></AppProviders>);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    fireEvent.click(screen.getByText('select'));
+    const source = FakeEventSource.instances[0]!;
+    await act(async () => { source.onopen?.(new Event('open')); await vi.advanceTimersByTimeAsync(0); });
+    const requests = vi.mocked(fetch).mock.calls.length;
+    await act(async () => {
+      source.emit('keep-alive', {});
+      source.emit('info', { message: 'Subscribed' });
+      await vi.advanceTimersByTimeAsync(12_000);
+    });
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(requests);
+    await act(async () => { source.emit('session_ended', { session_id: 'selected' }); await vi.advanceTimersByTimeAsync(0); });
+    expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(requests);
+    const statusRequests = requestCount('/api/status');
+    await act(async () => { source.onerror?.(new Event('error')); await vi.advanceTimersByTimeAsync(2_000); });
+    expect(requestCount('/api/status')).toBeGreaterThan(statusRequests);
+  });
+
   it('keeps root workspace state when a route child remounts', async () => {
     render(<StrictMode><AppProviders><Routes /></AppProviders></StrictMode>);
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });

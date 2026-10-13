@@ -19,7 +19,7 @@ describe('Home readiness refresh integration',()=>{
  beforeEach(()=>{vi.useFakeTimers();localStorage.clear();});
  afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();vi.restoreAllMocks();});
 
- it('refreshes every 3s without resetting a dirty Home draft',async()=>{
+ it('refreshes every 30s without resetting a dirty Home draft',async()=>{
   const reports=[readiness(true,1),readiness(false,2)];
   const fetchMock=vi.fn().mockImplementation((url:string)=>Promise.resolve(url==='/api/system/readiness'?json(reports.shift()??readiness(false,3)):json({})));
   vi.stubGlobal('fetch',fetchMock);
@@ -28,7 +28,7 @@ describe('Home readiness refresh integration',()=>{
   expect(screen.getByText('System ready')).toBeInTheDocument();
   const goal=screen.getByLabelText('Task goal');
   fireEvent.change(goal,{target:{value:'Keep this draft'}});
-  await act(async()=>{await vi.advanceTimersByTimeAsync(3000);});
+  await act(async()=>{await vi.advanceTimersByTimeAsync(30000);});
   expect(screen.getByText('Setup required')).toBeInTheDocument();
   expect(goal).toHaveValue('Keep this draft');
   expect(readinessCalls(fetchMock)).toHaveLength(2);

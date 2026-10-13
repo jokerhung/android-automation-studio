@@ -1,4 +1,4 @@
-export const HOME_READINESS_REFRESH_INTERVAL_MS = 3000;
+export const HOME_READINESS_REFRESH_INTERVAL_MS = 30000;
 
 type ReadinessRefreshCoordinatorOptions = {
   refresh(signal: AbortSignal): Promise<void>;
