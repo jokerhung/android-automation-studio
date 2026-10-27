@@ -71,4 +71,27 @@ describe('Home readiness refresh integration',()=>{
   await act(async()=>{await vi.advanceTimersByTimeAsync(6000);});
   expect(readinessCalls(fetchMock)).toHaveLength(1);
  });
+ it('shows a timeout and allows retry to recover without losing the draft',async()=>{
+  let stall=false;
+  const fetchMock=vi.fn().mockImplementation((url:string,init?:RequestInit)=>{
+   if(url==='/api/system/readiness'){
+    if(stall)return new Promise((_,reject)=>init!.signal!.addEventListener('abort',()=>reject(init!.signal!.reason),{once:true}));
+    return Promise.resolve(json(readiness(true,Date.now())));
+   }
+   return Promise.resolve(json({}));
+  });
+  vi.stubGlobal('fetch',fetchMock);
+  render(<AppProviders><HomeLauncher/></AppProviders>);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+  fireEvent.change(screen.getByLabelText('Task goal'),{target:{value:'Keep this draft'}});
+  stall=true;
+  await act(async()=>{await vi.advanceTimersByTimeAsync(75_000);});
+  expect(screen.getByText('Readiness could not be loaded. Check the server connection.')).toBeInTheDocument();
+  expect(screen.queryByText('System ready')).not.toBeInTheDocument();
+  stall=false;
+  await act(async()=>{fireEvent.click(screen.getByRole('button',{name:'Try again'}));await vi.advanceTimersByTimeAsync(0);});
+  expect(screen.getByText('System ready')).toBeInTheDocument();
+  expect(screen.getByLabelText('Task goal')).toHaveValue('Keep this draft');
+ });
+
 });

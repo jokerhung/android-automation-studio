@@ -164,3 +164,25 @@ async def test_shutdown_marks_only_ui_owned_running_sessions():
     state.active_session_id = None
     state.is_shutting_down = False
     state.shutdown_event.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("close_after", [1, 2, 3])
+async def test_stream_disconnect_during_initial_replay_removes_subscriber(monkeypatch, close_after):
+    monkeypatch.setattr(state, "active_session_id", "early-disconnect")
+    monkeypatch.setattr(state, "current_goal", "Test replay cleanup")
+    monkeypatch.setattr(state, "queue_items", [])
+    monkeypatch.setattr(state, "get_startup_progress", lambda _sid: [])
+    subscribers_before = list(state.ipc_subscribers)
+    queue_tasks_before = _pending_queue_get_tasks()
+    with patch("apps.admin_console.database.repositories.step_repository.step_repo") as repo:
+        repo.get_session_steps.return_value = [{"step_number": 1}]
+        response = await stream_events()
+        iterator = response.body_iterator
+        try:
+            for _ in range(close_after):
+                await anext(iterator)
+        finally:
+            await iterator.aclose()
+    assert state.ipc_subscribers == subscribers_before
+    assert _pending_queue_get_tasks() == queue_tasks_before

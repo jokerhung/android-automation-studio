@@ -178,3 +178,60 @@ describe('WorkspaceProvider integration lifecycle', () => {
     expect(screen.getByTestId('events')).not.toHaveTextContent('stale-step');
   });
 });
+
+
+describe('Workspace idle connection recovery', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    FakeEventSource.instances = [];
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    vi.stubGlobal('EventSource', FakeEventSource);
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => json(String(input) === '/api/sessions' ? [] : {})));
+  });
+  afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('recovers a silent OPEN stream without an error event and resumes polling', async () => {
+    const view = render(<AppProviders><Probe /></AppProviders>);
+    const source = FakeEventSource.instances[0]!;
+    await act(async () => { source.onopen?.(new Event('open')); await vi.advanceTimersByTimeAsync(0); });
+    const initial = requestCount('/api/status');
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_500); });
+    expect(source.closed).toBe(true);
+    expect(FakeEventSource.instances).toHaveLength(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(requestCount('/api/status')).toBeGreaterThan(initial);
+    fireEvent.click(screen.getByText('select'));
+    act(() => source.emit('step_recorded', { session_id: 'selected', step_id: 'late-step' }));
+    expect(screen.getByTestId('events')).not.toHaveTextContent('late-step');
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('keeps a healthy idle connection as long as heartbeats arrive', async () => {
+    render(<AppProviders><Probe /></AppProviders>);
+    const source = FakeEventSource.instances[0]!;
+    await act(async () => { source.onopen?.(new Event('open')); await vi.advanceTimersByTimeAsync(0); });
+    const initial = requestCount('/api/status');
+    for (let i = 0; i < 12; i++) {
+      await act(async () => { source.emit('keep-alive', {}); await vi.advanceTimersByTimeAsync(5_000); });
+    }
+    expect(source.closed).toBe(false);
+    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(requestCount('/api/status')).toBe(initial);
+  });
+
+  it('checks a day-old stream on focus even before the throttled watchdog runs', async () => {
+    render(<AppProviders><Probe /></AppProviders>);
+    const source = FakeEventSource.instances[0]!;
+    await act(async () => { source.onopen?.(new Event('open')); await vi.advanceTimersByTimeAsync(0); });
+    vi.setSystemTime(Date.now() + 24 * 60 * 60 * 1000);
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      window.dispatchEvent(new Event('online'));
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(source.closed).toBe(true);
+    expect(FakeEventSource.instances).toHaveLength(2);
+  });
+});

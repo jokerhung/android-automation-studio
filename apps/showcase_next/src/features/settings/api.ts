@@ -1,4 +1,4 @@
-import { apiRequest } from '@/lib/api/client';
+import { apiRequest, READINESS_REQUEST_TIMEOUT_MS } from '@/lib/api/client';
 
 export type ModelProvider = 'openai'|'google'|'anthropic'|'openrouter'|'xai'|'custom'|'ollama'|'vllm';
 export interface ModelSettings { provider: ModelProvider; default_model: string; fallback_model: string; fallback_provider: string; base_url: string; fallback_url: string; version: string; keys_configured: Record<string,boolean>; config_path?: string; env_path?: string; node_overrides: string[] }
@@ -32,7 +32,7 @@ export const settingsApi={
  clearEmailPassword:(signal?:AbortSignal)=>apiRequest<EmailSettings>('/api/settings/email/password',{method:'DELETE',...(signal?{signal}:{})}),
  testEmail:(signal?:AbortSignal)=>apiRequest<EmailActionResponse,Record<string,never>>('/api/settings/email/test-connection',{method:'POST',body:{},...(signal?{signal}:{})}),
  sendTestEmail:(recipient_email:string,signal?:AbortSignal)=>apiRequest<EmailActionResponse,{recipient_email:string}>('/api/settings/email/send-test',{method:'POST',body:{recipient_email},...(signal?{signal}:{})}),
- readiness:(force=false,signal?:AbortSignal)=>apiRequest<ReadinessReport>('/api/system/readiness',{...(force?{query:{force:true}}:{}),...(signal?{signal}:{})}),
+ readiness:(force=false,signal?:AbortSignal)=>apiRequest<ReadinessReport>('/api/system/readiness',{timeoutMs:READINESS_REQUEST_TIMEOUT_MS,...(force?{query:{force:true}}:{}),...(signal?{signal}:{})}),
  adbStatus:(signal?:AbortSignal)=>apiRequest<{endpoint:AdbEndpoint}>('/api/system/adb/server',signal?{signal}:{}),
  probeAdb:(host:string,port:number,signal?:AbortSignal)=>apiRequest<AdbConnectionResponse,{host:string;port:number;persist:false}>('/api/system/adb/server/probe',{method:'POST',body:{host,port,persist:false},...(signal?{signal}:{})}),
  connectAdb:(host:string,port:number,signal?:AbortSignal)=>apiRequest<AdbConnectionResponse,{host:string;port:number;persist:true}>('/api/system/adb/server/connect',{method:'POST',body:{host,port,persist:true},...(signal?{signal}:{})}),

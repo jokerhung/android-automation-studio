@@ -8,7 +8,7 @@ type ReadinessRefreshCoordinatorOptions = {
   windowObject?: Window;
 };
 
-export type ReadinessRefreshCoordinator = { start(): void; stop(): void };
+export type ReadinessRefreshCoordinator = { start(): void; stop(): void; refresh(): void };
 
 export function createReadinessRefreshCoordinator({
   refresh,
@@ -38,6 +38,7 @@ export function createReadinessRefreshCoordinator({
   };
 
   return {
+    refresh: run,
     start() {
       if (!stopped) return;
       stopped = false;

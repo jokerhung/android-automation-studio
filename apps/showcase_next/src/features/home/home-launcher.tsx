@@ -8,7 +8,7 @@ import { ApiError } from '@/lib/api/client';
 import { homeApi } from './api';
 import type { ExecutionProfile, ExplorerModeId, RunTaskRequest, SystemReadinessReport, VerificationLevelId } from './models';
 import { rankSuggestions, suggestsPro, type SuggestionCategory } from './recommendations';
-import { createReadinessRefreshCoordinator } from './readiness-refresh';
+import { createReadinessRefreshCoordinator, type ReadinessRefreshCoordinator } from './readiness-refresh';
 import { DEFAULT_EXPLORER_MODE, DEFAULT_VERIFICATION_LEVEL, EXPLORER_MODES, levelIndex, VERIFICATION_LEVELS } from './tuning';
 
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ function AppIcons({apps}:{apps:readonly string[]}){return <span className="appIc
 type TuningKind='verification'|'explorer';
 export function HomeLauncher(){
  const {t,preferences}=useAppPreferences(); const copy=preferences.language==='vi'?viHome:enHome; const router=useRouter();
+ const readinessRefresh=useRef<ReadinessRefreshCoordinator|null>(null);
  const [goal,setGoal]=useState(''); const [profile,setProfile]=useState<ExecutionProfile>('flash');
  const [readiness,setReadiness]=useState<SystemReadinessReport|null>(null); const [readinessError,setReadinessError]=useState(false);
  const [verification,setVerification]=useState(DEFAULT_VERIFICATION_LEVEL); const [explorer,setExplorer]=useState(DEFAULT_EXPLORER_MODE);
@@ -36,20 +37,21 @@ export function HomeLauncher(){
    refresh:signal=>homeApi.readiness(signal).then(result=>{setReadiness(result);setReadinessError(false);}),
    onError:()=>setReadinessError(true),
   });
+  readinessRefresh.current=readinessCoordinator;
   readinessCoordinator.start();
   void homeApi.defaults(defaultsController.signal).then(result=>{const v=VERIFICATION_LEVELS[levelIndex(VERIFICATION_LEVELS,result.verification_level,DEFAULT_VERIFICATION_LEVEL)]!.id;const e=EXPLORER_MODES[levelIndex(EXPLORER_MODES,result.explorer_mode,DEFAULT_EXPLORER_MODE)]!.id;defaults.current={verification:v,explorer:e};if(!touched.current){setVerification(v);setExplorer(e);}}).catch(()=>undefined);
-  return()=>{readinessCoordinator.stop();defaultsController.abort();runController.current?.abort();};
+  return()=>{readinessRefresh.current=null;readinessCoordinator.stop();defaultsController.abort();runController.current?.abort();};
  },[]);
  const installed=useMemo(()=>new Set(readiness?.active_device?.installed_packages??[]),[readiness]);
  const suggestions=useMemo(()=>rankSuggestions(installed,category,shuffle).map(item=>({...item,title:copy[`home.suggestion.${presetIds[item.id]??item.id}.title`]??item.title,description:copy[`home.suggestion.${presetIds[item.id]??item.id}.description`]??item.description,goal:preferences.language==='vi'?(copy[`home.suggestion.${presetIds[item.id]??item.id}.goal`]??item.goal):item.goal})),[installed,category,shuffle,copy,preferences.language]);
- const ready=readiness?.overall_ready===true; const proPrompt=profile==='flash'&&suggestsPro(goal);
+ const ready=!readinessError&&readiness?.overall_ready===true; const proPrompt=profile==='flash'&&suggestsPro(goal);
  const resetTuning=()=>{setVerification(defaults.current.verification);setExplorer(defaults.current.explorer);touched.current=false;};
  const submit=async(event?:FormEvent)=>{event?.preventDefault();const cleanGoal=goal.trim();if(!cleanGoal){setError(t('home.goalRequired'));return;}if(!ready){setError(t('home.prerequisitesError'));return;}const controller=new AbortController();runController.current=controller;setSubmitting(true);setError(null);const body:RunTaskRequest={goal:cleanGoal,profile};if(profile==='pro'){if(expectedOutput.trim())body.expected_output=expectedOutput.trim();body.enable_outputter=enableOutputter;body.verification_level=verification;body.explorer_mode=explorer;}try{await homeApi.run(body,controller.signal);router.push('/workspace');}catch(cause){if((cause as Error).name!=='AbortError'){setError(cause instanceof ApiError?cause.message:t('home.runError'));setSubmitting(false);}}finally{if(runController.current===controller)runController.current=null;}};
  const categoryKeys:Record<SuggestionCategory,TranslationKey>={all:'home.category.all',flash:'home.category.flash',pro:'home.category.pro',cross_app:'home.category.cross_app',monitor:'home.category.monitor'};
  const sliders=[{kind:'verification' as const,label:t('home.resultCheck'),ends:[t('home.off'),t('home.strict')] as const,levels:VERIFICATION_LEVELS,index:levelIndex(VERIFICATION_LEVELS,verification,DEFAULT_VERIFICATION_LEVEL),set:(value:number)=>setVerification(VERIFICATION_LEVELS[value]!.id as VerificationLevelId)},{kind:'explorer' as const,label:t('home.screenReading'),ends:[t('home.faster'),t('home.sharper')] as const,levels:EXPLORER_MODES,index:levelIndex(EXPLORER_MODES,explorer,DEFAULT_EXPLORER_MODE),set:(value:number)=>setExplorer(EXPLORER_MODES[value]!.id as ExplorerModeId)}];
  return <PageShell eyebrow="home.eyebrow" title="home.title" body="home.body">
   {ready && <span className="sr-only" role="status">{t('home.ready')}</span>}
-  {!ready && <section className={'homeReadiness '+(ready?'ready':'pending')} aria-live="polite"><span className="readinessDot"/><div><strong>{!readiness&&!readinessError?t('home.checking'):ready?t('home.ready'):t('home.notReady')}</strong><p>{readinessError?t('home.readinessError'):ready?t('home.readyBody'):readiness?t('home.notReadyBody',{count:readiness.blocker_count}):t('home.checkingBody')}</p></div>{readiness&&!ready&&<a href="/settings?tab=system">{t('home.openSetup')}</a>}</section>}
+  {!ready && <section className={'homeReadiness '+(ready?'ready':'pending')} aria-live="polite"><span className="readinessDot"/><div><strong>{!readiness&&!readinessError?t('home.checking'):ready?t('home.ready'):t('home.notReady')}</strong><p>{readinessError?t('home.readinessError'):ready?t('home.readyBody'):readiness?t('home.notReadyBody',{count:readiness.blocker_count}):t('home.checkingBody')}</p></div>{readinessError&&<Button variant="outline" type="button" onClick={()=>readinessRefresh.current?.refresh()}>{t('common.retry')}</Button>}{readiness&&!ready&&<a href="/settings?tab=system">{t('home.openSetup')}</a>}</section>}
   <form className={'homeComposer card '+(profile==='pro'?'pro':'')} onSubmit={submit}>
    {proPrompt&&<div className="intentSuggestion"><span>✦ {t('home.proRecommended')} <strong>{t('home.proMode')}</strong></span><Button variant="ghost" type="button" onClick={()=>setProfile('pro')}>{t('home.switchToPro')} →</Button></div>}
    <label className="sr-only" htmlFor="task-goal">{t('home.goal')}</label><Textarea id="task-goal" value={goal} onChange={e=>setGoal(e.target.value)} onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')void submit();}} disabled={submitting} placeholder={copy['home.taskPlaceholder']} rows={3}/>
