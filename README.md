@@ -1,20 +1,5 @@
 # Android Automation Studio
 
-## Install over the Internet
-
-**Incomplete publication:** the `nextjs` archives are reachable, but installers
-and new helpers still return HTTP 404; published lifecycle files differ from this
-checkout. The release owner must publish the complete implementation, then pass
-`python scripts/check_installer_release.py` before these commands can be used.
-
-Linux/macOS: `curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh | bash`
-
-Windows PowerShell: `& ([scriptblock]::Create((Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1')))`
-
-Downloads runtimes, initializes configuration, builds and starts the web console,
-then prints local/LAN URLs. See [installation options, supported target environments and management commands](docs/installation.md).
-These commands require the installer and helpers to be published together.
-
 **AI-powered Android automation with a local web workspace.**
 
 **English** · [Tiếng Việt](README_VI.md)
@@ -30,6 +15,29 @@ Describe a task in natural language, run it on an authorized Android phone or em
 - **License:** [Apache 2.0](LICENSE), with upstream notices retained. Inherited code also includes contributions from [Minitap, Inc.](https://github.com/minitap-ai/mobile-use); third-party components retain their own licenses.
 
 Use only devices and accounts you are authorized to control. Tasks may change application data, and configured AI providers may receive task text and device observations. Review instructions before running them.
+
+## Quick Installation
+
+Run the command for your operating system to download ARTEMIS, prepare Python/uv and Node/npm, build the web interface, and start the server.
+
+### Windows — PowerShell
+
+```powershell
+& ([scriptblock]::Create((Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1')))
+```
+
+### Linux / macOS — Bash
+
+```bash
+set -o pipefail
+curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh | bash
+```
+
+After installation, open the URL printed by the installer (default: **http://localhost:8009/**). Configure your AI provider in **Settings → Models**, then connect an authorized Android phone or emulator in **Settings → Android**.
+
+The default server also accepts LAN connections. Use `-LocalOnly` (PowerShell) or `--local-only` (Bash) to restrict access to this computer.
+
+See [installation options, supported environments, and management commands](docs/installation.md) for details.
 
 ## Build and run
 
