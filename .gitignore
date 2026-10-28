@@ -25,6 +25,10 @@ share/python-wheels/
 MANIFEST
 
 # Virtual Environments
+.tools/
+.artemis-install.json
+.artemis-install.tmp
+.artemis-manager.lock
 .venv/
 env/
 venv/

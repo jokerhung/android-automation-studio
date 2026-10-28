@@ -1,4 +1,10 @@
 export const en = {
+  'settings.setup.title': 'Complete setup',
+  'settings.setup.body': 'The web interface is running. Configure a model and connect Android when you are ready to run tasks.',
+  'settings.setup.models': 'Configure models',
+  'settings.setup.android': 'Connect Android',
+  'settings.setup.localOnly': 'Some administration actions require a browser on the server computer. Open this address on that computer:',
+  'settings.setup.stale': 'Refresh failed. Showing the last report from',
   'appearance.title': 'Appearance & Language', 'appearance.description': 'Choose the language and color theme used by this browser.', 'appearance.languageDescription': 'Changes the AAS web interface immediately without reloading.', 'appearance.themeDescription': 'Applies the selected theme without restarting AAS.', 'settings.generalDescription': 'Application preferences, startup, and behavior on this computer.',
   'app.name': 'AAS', 'app.tagline': 'Android agent operations console',
   'nav.main': 'Main navigation', 'nav.home': 'Home', 'nav.workspace': 'Workspace', 'nav.schedule': 'Task Schedule', 'nav.settings': 'Settings',
@@ -29,6 +35,12 @@ export const en = {
 export type TranslationKey = keyof typeof en;
 export type TranslationCatalog = Record<TranslationKey, string>;
 export const vi = { ...en,
+  'settings.setup.title': 'Hoàn tất cấu hình',
+  'settings.setup.body': 'Giao diện web đã hoạt động. Cấu hình mô hình và kết nối Android khi bạn muốn chạy tác vụ.',
+  'settings.setup.models': 'Cấu hình mô hình',
+  'settings.setup.android': 'Kết nối Android',
+  'settings.setup.localOnly': 'Một số thao tác quản trị cần trình duyệt trên máy chủ. Mở địa chỉ này trên máy đó:',
+  'settings.setup.stale': 'Làm mới thất bại. Đang hiển thị báo cáo trước đó lúc',
   'appearance.title': 'Giao diện & Ngôn ngữ', 'appearance.description': 'Chọn ngôn ngữ và giao diện màu cho trình duyệt này.', 'appearance.languageDescription': 'Thay đổi ngôn ngữ giao diện AAS ngay lập tức, không cần tải lại.', 'appearance.themeDescription': 'Áp dụng giao diện đã chọn mà không khởi động lại AAS.', 'settings.generalDescription': 'Tùy chọn ứng dụng, khởi động và hành vi trên máy tính này.',
   'app.tagline': 'Bảng điều khiển tác nhân Android', 'nav.main': 'Điều hướng chính', 'nav.home': 'Trang chủ', 'nav.workspace': 'Không gian làm việc', 'nav.schedule': 'Lịch tác vụ', 'nav.settings': 'Cài đặt',
   'common.foundation': 'Nền tảng migration', 'common.available': 'Nền tảng đã sẵn sàng', 'common.deferred': 'Tính năng đầy đủ tiếp tục ở giai đoạn migration kế tiếp.', 'common.errorTitle': 'Đã xảy ra lỗi', 'common.retry': 'Thử lại', 'common.home': 'Về trang chủ',

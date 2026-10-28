@@ -95,6 +95,7 @@ describe('WorkspaceProvider integration lifecycle', () => {
   });
 
   it('does not duplicate the 2s and 6s polls, pauses while hidden, and refreshes immediately when visible', async () => {
+    vi.mocked(fetch).mockImplementation((input) => json(String(input) === '/api/status' ? { status: 'running' } : []));
     render(<StrictMode><AppProviders><Probe /></AppProviders></StrictMode>);
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
     const initialStatus = requestCount('/api/status');
@@ -134,11 +135,51 @@ describe('WorkspaceProvider integration lifecycle', () => {
       await vi.advanceTimersByTimeAsync(12_000);
     });
     expect(vi.mocked(fetch).mock.calls).toHaveLength(requests);
-    await act(async () => { source.emit('session_ended', { session_id: 'selected' }); await vi.advanceTimersByTimeAsync(0); });
+    await act(async () => { source.emit('session_ended', { session_id: 'selected' }); await vi.advanceTimersByTimeAsync(100); });
     expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(requests);
     const statusRequests = requestCount('/api/status');
-    await act(async () => { source.onerror?.(new Event('error')); await vi.advanceTimersByTimeAsync(2_000); });
+    await act(async () => { source.onerror?.(new Event('error')); await vi.advanceTimersByTimeAsync(30_000); });
     expect(requestCount('/api/status')).toBeGreaterThan(statusRequests);
+  });
+
+  it('backs off idle fallback polls and never polls completed session details', async () => {
+    render(<AppProviders><Probe /></AppProviders>);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    fireEvent.click(screen.getByText('select'));
+    const initialStatus = requestCount('/api/status');
+    const initialSessions = requestCount('/api/sessions');
+    await act(async () => { await vi.advanceTimersByTimeAsync(29_999); });
+    expect(requestCount('/api/status')).toBe(initialStatus);
+    expect(requestCount('/api/sessions')).toBe(initialSessions);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(requestCount('/api/status')).toBe(initialStatus + 1);
+    expect(requestCount('/api/sessions')).toBe(initialSessions + 1);
+    expect(requestCount('/api/sessions/selected/steps')).toBe(0);
+  });
+
+  it('batches SSE bursts and does not reload selected details for foreign or global events', async () => {
+    render(<AppProviders><Probe /></AppProviders>);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    fireEvent.click(screen.getByText('select'));
+    const source = FakeEventSource.instances[0]!;
+    await act(async () => { source.onopen?.(new Event('open')); await vi.advanceTimersByTimeAsync(0); });
+    const initialStatus = requestCount('/api/status');
+    const initialDetails = requestCount('/api/sessions/selected/steps');
+    await act(async () => {
+      source.emit('step_recorded', { session_id: 'foreign', step_id: 'other' });
+      source.emit('background_tasks_updated', {});
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(requestCount('/api/status')).toBe(initialStatus + 1);
+    expect(requestCount('/api/sessions/selected/steps')).toBe(initialDetails);
+    await act(async () => {
+      source.emit('step_recorded', { session_id: 'selected', step_id: 'first' });
+      source.emit('step_updated', { session_id: 'selected', step_id: 'first' });
+      source.emit('session_ended', { session_id: 'selected' });
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(requestCount('/api/status')).toBe(initialStatus + 2);
+    expect(requestCount('/api/sessions/selected/steps')).toBe(initialDetails + 1);
   });
 
   it('keeps root workspace state when a route child remounts', async () => {

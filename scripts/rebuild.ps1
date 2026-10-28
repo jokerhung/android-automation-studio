@@ -26,9 +26,9 @@
 
     It then (re)starts the server through Artemis's own identity-verified
     lifecycle commands (never by killing a PID directly):
-      - Foreground (default): `artemis ui --restart` — stops any verified
+      - Foreground (default): `artemis ui --restart` - stops any verified
         instance on -Port, then runs attached to this console (Ctrl+C stops it).
-      - -Daemon: `artemis restart --daemon` — stops any verified instance,
+      - -Daemon: `artemis restart --daemon` - stops any verified instance,
         then launches a new one detached in the background. Use -Stop later
         to shut it down.
 
@@ -175,7 +175,7 @@ if ($Daemon) {
     #     Python process through its own child launcher, which opens a
     #     fresh console for it regardless of `uv`'s own window state.
     #   - venv's `python.exe` directly: on a uv-managed venv, that is a thin
-    #     stub that re-execs the real base CPython interpreter — and that
+    #     stub that re-execs the real base CPython interpreter, and that
     #     redirect does not propagate CREATE_NO_WINDOW either.
     # `pythonw.exe` (the windowless/GUI-subsystem build) does not have this
     # problem at any layer, because there is no console subsystem to ever

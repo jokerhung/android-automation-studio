@@ -1,5 +1,20 @@
 # Android Automation Studio
 
+## Install over the Internet
+
+**Incomplete publication:** the `nextjs` archives are reachable, but installers
+and new helpers still return HTTP 404; published lifecycle files differ from this
+checkout. The release owner must publish the complete implementation, then pass
+`python scripts/check_installer_release.py` before these commands can be used.
+
+Linux/macOS: `curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh | bash`
+
+Windows PowerShell: `& ([scriptblock]::Create((Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1')))`
+
+Downloads runtimes, initializes configuration, builds and starts the web console,
+then prints local/LAN URLs. See [installation options, supported target environments and management commands](docs/installation.md).
+These commands require the installer and helpers to be published together.
+
 **AI-powered Android automation with a local web workspace.**
 
 **English** · [Tiếng Việt](README_VI.md)

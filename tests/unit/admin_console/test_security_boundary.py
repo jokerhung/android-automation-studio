@@ -131,9 +131,10 @@ async def test_spa_route_does_not_leak_files_outside_static_roots():
     async with _client() as ac:
         res = await ac.get("/%2e%2e/%2e%2e/pyproject.toml")
 
-    # The catch-all SPA route must fall back to HTML, never the file content.
+    # Next static hosting rejects unknown file paths with 404. It must never
+    # return workspace files (the former SPA HTML fallback is no longer used).
     assert "requires-python" not in res.text
-    assert res.headers["content-type"].startswith("text/html")
+    assert res.status_code == 404
 
 
 # ---------------------------------------------------------------------------

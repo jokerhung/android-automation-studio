@@ -45,6 +45,16 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $RootDir = Split-Path -Parent $ScriptDir
 Set-Location $RootDir
 
+# Installed instances use the saved host/port and never rebuild on start/stop.
+if (Test-Path -LiteralPath "$RootDir/.artemis-install.json") {
+    $installedAction = if ($Stop) { 'stop' } else { 'start' }
+    $installedArgs = @($installedAction)
+    if ($PSBoundParameters.ContainsKey('Port')) { $installedArgs += @('--port', "$Port") }
+    if (-not $NoOpen -and -not $Stop) { $installedArgs += '--open' }
+    & "$RootDir/.venv/Scripts/python.exe" "$RootDir/scripts/install_runtime.py" @installedArgs
+    exit $LASTEXITCODE
+}
+
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "       Artemis Autonomous Mobile Agent UI           " -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
@@ -462,7 +472,7 @@ if ($Daemon) {
     #     Python process through its own child launcher, which opens a
     #     fresh console for it regardless of `uv`'s own window state.
     #   - venv's `python.exe` directly: on a uv-managed venv, that is a thin
-    #     stub that re-execs the real base CPython interpreter — and that
+    #     stub that re-execs the real base CPython interpreter, and that
     #     redirect does not propagate CREATE_NO_WINDOW either.
     # `pythonw.exe` (the windowless/GUI-subsystem build) does not have this
     # problem at any layer, because there is no console subsystem to ever

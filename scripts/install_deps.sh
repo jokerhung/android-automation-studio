@@ -351,7 +351,7 @@ ensure_uv() {
 setup_python_env() {
     echo -e "\n${BOLD}4. Configuring Python Runtime & Syncing Dependencies...${NC}"
     echo -e "   ${BLUE}📦 Running uv sync (auto-provisioning Python >=3.12 & dependencies)...${NC}"
-    uv sync
+    uv sync --locked --python 3.12
     echo -e "   ${GREEN}✓ Python runtime and dependencies synced successfully.${NC}"
 }
 
@@ -384,7 +384,7 @@ setup_next_frontend() {
     if ! is_node_compatible && (command -v nvm >/dev/null 2>&1 || type nvm >/dev/null 2>&1); then nvm use 22 >/dev/null 2>&1 || true; fi
     if ! is_node_compatible; then echo -e "   ${RED}✗ Cannot build ${FRONTEND_LABEL}: compatible Node.js/npm not found (Next.js >=20.9.0).${NC}" >&2; return 1; fi
     echo -e "   ${YELLOW}🎨 Building stale or missing ${FRONTEND_LABEL} frontend...${NC}"
-    if ! ( cd "${frontend_dir}"; if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi; npm run build ); then
+    if ! ( cd "${frontend_dir}"; npm ci --no-audit --no-fund; npm run build ); then
         echo -e "   ${RED}✗ ${FRONTEND_LABEL} build failed; the previous artifact, if any, was not removed.${NC}" >&2; return 1
     fi
     local built=""; for candidate in "${candidates[@]}"; do if [ -f "${candidate}" ]; then built="${candidate}"; break; fi; done

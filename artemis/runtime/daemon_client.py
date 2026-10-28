@@ -111,8 +111,14 @@ def spawn_daemon(
     env["PYTHONUNBUFFERED"] = "1"
     env["PYTHONUTF8"] = "1"
 
+    # uv's Windows python.exe redirector can lose CREATE_NO_WINDOW while
+    # re-executing the base interpreter. pythonw avoids a console at both layers.
+    executable = sys.executable
+    pythonw = Path(executable).with_name("pythonw.exe")
+    if sys.platform == "win32" and pythonw.is_file():
+        executable = str(pythonw)
     cmd = [
-        sys.executable,
+        executable,
         "-m",
         "apps.admin_console.server",
         "--host",
@@ -150,8 +156,9 @@ def spawn_daemon(
 
     try:
         proc = subprocess.Popen(cmd, **kwargs)
+        access_host = "localhost" if host == "0.0.0.0" else host
         logger.info(
-            f"Spawned Artemis Daemon in background (PID {proc.pid}) at http://{host}:{port}"
+            f"Spawned Artemis Daemon in background (PID {proc.pid}) at http://{access_host}:{port}"
         )
         return proc
     except Exception as exc:

@@ -133,9 +133,11 @@ class ArtemisLifecycleAdapter:
         self._sleep, self._monotonic = sleep, monotonic
 
     def status(self) -> LifecycleStatus:
-        if not self._port_probe(self.port, self.host, 0.5):
+        # Wildcard addresses describe a bind, never an identity-probe target.
+        probe_host = "127.0.0.1" if self.host == "0.0.0.0" else self.host
+        if not self._port_probe(self.port, probe_host, 0.5):
             return LifecycleStatus(DaemonPresence.STOPPED)
-        if self._identity_probe(self.host, self.port, 0.5):
+        if self._identity_probe(probe_host, self.port, 0.5):
             return LifecycleStatus(DaemonPresence.ARTEMIS)
         return LifecycleStatus(
             DaemonPresence.PORT_CONFLICT,
@@ -172,8 +174,9 @@ class ArtemisLifecycleAdapter:
             status = self.status()
             if status.presence is DaemonPresence.STOPPED:
                 return True
-            if status.presence is not DaemonPresence.ARTEMIS:
-                return False
+            # Shutdown can clear identity metadata before Uvicorn releases its
+            # socket. Keep observing until the port closes or the deadline; do
+            # not infer failure from that transient state, or signal any PID.
             self._sleep(self.poll_interval)
         return self.status().presence is DaemonPresence.STOPPED
 

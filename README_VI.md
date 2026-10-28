@@ -1,5 +1,19 @@
 # Android Automation Studio
 
+## Cài đặt qua Internet
+
+**Đang chờ phát hành:** các URL `nextjs` trả HTTP 404 trong system test.
+Người phụ trách phát hành cần đưa installer và helper lên cùng revision,
+sau đó chạy đạt `python scripts/check_installer_release.py` trước khi dùng lệnh dưới đây.
+
+Linux/macOS: `curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh | bash`
+
+Windows PowerShell: `& ([scriptblock]::Create((Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1')))`
+
+Tự chuẩn bị runtime, khởi tạo cấu hình, build và chạy nền; sau đó hiển thị URL
+local/LAN. Xem [tham số, môi trường mục tiêu và lệnh quản lý](docs/installation.md).
+Lệnh public cần installer và các helper được phát hành cùng revision lên nhánh `nextjs`.
+
 **Tự động hóa Android bằng AI với giao diện web chạy trên máy của bạn.**
 
 [English](README.md) · **Tiếng Việt**

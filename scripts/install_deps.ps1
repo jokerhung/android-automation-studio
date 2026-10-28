@@ -372,7 +372,8 @@ if (Test-CommandExists "uv") {
 # 3. Setup Python Runtime & Sync Dependencies
 Write-Host "`n3. Configuring Python Runtime & Syncing Dependencies..." -ForegroundColor Yellow
 Write-Host "   [INFO] Running uv sync (auto-provisioning Python >=3.12 & dependencies)..." -ForegroundColor Cyan
-uv sync
+uv sync --locked --python 3.12
+if ($LASTEXITCODE -ne 0) { Write-Error "Locked Python dependency installation failed."; exit 5 }
 Write-Host "   [OK] Dependencies synced successfully." -ForegroundColor Green
 
 # 4. Check .env Configuration
@@ -411,7 +412,7 @@ if ($FrontendBuildRequired) {
     Push-Location $FrontendDir
     try {
         Write-Host "   [INFO] Installing $FrontendLabel dependencies..." -ForegroundColor Cyan
-        if (Test-Path "package-lock.json") { & $npmExec ci --no-audit --no-fund } else { & $npmExec install --no-audit --no-fund }
+        & $npmExec ci --no-audit --no-fund
         if ($LASTEXITCODE -ne 0) { throw "npm dependency install failed with exit code $LASTEXITCODE" }
         Write-Host "   [INFO] Building $FrontendLabel frontend application..." -ForegroundColor Cyan
         & $npmExec run build

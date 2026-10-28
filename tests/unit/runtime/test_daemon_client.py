@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
@@ -61,7 +62,9 @@ def test_is_artemis_daemon_requires_matching_authenticated_http_identity():
             return_value={"pid": 4321, "lifecycle_token": "secret"},
         ),
         patch("artemis.runtime.daemon_client.find_server_pids", return_value=[4321]),
-        patch("artemis.runtime.daemon_client.urllib.request.urlopen", return_value=response) as open_,
+        patch(
+            "artemis.runtime.daemon_client.urllib.request.urlopen", return_value=response
+        ) as open_,
     ):
         assert is_artemis_daemon(port=8000) is True
     request = open_.call_args.args[0]
@@ -74,7 +77,7 @@ def test_is_artemis_daemon_requires_matching_authenticated_http_identity():
     [
         b'{"port": 8001, "current_pid": 4321}',
         b'{"port": 8000, "current_pid": 9999}',
-        b'not-json',
+        b"not-json",
     ],
 )
 def test_is_artemis_daemon_rejects_http_identity_mismatch(payload):
@@ -112,7 +115,9 @@ def test_spawn_daemon(tmp_path):
         # The daemon must launch via `python -m`, never through the console-script
         # shim (a resident artemis.exe would block uv sync reinstalls on Windows).
         cmd = mock_popen.call_args.args[0]
-        assert cmd[0] == sys.executable
+        pythonw = Path(sys.executable).with_name("pythonw.exe")
+        expected = str(pythonw) if sys.platform == "win32" and pythonw.is_file() else sys.executable
+        assert cmd[0] == expected
         assert cmd[1:3] == ["-m", "apps.admin_console.server"]
         assert cmd[3:] == ["--host", "127.0.0.1", "--port", "9123"]
 

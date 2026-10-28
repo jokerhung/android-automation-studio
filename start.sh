@@ -25,6 +25,22 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
+# Internet installations already own a prepared environment and static export.
+if [ -f "$SCRIPT_DIR/.artemis-install.json" ]; then
+    action=start
+    installed_args=()
+    for arg in "$@"; do
+        case "$arg" in
+            --stop) action=stop;;
+            --status) action=status;;
+            --restart) action=restart;;
+            --daemon|--no-open) :;;
+            *) installed_args+=("$arg");;
+        esac
+    done
+    exec "$SCRIPT_DIR/.venv/bin/python" "$SCRIPT_DIR/scripts/install_runtime.py" "$action" "${installed_args[@]}"
+fi
+
 ARTEMIS_FRONTEND="${ARTEMIS_FRONTEND:-next}"
 START_ARGS=("$@")
 for ((i = 0; i < ${#START_ARGS[@]}; i++)); do
