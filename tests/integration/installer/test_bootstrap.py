@@ -29,6 +29,13 @@ def bootstrap(tmp_path):
     entries = {
         name: "fixture"
         for name in (
+            "install.sh",
+            "install.ps1",
+            ".env.example",
+            "apps/admin_console/__init__.py",
+            "apps/showcase_next/package.json",
+            "apps/showcase_next/next.config.ts",
+            "apps/showcase_next/src/app/page.tsx",
             "pyproject.toml",
             "uv.lock",
             "artemis/__init__.py",
@@ -38,6 +45,7 @@ def bootstrap(tmp_path):
             "scripts/install_runtime.py",
         )
     }
+    entries["scripts/install_runtime.py"] = "BOOTSTRAP_VERSION = 1\n"
     entries["scripts/bootstrap_common.sh"] = """bootstrap_uv() {
   ARTEMIS_UV="$1/fake-uv"
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> "$ARTEMIS_TEST_CALLS"\nif [ "$1" = run ]; then exit "${ARTEMIS_TEST_EXIT:-0}"; fi\n' > "$ARTEMIS_UV"

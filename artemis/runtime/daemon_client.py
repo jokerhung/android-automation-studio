@@ -75,7 +75,8 @@ def is_artemis_daemon(
                 "X-Artemis-Lifecycle-Token": info["lifecycle_token"],
             },
         )
-        with urllib.request.urlopen(req, timeout=timeout) as response:
+        client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with client.open(req, timeout=timeout) as response:
             if response.status != 200:
                 return False
             payload = json.loads(response.read().decode("utf-8", errors="replace") or "null")

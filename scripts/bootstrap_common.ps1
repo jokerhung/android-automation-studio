@@ -2,8 +2,8 @@ function Initialize-BootstrapUv([string]$Root, [string]$Temporary) {
     $version = '0.12.13'
     $uvPath = Join-Path $Root '.tools/uv/uv.exe'
     if (Test-Path -LiteralPath $uvPath) {
-        & $uvPath --version | Out-Null
-        if ($LASTEXITCODE -eq 0) { return $uvPath }
+        $reportedVersion = & $uvPath --version
+        if ($LASTEXITCODE -eq 0 -and $reportedVersion -match ('^uv ' + [regex]::Escape($version) + '(\s|$)')) { return $uvPath }
     }
     Write-Host "[DANG] 3/6 Preparing uv $version and managed Python 3.12"
     $file = 'uv-x86_64-pc-windows-msvc.zip'

@@ -63,7 +63,7 @@ def test_is_artemis_daemon_requires_matching_authenticated_http_identity():
         ),
         patch("artemis.runtime.daemon_client.find_server_pids", return_value=[4321]),
         patch(
-            "artemis.runtime.daemon_client.urllib.request.urlopen", return_value=response
+            "urllib.request.OpenerDirector.open", return_value=response
         ) as open_,
     ):
         assert is_artemis_daemon(port=8000) is True
@@ -92,7 +92,7 @@ def test_is_artemis_daemon_rejects_http_identity_mismatch(payload):
             return_value={"pid": 4321, "lifecycle_token": "secret"},
         ),
         patch("artemis.runtime.daemon_client.find_server_pids", return_value=[4321]),
-        patch("artemis.runtime.daemon_client.urllib.request.urlopen", return_value=response),
+        patch("urllib.request.OpenerDirector.open", return_value=response),
     ):
         assert is_artemis_daemon(port=8000) is False
 

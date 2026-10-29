@@ -8,7 +8,7 @@ sau đó chạy đạt `python scripts/check_installer_release.py` trước khi 
 
 Linux/macOS: `curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh | bash`
 
-Windows PowerShell: `& ([scriptblock]::Create((Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1')))`
+Windows PowerShell: `irm https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1 | iex`
 
 Tự chuẩn bị runtime, khởi tạo cấu hình, build và chạy nền; sau đó hiển thị URL
 local/LAN. Xem [tham số, môi trường mục tiêu và lệnh quản lý](docs/installation.md).

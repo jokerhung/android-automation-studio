@@ -4,7 +4,9 @@ bootstrap_uv() {
     local root="$1" temporary="$2" os="$3" arch="$4" target file expected actual
     local version=0.12.13
     ARTEMIS_UV="$root/.tools/uv/uv"
-    if [ -x "$ARTEMIS_UV" ] && "$ARTEMIS_UV" --version >/dev/null 2>&1; then return; fi
+    if [ -x "$ARTEMIS_UV" ]; then
+        case "$("$ARTEMIS_UV" --version 2>/dev/null)" in "uv $version"|"uv $version "*) return;; esac
+    fi
     case "$os/$arch" in
         Linux/x86_64) target=x86_64-unknown-linux-gnu;;
         Darwin/x86_64) target=x86_64-apple-darwin;;

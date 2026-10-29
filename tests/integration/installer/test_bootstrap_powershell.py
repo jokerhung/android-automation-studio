@@ -26,6 +26,13 @@ def bootstrap_ps(tmp_path):
     entries = {
         name: "fixture"
         for name in (
+            "install.sh",
+            "install.ps1",
+            ".env.example",
+            "apps/admin_console/__init__.py",
+            "apps/showcase_next/package.json",
+            "apps/showcase_next/next.config.ts",
+            "apps/showcase_next/src/app/page.tsx",
             "pyproject.toml",
             "uv.lock",
             "artemis/__init__.py",
@@ -35,6 +42,7 @@ def bootstrap_ps(tmp_path):
             "scripts/install_runtime.py",
         )
     }
+    entries["scripts/install_runtime.py"] = "BOOTSTRAP_VERSION = 1\n"
     entries["scripts/bootstrap_common.ps1"] = helper
     entries["fake-uv.cmd"] = (
         '@echo off\r\necho %*>>"%ARTEMIS_TEST_CALLS%"\r\nif "%1"=="run" exit /b %ARTEMIS_TEST_EXIT%\r\nexit /b 0\r\n'
@@ -54,7 +62,14 @@ function Invoke-WebRequest {
 $env:OS = 'Windows_NT'
 $env:PROCESSOR_ARCHITECTURE = 'AMD64'
 $source = (Get-Content -LiteralPath $env:ARTEMIS_TEST_SOURCE -Raw).Replace('-lt 22000', '-lt 0')
-& ([scriptblock]::Create($source)) -InstallDir $env:ARTEMIS_TEST_DEST -Port 8123 -NonInteractive
+try {
+    & ([scriptblock]::Create($source)) -InstallDir $env:ARTEMIS_TEST_DEST -Port 8123 -NonInteractive
+} catch {
+    # Scriptblocks throw without closing the caller's interactive shell. A host
+    # running -File can explicitly map the preserved installer code to its exit.
+    if ($LASTEXITCODE -in @(2, 3, 4, 5, 6, 7, 8, 130)) { exit $LASTEXITCODE }
+    throw
+}
 """,
         encoding="ascii",
     )

@@ -47,12 +47,31 @@ curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio
 Windows, from Windows PowerShell 5.1 or PowerShell 7:
 
 ```powershell
-& ([scriptblock]::Create((Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1')))
+irm https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1 | iex
 ```
 
 For local development, run `bash install.sh --help` or `./install.ps1 -Help`.
-The bootstrap always installs an isolated downloaded snapshot; it does not adopt
+The bootstrap installs an isolated downloaded snapshot; it does not adopt
 or change a developer checkout.
+
+Source and helpers come from one archive. Before extracting, the installer rejects
+absolute paths, traversal, multiple roots, links and special entries. It records
+the archive URL and SHA-256 in `.artemis-install.json`; this checksum identifies
+the downloaded bytes and is not a release signature. Existing installs retain
+their snapshot. Invalid metadata is rejected without resetting configuration.
+
+Paths with spaces are supported, for example:
+
+```bash
+bash install.sh --install-dir "$PWD/ARTEMIS install" --local-only --non-interactive
+```
+
+```powershell
+& ./install.ps1 -InstallDir (Join-Path $PWD 'ARTEMIS install') -LocalOnly -NonInteractive
+```
+
+These examples use local entry points and still download the public snapshot.
+They do not test unpublished workspace changes.
 
 ## Target environments and prerequisites
 
@@ -193,3 +212,12 @@ may leave it behind: only remove that directory after confirming no installer
 is running. Windows uses an exclusive file handle released by the OS on exit;
 the zero-content lock file can remain. Temporary source staging is unique to
 each attempt and cleaned on normal exit/cancellation.
+
+## Ticket 3 local verification (2026-10-29)
+
+The related installer/lifecycle suite passed 61 checks. A real detached runtime
+smoke passed identity and exact Home/Settings/asset HTTP checks, then stopped its
+test daemon. These checks used local fixtures or the workspace's existing
+dependencies/export. Public publication and clean-machine TC-INSTALL-001 have
+not been verified. See the [developer verification report](tickets/1b5c49f9-57c2-4fad-9e20-a108993071f9/test-report.md)
+for commands, limits and tester handoff.

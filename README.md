@@ -23,7 +23,7 @@ Run the command for your operating system to download ARTEMIS, prepare Python/uv
 ### Windows — PowerShell
 
 ```powershell
-& ([scriptblock]::Create((Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1')))
+irm https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1 | iex
 ```
 
 ### Linux / macOS — Bash
@@ -36,6 +36,16 @@ curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio
 After installation, open the URL printed by the installer (default: **http://localhost:8009/**). Configure your AI provider in **Settings → Models**, then connect an authorized Android phone or emulator in **Settings → Android**.
 
 The default server also accepts LAN connections. Use `-LocalOnly` (PowerShell) or `--local-only` (Bash) to restrict access to this computer.
+
+Git, Python, uv and Node/npm are bootstrapped automatically. Bash still needs
+curl, CA certificates, tar, mktemp and a SHA-256 tool; Windows needs PowerShell
+and ZIP support. Installation defaults to `~/.local/share/artemis` or
+`%LOCALAPPDATA%\Programs\Artemis`. No API key or Android device is needed to
+open the console.
+
+**Verification:** the local installers are implemented; public publication and
+clean-machine acceptance remain unverified. See the release notes in the
+installation guide before using the Internet commands.
 
 See [installation options, supported environments, and management commands](docs/installation.md) for details.
 

@@ -34,6 +34,7 @@ FRONTEND = ROOT / "apps/showcase_next"
 OUT = FRONTEND / "out"
 LOG = ROOT / "logs/install.log"
 PYTHON = ROOT / (".venv/Scripts/python.exe" if os.name == "nt" else ".venv/bin/python")
+BOOTSTRAP_VERSION = 1
 NODE_VERSION = "22.22.3"  # Same version as the frontend CI build.
 sys.path.insert(0, str(ROOT))
 
@@ -49,8 +50,31 @@ def read_state() -> dict:
         state = json.loads(STATE.read_text(encoding="utf-8"))
         if state.get("schema") != 1 or state.get("source") != "jokerhung/android-automation-studio":
             raise ValueError
+        if state.get("bootstrap_version", 1) != BOOTSTRAP_VERSION:
+            raise ValueError("Unsupported bootstrap contract")
+        directory = state.get("directory")
+        if directory and Path(directory).resolve() != ROOT.resolve():
+            raise ValueError("Installation moved; explicit recovery required")
+        runtime_env = state.get("runtime_env", {})
+        if not isinstance(runtime_env, dict) or any(
+            key
+            not in {
+                "ARTEMIS_APP_DIR",
+                "ANTIGRAVITY_APP_DIR",
+                "ARTEMIS_USE_USER_DIR",
+                "ARTEMIS_TRACES_DIR",
+                "ARTEMIS_ARTEMIS_JSONC",
+            }
+            or not isinstance(value, str)
+            for key, value in runtime_env.items()
+        ):
+            raise ValueError("Invalid runtime environment")
+        if "port" in state and (type(state["port"]) is not int or not 1 <= state["port"] <= 65535):
+            raise ValueError("Invalid port")
+        if state.get("host", "0.0.0.0") not in {"0.0.0.0", "127.0.0.1"}:
+            raise ValueError("Invalid bind")
         return state
-    except (OSError, ValueError, AttributeError) as exc:
+    except (OSError, ValueError, AttributeError, TypeError) as exc:
         raise InstallError(3, f"Invalid installation metadata: {STATE}") from exc
 
 
@@ -286,6 +310,9 @@ def prepare(args, state: dict) -> int:
         }
     )
     state["runtime_env"] = runtime_env
+    for key, value in runtime_env.items():
+        os.environ[key] = value
+    state.update(stage="preparing", directory=str(ROOT), bootstrap_version=BOOTSTRAP_VERSION)
     save_state(state)
     signature = fingerprint(
         [ROOT / "uv.lock", ROOT / "pyproject.toml", ROOT / "packages/artemis-client/pyproject.toml"]
@@ -362,7 +389,7 @@ def prepare(args, state: dict) -> int:
     for name in ("local_only", "non_interactive", "open"):
         if getattr(args, name):
             command.append("--" + name.replace("_", "-"))
-    return subprocess.call(command, cwd=ROOT)
+    return subprocess.call(command, cwd=ROOT, stdin=subprocess.DEVNULL)
 
 
 def initialize_config() -> None:
@@ -386,6 +413,12 @@ def initialize_config() -> None:
     with env.open(encoding="utf-8") as stream:
         if any(binding.error for binding in parse_stream(stream)):
             raise InstallError(6, f"Invalid dotenv syntax: {env}; fix the file and retry")
+    override = os.environ.get("ARTEMIS_ARTEMIS_JSONC")
+    if override and not Path(override).is_file():
+        raise InstallError(
+            6,
+            f"Configuration override does not exist: {override}; create it or remove the override",
+        )
     config = get_config_path("artemis.jsonc")
     try:
         with config.open(encoding="utf-8") as source:
@@ -594,6 +627,8 @@ def manage(args, state: dict) -> int:
         print("[DANG] 6/6 Starting background ARTEMIS", flush=True)
         # The lifecycle waiter may see a listening socket before identity is
         # initialized. The bounded loop below performs the final verification.
+        state.update(stage="starting", host=host, port=port)
+        save_state(state)
         ensure_background_runtime(host=host, port=port, lifecycle=adapter, wait_timeout=0)
     wait_ready(adapter, port, assets)
     state.update(host=host, port=port, stage="ready", directory=str(ROOT))
@@ -691,8 +726,9 @@ def main() -> int:
                     ) == os.path.normcase(str(ROOT))
                     if same_workspace and (psutil is None or psutil.pid_exists(info["pid"])):
                         return 1
-                except (OSError, ValueError, KeyError):
-                    continue
+                except (OSError, ValueError, KeyError, TypeError):
+                    # Unknown metadata must not authorize dependency mutation.
+                    return 1
             return 0
         if args.action == "install":
             if not args.uv:
