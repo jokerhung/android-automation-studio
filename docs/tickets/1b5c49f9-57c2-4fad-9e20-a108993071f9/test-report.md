@@ -1,4 +1,4 @@
-STATUS: BLOCKED (nghiệm thu E2E máy sạch/public chưa thực hiện được). Tôi sẽ đối chiếu mã đã sửa với AC-01..AC-10, chạy các kiểm tra local khả thi và ghi báo cáo phân biệt rõ bằng chứng local với TC-INSTALL-001.STATUS: **BLOCKED**
+STATUS: BLOCKED. Tôi sẽ kiểm tra trực tiếp giao diện web tại VM bằng Browser Worker theo đúng TC-INSTALL-001, tập trung Home, Settings/system, Settings/models và asset; không dùng SSH để suy đoán thay cho bằng chứng trình duyệt.STATUS: **BLOCKED**
 
 # Test report — Ticket #3
 
@@ -8,7 +8,7 @@ Testcase nghiệm thu duy nhất: `TC-INSTALL-001`
 
 ## Phạm vi đối chiếu
 
-Đã kiểm tra các thay đổi trong:
+Đã đối chiếu triển khai và báo cáo hiện có cho:
 
 - `install.sh`
 - `install.ps1`
@@ -20,67 +20,102 @@ Testcase nghiệm thu duy nhất: `TC-INSTALL-001`
 - `docs/installation.md`
 - Các fixture/test liên quan trong `tests/integration/installer/` và `tests/unit/`
 
-Không thực hiện commit hoặc push.
+Không thực hiện commit hoặc push. Không sửa mã nguồn ứng dụng.
 
-## Kiểm tra local hỗ trợ
+## Bằng chứng local đã có
 
-| Lệnh / kiểm tra | Kết quả |
+| Kiểm tra | Kết quả |
 |---|---|
-| PowerShell đọc và phân tích `install.ps1` | Đã được developer chạy thành công |
-| Bash syntax với Git Bash: `bash -n install.sh scripts/bootstrap_common.sh` | Đã được developer chạy thành công |
-| Ruff trên runtime/helper/test liên quan | Đã được developer chạy thành công |
-| Related test suite | Developer báo cáo `61 passed`; chưa thể tái chạy trong lượt này vì môi trường hiện tại không có thư mục temporary ghi được |
-| Runtime smoke trên workspace | Developer báo cáo exit `0`; start/status/restart/stop, identity, Home/Settings/asset đều đạt trên cổng `51228` |
-| `git diff --check` | Đạt, chỉ có cảnh báo chuyển đổi LF/CRLF |
-| Python AST parse `scripts/install_runtime.py` | Đạt |
-| Bash syntax trong shell hiện tại | Không chạy được do Bash/Service access bị từ chối; không phải lỗi cú pháp đã xác nhận |
-| PowerShell parser trong shell hiện tại | Không có `pwsh`; kết quả dựa trên lần chạy Windows PowerShell của developer |
+| Parser PowerShell cho `install.ps1` | Đạt theo báo cáo developer |
+| Bash syntax cho installer/helper | Đạt theo báo cáo developer |
+| Ruff/lint liên quan | Đạt theo báo cáo developer |
+| Test suite liên quan | Developer báo cáo `61 passed` |
+| Runtime smoke local | Đạt theo báo cáo developer: start/status/restart/stop, identity, Home/Settings/asset trên cổng `51228` |
+| `git diff --check` | Đạt, chỉ có cảnh báo LF/CRLF |
+| Python AST parse | Đạt |
 
-Các kiểm tra local trên không chứng minh được cài đặt Internet trên máy mới.
+Các kết quả trên chỉ kiểm chứng workspace local, không thay thế nghiệm thu cài đặt Internet trên máy mới.
+
+## Kiểm tra Browser Worker
+
+Đã thử khởi tạo trình duyệt để kiểm tra URL VM `http://10.201.21.19:8009`.
+
+Kết quả: **không thể bắt đầu phiên trình duyệt** vì Browser Worker trả lỗi:
+
+```text
+Codex auth token is unavailable
+```
+
+Do đó chưa thể thu thập bằng chứng trình duyệt cho:
+
+- Home
+- `/settings/?tab=system`
+- `/settings/?tab=models`
+- Static asset
+- Reload sau khi đóng terminal cài đặt
+
+Không dùng SSH hoặc thông tin đăng nhập được cung cấp để thay thế bằng chứng UI trình duyệt.
 
 ## Đối chiếu acceptance criteria
 
 | AC | Kết quả | Bằng chứng / giới hạn |
 |---|---|---|
-| AC-01 | BLOCKED | Hai file installer tồn tại và đã có kiểm tra syntax local, nhưng chưa chạy hai one-liner từ URL public |
-| AC-02 | BLOCKED | Chưa có máy sạch không cài Git/Python/uv/Node/npm |
-| AC-03 | PARTIAL / BLOCKED | Installer có kiểm tra archive, root, path, file bắt buộc và bootstrap contract; chưa xác minh archive public thực tế |
-| AC-04 | BLOCKED | Có runtime smoke local, nhưng chưa chứng minh dependency install và frontend build trên snapshot Internet sạch |
-| AC-05 | PARTIAL / BLOCKED | Code có logic tạo `.env` khi thiếu và giữ cấu hình hiện hữu; chưa xác minh trên bản cài mới thực tế |
-| AC-06 | PARTIAL / BLOCKED | Runtime smoke local xác minh daemon, identity, Home/Settings/asset; chưa xác minh qua installer trên máy sạch |
-| AC-07 | PARTIAL / BLOCKED | Có tham số thư mục, cổng, local-only và tài liệu đường dẫn có khoảng trắng; chưa chạy installer thực tế với thư mục mới |
-| AC-08 | BLOCKED | Có lock, metadata và xử lý rerun trong code; chưa kiểm thử cài dở, chạy lại và xung đột cổng trên bản cài Internet |
-| AC-09 | PARTIAL | README và `docs/installation.md` đã cập nhật one-liner, prerequisite, recovery và giới hạn; chưa xác minh hành vi public tương ứng |
-| AC-10 | BLOCKED | `TC-INSTALL-001` chưa thực thi trên Linux sạch hoặc Windows sạch |
+| AC-01 | BLOCKED | Hai installer tồn tại và đã có kiểm tra syntax local; chưa xác minh hai one-liner từ URL public |
+| AC-02 | BLOCKED | Chưa có bằng chứng máy Linux hoặc Windows sạch không cài sẵn Git/Python/uv/Node/npm |
+| AC-03 | PARTIAL / BLOCKED | Code có kiểm tra archive, root, path, file bắt buộc và bootstrap contract; chưa xác minh snapshot public |
+| AC-04 | BLOCKED | Chưa chứng minh dependency install và frontend build từ Internet trên máy sạch |
+| AC-05 | PARTIAL / BLOCKED | Code có logic tạo `.env` khi thiếu và giữ cấu hình hiện hữu; chưa chạy xác nhận trên bản cài mới |
+| AC-06 | PARTIAL / BLOCKED | Runtime smoke local đạt; chưa xác minh qua installer public và chưa có screenshot/UI evidence |
+| AC-07 | PARTIAL / BLOCKED | Có tham số thư mục, cổng, local-only và hỗ trợ đường dẫn có khoảng trắng; chưa chạy đầy đủ testcase |
+| AC-08 | BLOCKED | Có logic lock, metadata và rerun; chưa kiểm thử cài dở, chạy lại và xung đột cổng trên máy sạch |
+| AC-09 | PARTIAL | README và `docs/installation.md` đã cập nhật; hành vi public chưa được xác minh |
+| AC-10 | BLOCKED | `TC-INSTALL-001` chưa hoàn thành trên Linux sạch và Windows sạch |
 
 ## TC-INSTALL-001
 
 ### Linux — Ubuntu 22.04/24.04 x86_64
 
-**Trạng thái: NOT RUN**
+**Trạng thái: BLOCKED / PARTIAL OBSERVATION**
 
-Chưa có máy Linux sạch được cấp quyền. Chưa thực hiện:
+Người tạo ticket báo cáo VM Linux đã mở được:
 
-```bash
-set -o pipefail
-curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh \
-  | bash -s -- --install-dir "$PWD/artemis" --port 8009 --local-only --non-interactive
+```text
+http://10.201.21.19:8009/settings/?tab=models
 ```
 
-Thiếu các bằng chứng:
+Tuy nhiên chưa có bằng chứng kiểm thử đủ điều kiện:
 
-- Trạng thái công cụ trước cài đặt
-- Cài từ URL public
-- `.venv`, dependency và frontend build trên máy mới
+- OS, architecture, shell
+- Trạng thái Git/Python/uv/Node/npm trước cài
+- Thư mục đích mới và rỗng
+- Lệnh installer thực tế từ URL public
+- Output, exit code và thời gian cài
+- Log installer/daemon
 - Readiness đúng instance
-- Home, Settings và asset trên trình duyệt
-- Web tiếp tục hoạt động sau khi đóng terminal cài đặt
+- Home
+- `/settings/?tab=system`
+- Static asset
+- Reload sau khi đóng terminal cài đặt
 
-### Windows — Windows 11 x64, PowerShell 5.1/7
+Vì Browser Worker không khởi tạo được, báo cáo trên không thể được xác minh độc lập.
+
+### Lỗi “Model settings are local-only”
+
+Người tạo ticket báo cáo trang models hiển thị:
+
+```text
+Model settings are local-only
+```
+
+Với tùy chọn cài đặt `--local-only`, thông báo này có thể là hành vi được thiết kế để ngăn cấu hình model từ máy remote. Hiện chưa đủ bằng chứng để kết luận đây là lỗi installer hoặc lỗi runtime.
+
+Thông báo này không tự chứng minh web cài đặt thất bại, nhưng cần đối chiếu với yêu cầu sản phẩm và kiểm tra thêm bằng trình duyệt trên đúng instance. Không sửa code dựa trên thông báo này.
+
+### Windows — Windows 11 x64
 
 **Trạng thái: NOT RUN**
 
-Workspace hiện tại không phải máy sạch và không thể dùng làm bằng chứng Internet installation. Chưa thực hiện:
+Chưa có bằng chứng chạy:
 
 ```powershell
 & ([scriptblock]::Create((Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1'))) `
@@ -88,36 +123,18 @@ Workspace hiện tại không phải máy sạch và không thể dùng làm b�
   -Port 8009 -LocalOnly -NonInteractive
 ```
 
-Chưa có bằng chứng cho PowerShell 5.1 hoặc PowerShell 7 trên môi trường sạch.
-
-## Nhận xét review
-
-Không phát hiện lỗi cụ thể đủ bằng chứng để kết luận implementation sai trong phạm vi review tĩnh. Các điểm đã được triển khai gồm:
-
-- Tải snapshot theo branch `nextjs`
-- Kiểm tra đường dẫn archive và file bắt buộc
-- Ghi checksum archive
-- Bootstrap uv/Python
-- Tích hợp `install_runtime.py`
-- Lock cài đặt và xử lý rerun
-- Bảo toàn cấu hình
-- Metadata nhận diện instance
-- Readiness kiểm tra daemon, Home, Settings và asset
-- Hỗ trợ đường dẫn có khoảng trắng
-- Cập nhật README và tài liệu cài đặt
-
-Tuy nhiên, các điểm trên mới có bằng chứng local hoặc báo cáo kiểm thử của developer; chưa thay thế được nghiệm thu public trên máy sạch.
+Chưa có máy Windows sạch, output installer, readiness hoặc UI evidence.
 
 ## Kết luận
 
-**CHƯA ĐẠT / BLOCKED để nghiệm thu Ticket #3.**
+**CHƯA ĐẠT — BLOCKED để nghiệm thu Ticket #3.**
 
 Lý do cụ thể:
 
-1. `TC-INSTALL-001` chưa chạy trên Linux sạch.
-2. `TC-INSTALL-001` chưa chạy trên Windows sạch.
-3. Chưa xác minh hai URL public trên branch `nextjs`.
-4. Chưa có kiểm tra trình duyệt Home/Settings và reload sau khi đóng terminal.
-5. Một số suite local không thể tái chạy trong lượt này do môi trường không có thư mục temporary ghi được, dù developer đã báo cáo kết quả `61 passed`.
+1. `TC-INSTALL-001` chưa hoàn thành trên Linux sạch.
+2. Bằng chứng Linux hiện chỉ là báo cáo URL đã mở; chưa có log, điều kiện máy sạch, Home, system settings, asset và reload.
+3. Browser Worker không chạy được vì thiếu Codex auth token, nên không thể xác minh UI trực tiếp.
+4. Windows sạch/public chưa được kiểm thử.
+5. Chưa có bằng chứng hai URL public trên branch `nextjs` trỏ đúng revision đã review.
 
-Cần người có quyền phát hành đưa đúng revision lên `nextjs`, sau đó chạy `TC-INSTALL-001` trên cả hai bộ dữ liệu Linux và Windows, thu log, HTTP/readiness evidence và screenshot trình duyệt trước khi có thể kết luận **ĐẠT**.
+Cần khắc phục quyền truy cập Browser Worker hoặc cung cấp bằng chứng trình duyệt tương đương, sau đó chạy đầy đủ `TC-INSTALL-001` trên Linux sạch và Windows sạch trước khi kết luận **ĐẠT**.

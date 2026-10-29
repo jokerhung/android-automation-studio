@@ -1,17 +1,8 @@
-Tôi sẽ đối chiếu bàn giao BA với mã nguồn bootstrap, runtime và web quản trị để lập kế hoạch theo file/hàm cụ thể. Bước này chỉ trả tài liệu Markdown để hệ thống lưu, chưa viết code hoặc commit/push.
-Runtime hiện đã có kiểm tra đúng instance ARTEMIS, đối chiếu nội dung Home/Settings/asset và bảo vệ server đang chạy khi sửa dependency. Phần còn thiếu chủ yếu là hai entry point tải source; kế hoạch sẽ tập trung vào pipeline bootstrap, metadata để phục hồi cài dở và truyền lỗi. Các test hiện có dùng toolchain giả nên chưa chứng minh cài được trên máy sạch.
-# Ticket #3 — Kế hoạch triển khai installer qua Internet
+Tôi sẽ đối chiếu requirements, implementation plan và mã runtime/frontend hiện tại để xác định guard “local-only”, rồi viết kế hoạch Markdown đầy đủ cho developer; không sửa mã nguồn hay commit/push.# Implementation Plan — Ticket #3: Internet Installer và truy cập Model Settings qua LAN
 
-- **Tài liệu:** `docs/tickets/1b5c49f9-57c2-4fad-9e20-a108993071f9/implementation-plan.md`
-- **Nguồn yêu cầu:** `requirements.md` cùng thư mục và bàn giao BA.
-- **Workspace:** `C:\hungnm\artemis`.
-- **Trạng thái:** Đã khảo sát mã nguồn; chưa triển khai, chưa chạy installer hoặc testcase.
-- **Bàn giao tiếp:** Developer. Không cần Designer vì không tạo màn hình mới.
-- **Giới hạn:** Không commit/push, không phát hành repository. Bước planner chỉ trả nội dung tài liệu để hệ thống lưu.
+## 1. Mục tiêu
 
-## 1. Mục tiêu và phạm vi
-
-Tạo hai script ở gốc repository, hỗ trợ trực tiếp:
+Triển khai hai entry point ở thư mục gốc:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh | bash
@@ -21,502 +12,508 @@ curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio
 irm https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1 | iex
 ```
 
-Installer phải tải source, chuẩn bị runtime và dependency, tạo cấu hình thiếu, build frontend, khởi động nền và chỉ báo thành công khi web quản trị của đúng bản cài sẵn sàng.
+Installer phải cài được hệ thống trên máy mới, build giao diện quản trị, khởi động daemon nền, kiểm tra readiness và in URL/lệnh quản lý.
 
-Theo đặc tả BA, nghiệm thu “toàn bộ hệ thống” ở mức backend và frontend phục vụ web quản trị. API key, Android được cấp quyền, ADB và công cụ media là điều kiện sử dụng automation sau cài đặt; không phải điều kiện mở web.
+Ngoài phạm vi installer, cần sửa lỗi đã xác nhận:
 
-Không bổ sung chức năng nâng cấp source, cấu hình IDE/MCP, tự khởi động khi đăng nhập hoặc màn hình mới.
+> Khi server bind LAN, trang Settings → Models vẫn trả `403 Model settings are local-only` cho client truy cập bằng IP LAN.
 
-## 2. Bằng chứng khảo sát và khoảng trống
+Chỉ giữ một testcase nghiệm thu E2E là `TC-INSTALL-001`. Các unit/integration test bổ sung bên dưới là kiểm thử hỗ trợ, không tạo testcase nghiệm thu mới.
 
-| File/module | Hiện trạng đã đọc | Hướng triển khai |
-| --- | --- | --- |
-| `install.sh`, `install.ps1` | Chưa có ở gốc workspace | Tạo hai entry point |
-| `README.md`, `docs/installation.md` | Đã mô tả Internet installer, tùy chọn, mặc định và recovery | Đồng bộ với hành vi thực thi; giữ trạng thái chưa nghiệm thu |
-| `scripts/bootstrap_common.sh` | `bootstrap_uv()` tải uv `0.12.13`, kiểm SHA-256 | Tái sử dụng; chuẩn hóa lỗi và kiểm tra binary được tái sử dụng |
-| `scripts/bootstrap_common.ps1` | `Initialize-BootstrapUv()` có tải, retry, checksum | Tái sử dụng; bảo đảm lỗi truyền về caller |
-| `scripts/install_runtime.py` | Có sync Python, Node portable, build, cấu hình, lifecycle và readiness | Tích hợp; bổ sung phần metadata và recovery cần thiết |
-| `artemis/config/paths.py` | Có resolver `.env`, cấu hình, app directory và server metadata | Dùng đúng resolver; không tạo cấu hình ở đường dẫn suy đoán |
-| `artemis/runtime/server_lifecycle.py` | Metadata phân biệt workspace/cổng; kiểm PID, process identity, listener và token | Giữ làm nguồn xác minh instance |
-| `artemis/runtime/daemon_client.py` | Có identity HTTP và spawn daemon detached, log riêng | Tái sử dụng |
-| `artemis/runtime/background_runtime.py` | Có `ensure_background_runtime()` | Dùng luồng hiện hữu |
-| `apps/admin_console/server.py` | Phục vụ static export tại `apps/showcase_next/out` | Không cần Next.js server riêng |
-| `start.sh`, `scripts/start.ps1` | Nhận diện `.artemis-install.json` rồi chuyển sang runtime manager | Giữ tương thích |
-| `scripts/check_installer_release.py` | So sánh file public với checkout; archive mới kiểm tra bằng HEAD | Là kiểm tra phát hành, không chứng minh E2E |
-| `tests/integration/installer/test_bootstrap*.py` | Dùng archive/toolchain giả | Chỉ chứng minh hợp đồng bootstrap, không chứng minh máy sạch |
-| `tests/unit/test_install_runtime.py` | Có kiểm tra fingerprint, cấu hình, readiness và lifecycle bằng fixture/mock | Tham khảo hợp đồng hiện hữu |
+---
 
-Các điểm cần xử lý trong runtime hiện tại:
+## 2. Bằng chứng và nguyên nhân hiện tại
 
-- `read_state()` mới kiểm tra `schema` và `source`; cần xác thực thêm kiểu dữ liệu, đường dẫn và trạng thái trước khi tiếp tục bản cài.
-- Chưa có entry point tạo metadata ban đầu và kiểm soát tải/chuyển source vào đích.
-- `_active` bỏ qua metadata không đọc được ở một số nhánh; không được suy ra “an toàn để sửa” khi trạng thái tiến trình chưa xác định.
-- Lỗi thư viện hệ thống có thể dẫn đến gọi `sudo`/`apt-get` không tồn tại; cần thông báo phục hồi cụ thể.
-- Fingerprint và `stage` phải phản ánh cài dở; không để trạng thái `ready` cũ đại diện cho lần sửa thất bại.
-- Identity HTTP hiện dùng `urlopen()` mặc định, trong khi kiểm tra frontend đã bỏ proxy loopback. Cần thống nhất để proxy không làm sai readiness.
-- Chưa có bằng chứng tải public hoặc cài trên máy sạch trong bước planner này.
+| Thành phần | Hiện trạng |
+|---|---|
+| `install.sh` | Đã tồn tại, bootstrap source, uv, Python và gọi runtime installer |
+| `install.ps1` | Đã tồn tại, hỗ trợ PowerShell 5.1/7 và pipeline `irm \| iex` |
+| `scripts/install_runtime.py` | Quản lý dependency, frontend build, metadata, daemon, readiness và lifecycle |
+| `scripts/bootstrap_common.sh` / `.ps1` | Bootstrap uv và toolchain |
+| `apps/admin_console/routers/model_settings.py` | `authorize()` luôn gọi `_require_loopback_request()` |
+| `apps/admin_console/routers/system.py` | `_require_loopback_request()` từ chối mọi TCP peer không phải loopback |
+| `apps/admin_console/core/security.py` | Đã cho phép Host là IP literal và kiểm tra same-origin |
+| `scripts/install_runtime.py` | Bind mặc định `0.0.0.0`; `--local-only`/`-LocalOnly` dùng `127.0.0.1` |
+| `ModelSettingsPanel` | Đã gọi API same-origin; không cần màn hình mới |
 
-## 3. Hợp đồng giao diện
+Nguyên nhân trực tiếp:
 
-| Bash | PowerShell | Hành vi |
-| --- | --- | --- |
-| `--install-dir PATH` | `-InstallDir PATH` | Chuẩn hóa thành đường dẫn tuyệt đối; hỗ trợ khoảng trắng |
-| `--port N` | `-Port N` | Số nguyên 1–65535; không tự đổi cổng được chỉ định |
-| `--local-only` | `-LocalOnly` | Bind `127.0.0.1` |
-| `--non-interactive` | `-NonInteractive` | Không hỏi đầu vào |
-| `--open` | `-Open` | Mở Settings sau readiness thành công |
-| `--help` | `-Help` | In hướng dẫn, không tải hoặc cài |
-
-Mặc định giữ theo BA:
-
-- Linux: `$HOME/.local/share/artemis`.
-- Windows: `%LOCALAPPDATA%\Programs\Artemis`.
-- Lần đầu: cổng `8009`, bind `0.0.0.0`.
-- Chạy lại: dùng host/port đã lưu nếu không có override.
-- Không có Git, Python, uv hoặc Node/npm cài trước vẫn bootstrap được.
-- Linux cần Bash, curl, CA certificates, tar, mktemp và công cụ SHA-256 cùng các tiện ích shell chuẩn.
-- Windows cần Windows 11 x64, PowerShell 5.1 hoặc 7 và khả năng giải nén ZIP.
-- Giữ khả năng tương thích macOS đã có trong helper; không đánh dấu macOS được nghiệm thu bởi ticket này.
-
-Không dùng thư mục hiện hành làm nguồn script. Với pipeline Bash không dựa vào `BASH_SOURCE` để tìm checkout; với `iex` không dựa vào `$PSScriptRoot`.
-
-## 4. Kiến trúc và luồng xử lý
-
-Luồng chung:
-
-```text
-Parse tham số / kiểm môi trường
-  → Chuẩn hóa đích / lấy install lock
-  → Phân loại đích mới hoặc bản cài hiện hữu
-  → Tải và kiểm tra một source snapshot nếu cài mới
-  → Đặt source + metadata ban đầu vào đích
-  → Bootstrap uv và Python 3.12
-  → install_runtime.py install
-  → Sync dependency / cấu hình / build
-  → Khởi động hoặc dùng lại đúng daemon
-  → Identity + HTTP readiness
-  → Ghi ready / in URL, log và lệnh quản lý
+```python
+# apps/admin_console/routers/model_settings.py
+def authorize(request):
+    _require_loopback_request(request, "Model settings are local-only.")
 ```
 
-### 4.1. Tải snapshot nhất quán
+Khi client truy cập từ `192.168.x.x`, `request.client.host` không phải loopback nên GET/PUT Model Settings bị từ chối, dù server đang bind `0.0.0.0` và request đã đi qua same-origin middleware.
 
-Chọn tải **một archive hoàn chỉnh** của branch `nextjs`:
+---
 
-- Bash: `https://codeload.github.com/jokerhung/android-automation-studio/tar.gz/refs/heads/nextjs`
-- PowerShell: `https://codeload.github.com/jokerhung/android-automation-studio/zip/refs/heads/nextjs`
+## 3. Quyết định bảo mật
+
+### 3.1. Chính sách mới cho Model Settings
+
+- Nếu server bind loopback (`127.0.0.1`, `::1`, `localhost`), Model Settings chỉ cho phép request loopback.
+- Nếu server bind LAN/wildcard (`0.0.0.0`, địa chỉ IPv4 LAN hoặc `::`), cho phép Model Settings từ cùng-origin LAN.
+- Vẫn bắt buộc kiểm tra same-origin.
+- Không tin `X-Forwarded-For` hoặc header do client tự gửi.
+- Không nới quyền cho lifecycle, Windows startup, SMTP hoặc các API quản trị vốn đang local-only.
+- `--local-only` và `-LocalOnly` tiếp tục giới hạn server vào loopback; không quảng bá khả năng truy cập LAN.
+- Không bổ sung hệ thống đăng nhập trong ticket này. README phải cảnh báo rằng bind LAN mở console không có tài khoản mặc định.
+
+### 3.2. Bảo vệ vẫn giữ nguyên
+
+- `SameOriginBoundaryMiddleware` tiếp tục kiểm tra Host/Origin.
+- Host không hợp lệ hoặc origin khác host vẫn trả `403`.
+- API key không được trả về response hoặc ghi vào log.
+- Lifecycle token không được expose.
+- Các endpoint thao tác daemon vẫn yêu cầu loopback và token hiện hữu.
+
+---
+
+## 4. Có cần thiết kế màn hình mới không?
+
+Không.
+
+`apps/showcase_next/src/features/settings/general-model-panels.tsx` đã có form Model Settings. Sửa lỗi nằm ở authorization backend. Chỉ cập nhật nội dung hướng dẫn trong README và tài liệu cài đặt để mô tả đúng hành vi LAN/local-only.
+
+---
+
+## 5. File và module cần sửa
+
+| File | Thay đổi |
+|---|---|
+| `install.sh` | Giữ bootstrap độc lập với checkout, tham số, staging, lock, archive validation, checksum, cleanup và gọi runtime |
+| `install.ps1` | Giữ hành vi tương đương Bash, tương thích PowerShell 5.1/7 và `iex` |
+| `scripts/bootstrap_common.sh` | Bootstrap uv, retry, checksum và PATH |
+| `scripts/bootstrap_common.ps1` | Bootstrap uv tương đương PowerShell |
+| `scripts/install_runtime.py` | Dependency, frontend build, metadata, cấu hình bind, daemon và readiness |
+| `apps/admin_console/core/security.py` | Thêm helper xác định bind loopback nếu cần dùng chung |
+| `apps/admin_console/routers/model_settings.py` | Thay guard loopback tuyệt đối bằng guard phụ thuộc bind mode + same-origin |
+| `tests/unit/admin_console/test_model_settings.py` | Kiểm tra LAN được phép khi bind LAN, local-only vẫn bị chặn, same-origin vẫn bắt buộc |
+| `tests/unit/admin_console/test_security_boundary.py` | Bổ sung regression cho Host/Origin IP literal nếu cần |
+| `README.md` | Cập nhật lệnh cài, bind mặc định, local-only và cấu hình model qua LAN |
+| `docs/installation.md` | Cập nhật hành vi truy cập, recovery, rerun, bảo mật và giới hạn kiểm chứng |
+| `docs/tickets/.../test-report.md` | Tester cập nhật sau khi có bản public và bằng chứng `TC-INSTALL-001` |
+
+Không cần sửa `general-model-panels.tsx` trừ khi muốn thay thông báo lỗi hoặc thêm hướng dẫn hiển thị.
+
+---
+
+## 6. Thiết kế authorization cho Model Settings
+
+### 6.1. Helper bind policy
+
+Có thể thêm vào `apps/admin_console/core/security.py`:
+
+```python
+def is_loopback_bind(host: str | None) -> bool:
+    """Return True when the configured server bind is local-only."""
+```
 
 Quy tắc:
 
-1. Tải vào staging riêng, ưu tiên cùng filesystem với thư mục đích.
-2. Chỉ dùng helper, runtime, source và lockfile bên trong archive đó.
-3. Không tải helper riêng từ raw branch sau khi đã tải archive.
-4. Ghi URL, branch và SHA-256 của archive để truy vết.
-5. SHA-256 tính tại máy là định danh nội dung tải được, không phải chữ ký phát hành hoặc bằng chứng commit SHA.
-6. Entry point cần hợp đồng bootstrap có version với snapshot. Nếu không tương thích, dừng rõ ràng thay vì tiếp tục ghép các phiên bản.
-7. Chạy lại bản cài hợp lệ phải dùng source đã cài, không tải branch mới để ghi đè.
+- `127.0.0.1`, `::1`, `localhost`: `True`
+- `0.0.0.0`, `::`, IPv4 LAN cụ thể: `False`
+- Giá trị rỗng hoặc không hợp lệ: xử lý fail-closed như local-only
+- Không thay đổi `host_is_allowed()` hoặc `origin_is_allowed()` hiện có
 
-Trước khi giải nén:
+### 6.2. Authorization flow
 
-- Kiểm archive đọc được, có một thư mục gốc hợp lệ.
-- Từ chối đường dẫn tuyệt đối, thành phần `..`, đường dẫn thoát staging.
-- Từ chối link hoặc entry đặc biệt có thể ghi ra ngoài staging.
-- Windows kiểm cả đường dẫn ổ đĩa, UNC và reparse/link entry.
-- Không thực thi helper trước khi hoàn tất kiểm tra archive và cấu trúc source.
+Trong `apps/admin_console/routers/model_settings.py`:
 
-Các file/thư mục bắt buộc tối thiểu:
+```python
+def authorize(request: Request) -> None:
+    configured_host = getattr(state, "host", None)
 
-- Hai entry point và helper tương ứng.
-- `scripts/install_runtime.py`.
-- `pyproject.toml`, `uv.lock`.
-- `packages/artemis-client/pyproject.toml` và source package.
-- Backend `artemis/`, `apps/admin_console/`.
-- `.env.example`, `config/artemis.jsonc`.
-- `apps/showcase_next/package.json`, `package-lock.json`, cấu hình build và source frontend.
+    if is_loopback_bind(configured_host):
+        _require_loopback_request(
+            request,
+            "Model settings are local-only.",
+        )
 
-Chỉ chuyển snapshot sang đích khi kiểm tra thành công. Không chép chồng từng file vào thư mục không xác định.
+    origin = request.headers.get("origin")
+    host = request.headers.get("host", "")
 
-### 4.2. Bootstrap khi chưa có Python
+    if origin and urlsplit(origin).netloc.lower() != host.lower():
+        raise HTTPException(
+            403,
+            "Use the same-origin Artemis console.",
+        )
+```
 
-Hai script thực hiện phần tải source bằng công cụ hệ điều hành, sau đó:
+`GET /api/settings/model` và `PUT /api/settings/model` tiếp tục gọi cùng một `authorize()`.
 
-1. Nạp helper từ source đã xác thực.
-2. Chuẩn bị uv riêng tại `.tools/uv`.
-3. Kiểm phiên bản và checksum binary tải mới.
-4. Dùng uv chuẩn bị Python 3.12.
-5. Chạy `scripts/install_runtime.py install --uv <absolute-path>` bằng Python được uv quản lý.
+Không dùng `request.client.host` để cấm mọi remote request khi server bind LAN. `request.client.host` chỉ được dùng cho nhánh local-only.
 
-Lệnh chạy runtime qua uv phải ở chế độ không tự sync project trước khi `prepare()` tiếp quản, chẳng hạn `uv run --no-project --python 3.12 ...`; developer xác minh cú pháp với uv được pin.
+### 6.3. Restart sau khi lưu
 
-Lý do: kiểm soát cài dở, phát hiện server đang chạy và timeout phải xảy ra trước thao tác sửa dependency.
+Không đổi luồng hiện tại:
 
-Không cần Git và không dùng `git clone`. Không thay shell profile hoặc PATH vĩnh viễn.
+1. Xác thực payload.
+2. Kiểm tra server idle.
+3. Lưu cấu hình nguyên tử.
+4. Khởi động lại bằng `state.host` và `state.port`.
+5. Đóng server cũ.
+6. Frontend polling `server-status` để kết nối lại.
 
-### 4.3. Đặc thù Bash
+Khi bind LAN, restart phải giữ nguyên host LAN; không tự chuyển về loopback.
 
-Các hàm dự kiến:
+---
 
-| Hàm | Trách nhiệm |
-| --- | --- |
-| `parse_args()` | Validate tùy chọn trước download |
-| `check_platform()` | Kiểm OS/architecture và công cụ bootstrap |
-| `resolve_install_dir()` | Chuẩn hóa đường dẫn, kiểm quyền và loại đích |
-| `acquire_install_lock()` | Tạo sibling `<install-dir>.install-lock` độc quyền |
-| `download_snapshot()` | HTTPS, retry hữu hạn, timeout |
-| `validate_extract_snapshot()` | Kiểm archive rồi giải nén staging |
-| `initialize_install_state()` | Tạo metadata ban đầu |
-| `run_install_runtime()` | Truyền tham số bằng mảng, giữ mã lỗi |
-| `cleanup()` | Chỉ dọn staging/lock thuộc lần chạy |
-| `main()` | Điều phối và ghi giai đoạn |
+## 7. Luồng installer
 
-Yêu cầu:
+### Bước 1 — Parse và preflight
 
-- Dùng chế độ lỗi nghiêm ngặt và `pipefail`.
-- Bọc luồng chính thành hàm; gọi sau khi shell đã đọc phần định nghĩa.
-- Child command nhận stdin rỗng, không lấy mã script làm đầu vào.
-- Prompt chỉ qua `/dev/tty`.
-- Trap lỗi/hủy phải giữ mã lỗi ban đầu, không để cleanup che lỗi.
-- Không đặt biến tác vụ tên `HOME`.
-- Không dùng `eval` để dựng lệnh từ đường dẫn/tham số.
-- Giữ tương thích Bash 3.2 nếu tiếp tục công bố hỗ trợ macOS.
+`install.sh: main()` và `install.ps1` phải:
 
-### 4.4. Đặc thù PowerShell
+- Parse thư mục, port, local-only, non-interactive, open.
+- Chuẩn hóa đường dẫn tuyệt đối.
+- Hỗ trợ đường dẫn có khoảng trắng.
+- Kiểm tra OS/architecture được hỗ trợ.
+- Kiểm tra quyền ghi.
+- Kiểm tra công cụ bootstrap tối thiểu.
+- Không phụ thuộc `$BASH_SOURCE`, `$PSScriptRoot` hoặc checkout hiện tại.
+- Không yêu cầu Git, Python, uv hoặc Node/npm cài sẵn.
 
-Các hàm dự kiến tương ứng:
+### Bước 2 — Lock và staging
 
-- `Resolve-InstallOptions`
-- `Assert-SupportedPlatform`
-- `Resolve-InstallDirectory`
-- `Enter-InstallLock`
-- `Get-SourceSnapshot`
-- `Expand-ValidatedSnapshot`
-- `Initialize-InstallState`
-- `Invoke-CheckedNative`
-- `Invoke-ArtemisInstall`
+- Tạo staging riêng cạnh thư mục cài.
+- Dùng lock để ngăn hai installer ghi cùng một instance.
+- Không xóa checkout, trace, log hoặc dữ liệu người dùng.
+- Nếu thư mục không rỗng nhưng không có metadata hợp lệ, dừng với lỗi rõ ràng.
+- Khi lỗi/hủy, chỉ dọn staging và tài nguyên do lượt chạy hiện tại tạo.
 
-Yêu cầu:
+### Bước 3 — Tải và kiểm tra source
 
-- Script hoạt động dưới cả `iex` và `& ([scriptblock]::Create(...))`.
-- Nội dung `.ps1` giữ ASCII theo hợp đồng test encoding hiện hữu.
-- Mọi native command phải kiểm `$LASTEXITCODE` ngay sau khi gọi.
-- Dùng `try/finally` để đóng file handle lock, phục hồi location và trạng thái session đã thay đổi.
-- Lock là sibling file mở với `FileShare.None`.
-- Dùng argument array, `-LiteralPath`; không ghép shell command để thao tác file.
-- Chỉ bật TLS phù hợp trong phạm vi cần thiết; không tắt xác minh chứng chỉ.
-- Không đổi execution policy toàn máy.
-- Nếu cần chạy child helper, chạy nền ẩn, không mở console mới.
-- Khi gọi bằng `iex`, lỗi phải trở thành terminating error có mã giai đoạn; không in thành công sau lỗi.
-- Khi chạy dưới tiến trình `-File`, chuyển mã lỗi installer thành exit code. Không cần đóng terminal tương tác của người dùng để truyền lỗi từ `iex`.
+Linux:
 
-## 5. Metadata, lock và phục hồi
+- Tải tarball branch `nextjs` qua HTTPS.
+- Kiểm tra đường dẫn archive, một root duy nhất, không symlink/special file.
+- Kiểm tra checksum SHA-256.
+- Kiểm tra file bắt buộc:
+  - `pyproject.toml`
+  - `uv.lock`
+  - `artemis/`
+  - `apps/admin_console/`
+  - `apps/showcase_next/`
+  - `package-lock.json`
+  - `config/artemis.jsonc`
+  - `.env.example`
+  - runtime/bootstrap helper
+- Kiểm tra `BOOTSTRAP_VERSION`.
 
-### 5.1. `.artemis-install.json`
+Windows:
 
-Giữ `schema: 1` để tương thích runtime hiện hữu; bổ sung trường theo cách tương thích ngược.
+- Tải ZIP branch `nextjs`.
+- Kiểm tra archive root, đường dẫn, link/special file.
+- Tính SHA-256.
+- Kiểm tra cùng danh sách file bắt buộc.
+- Không giả định `$PSScriptRoot` tồn tại khi chạy bằng `iex`.
 
-| Trường | Ý nghĩa |
-| --- | --- |
-| `schema` | Giá trị `1` |
-| `source` | `jokerhung/android-automation-studio` |
-| `ref` | `nextjs` |
-| `directory` | Đường dẫn cài tuyệt đối |
-| `archive_sha256` | Định danh archive của lần cài mới |
-| `bootstrap_version` | Version hợp đồng entry point/runtime |
-| `stage` | `source_ready`, `preparing`, `starting`, `ready` |
-| `dependencies` | Fingerprint dependency sau sync và import probe thành công |
-| `frontend` | Fingerprint frontend sau build và kiểm artifact thành công |
-| `host`, `port` | Giá trị thực tế đã chọn |
-| `runtime_env` | Allowlist override đường dẫn/hành vi hiện hữu |
-| `server_info_dir` | Vị trí metadata lifecycle do resolver trả về |
-| `last_error_code`, `last_error_stage` | Thông tin lỗi đã lọc, nếu có |
-
-Không lưu API key, toàn bộ environment hoặc lifecycle token trong metadata installer.
-
-Ghi JSON qua file tạm rồi replace. Không tự đặt `ready` trước readiness.
-
-Với metadata cũ hợp lệ nhưng thiếu trường mới: đọc tương thích, không bịa `archive_sha256` hoặc tự cập nhật source.
-
-### 5.2. Phân loại đích
-
-| Tình trạng | Hành động |
-| --- | --- |
-| Chưa tồn tại hoặc rỗng | Cài mới |
-| Metadata hợp lệ, source đủ | Tiếp tục hoặc tái sử dụng |
-| Metadata hợp lệ, dependency/build dở | Phục hồi sau khi xác nhận không có server cần bảo vệ |
-| Metadata hỏng hoặc source thiếu không thể nhận diện an toàn | Dừng mã 3; giữ dữ liệu |
-| Thư mục không rỗng không thuộc installer | Dừng mã 3 |
-| Có install lock đang giữ | Dừng mã 3 |
-
-Metadata `source_ready` phải có trong snapshot staging trước khi chuyển vào đích để giảm khoảng gián đoạn tạo thư mục không nhận diện được.
-
-Nếu bị ngắt trước bước chuyển source: lần chạy sau dùng staging mới. Không tự xóa staging cũ chưa xác định quyền sở hữu.
-
-### 5.3. Quy tắc lock
-
-- Lấy install lock trước mọi sửa đổi trong đích.
-- Runtime manager tiếp tục dùng `.artemis-manager.lock`.
-- Không tạo vòng chờ giữa install lock và manager lock.
-- Không tự gỡ Bash lock chỉ dựa trên tuổi file.
-- Windows OS giải phóng handle khi tiến trình kết thúc; file lock rỗng còn lại không đồng nghĩa đang chạy.
-- Cleanup chỉ được xóa đường dẫn staging/lock đã tạo và đã xác minh thuộc lần chạy.
-
-## 6. Tích hợp và chỉnh sửa runtime
-
-### 6.1. Dependency và build
+### Bước 4 — Bootstrap runtime
 
 Tái sử dụng:
 
-- `prepare()`
-- `dependencies_current()`
-- `prepare_node()`
-- `frontend_fingerprint()`
-- `frontend_assets()`
-- `run()`
+- `bootstrap_uv()` trong `scripts/bootstrap_common.sh`
+- `Initialize-BootstrapUv` trong `scripts/bootstrap_common.ps1`
 
-Luồng:
+Chuẩn bị:
 
-1. Đọc metadata và khôi phục override đường dẫn đã lưu.
-2. Xác định fingerprint, kiểm `.venv` và import probe.
-3. Nếu cần sửa dependency/build, kiểm server đang hoạt động trước.
-4. Chạy `uv sync --locked --python 3.12 --no-dev`.
-5. Kiểm import backend, OpenCV và `artemis_client`.
-6. Chuẩn bị cấu hình.
-7. Tái sử dụng Node/npm phù hợp hoặc cài Node portable `22.22.3`.
-8. Chạy `npm ci --no-audit --no-fund`, sau đó `npm run build`.
-9. Kiểm Home, Settings và các asset được tham chiếu.
-10. Chỉ lưu fingerprint sau khi bước tương ứng thành công.
+- uv phiên bản đã pin và checksum.
+- Python 3.12.
+- Node/npm tương thích; dùng Node portable nếu máy không có bản phù hợp.
+- PATH chỉ cập nhật trong tiến trình và lệnh quản lý của instance.
 
-Node được tái sử dụng phải đáp ứng mức runtime hiện tại `>=22.12.0` và có npm hoạt động. Không sửa lockfile để né lỗi.
+### Bước 5 — Dependency và frontend
 
-Khi thiếu thư viện OpenCV trên Ubuntu:
+` scripts/install_runtime.py`:
 
-- Kiểm `apt-get` và khả năng chạy root hoặc `sudo -n`.
-- Chỉ dùng quyền đã có, không chờ password từ pipeline.
-- Nếu không thể cài, dừng mã 5 và in tên gói/lệnh khắc phục.
-- Không thay đổi package dependency sang biến thể khác để né yêu cầu hệ thống.
+1. Chạy `uv sync --locked --python 3.12 --no-dev`.
+2. Không fallback sang cài dependency không khóa.
+3. Kiểm tra OpenCV/system library trên Ubuntu; lỗi phải chỉ rõ gói cần cài.
+4. Chạy `npm ci --no-audit --no-fund`.
+5. Chạy `npm run build`.
+6. Xác minh:
+   - `apps/showcase_next/out/index.html`
+   - `out/settings/index.html`
+   - asset được tham chiếu thật
+7. Không đánh dấu thành công nếu build lỗi hoặc artifact thiếu.
 
-### 6.2. Cấu hình
+### Bước 6 — Cấu hình và bảo toàn dữ liệu
 
-Tái sử dụng `initialize_config()`, `get_env_file()` và `get_config_path()`.
+- Tạo `.env` từ `.env.example` chỉ khi chưa tồn tại.
+- Giữ nguyên `.env`, JSONC, database, traces và API key hiện có.
+- Lưu `.artemis-install.json` với:
+  - schema
+  - source/ref
+  - bootstrap version
+  - archive checksum
+  - directory
+  - host/port
+  - runtime environment
+  - dependency/frontend fingerprint
+  - stage/status
+- Không ghi secret vào metadata hoặc log.
 
-- Tạo `.env` bằng exclusive creation từ `.env.example` khi thiếu.
-- Snapshot mới đã chứa `config/artemis.jsonc`.
-- Không ghi đè `.env`, JSONC hoặc giá trị do người dùng lưu.
-- Cấu hình sai cú pháp: mã 6, chỉ rõ đường dẫn, không in nội dung có secret.
-- Với override cấu hình trỏ đến đường dẫn không tồn tại, xử lý rõ ràng; không im lặng dùng cấu hình khác rồi báo thành công.
-- Nếu phải tạo cấu hình còn thiếu, chọn đúng đích writable theo resolver và chỉ tạo khi chưa tồn tại.
-- Không thay đổi quy tắc resolver toàn hệ thống nếu có thể xử lý trong installer.
+### Bước 7 — Bind, daemon và readiness
 
-### 6.3. Chạy lại và cài dở
+`install_runtime.py` phải:
 
-- Source hiện hữu không tự nâng cấp.
-- Fingerprint đúng và artifact hợp lệ: bỏ qua sync/build.
-- Server cùng instance hoạt động tốt: tái sử dụng, không restart.
-- Server đang chạy nhưng dependency/build cần sửa: mã 8, in lệnh stop rõ ràng.
-- Metadata tiến trình không xác định được: dừng bảo thủ, không coi là stopped.
-- Nếu readiness timeout sau spawn: giữ log/metadata, thông báo daemon có thể còn chạy; hướng dẫn `status` và `stop`.
-- Lỗi ở bất kỳ bước nào không được in thông báo cài hoàn tất.
+- Mặc định bind `0.0.0.0`.
+- Với `--local-only`/`-LocalOnly`, bind `127.0.0.1`.
+- Giữ port 8009 nếu không override.
+- Không tự chọn port khác khi port chỉ định bị chiếm.
+- Nhận diện đúng instance ARTEMIS trước khi stop/restart.
+- Không kill process chỉ vì process đang chiếm port.
+- Dùng lifecycle adapter hiện hữu.
+- Chạy daemon nền sau khi terminal installer đóng.
+- Poll readiness có deadline tối đa 120 giây.
+- Xác minh đồng thời:
+  - đúng daemon instance
+  - `/`
+  - `/settings/`
+  - ít nhất một asset thực
+  - đúng port
+- Không coi TCP mở hoặc HTTP 200 trang fallback là thành công.
 
-### 6.4. Cổng, daemon và readiness
+### Bước 8 — Output và lệnh quản lý
 
-Tái sử dụng `choose_port()`, `manage()`, `wait_ready()` và lifecycle adapter.
+In:
 
-Điều kiện thành công đồng thời:
+- `http://localhost:<port>`
+- `http://127.0.0.1:<port>`
+- URL IPv4 LAN nếu bind LAN
+- `/settings/?tab=system`
+- `/settings/?tab=models`
+- `/settings/?tab=android`
+- thư mục cài
+- installer log
+- server log
+- lệnh `start`, `status`, `stop`, `restart`
 
-1. Metadata thuộc workspace của bản cài.
-2. PID/process identity/listener được xác minh.
-3. Lifecycle HTTP trả identity khớp.
-4. `/` khớp byte với `out/index.html`.
-5. `/settings/` khớp byte với `out/settings/index.html`.
-6. Ít nhất một asset được tham chiếu trả đúng byte, không phải HTML fallback.
+Khi bind LAN:
 
-Không probe địa chỉ `0.0.0.0`; dùng loopback. Kiểm identity và frontend đều phải tránh proxy cho localhost.
+```text
+LAN access is enabled for same-origin console requests.
+Use --local-only / -LocalOnly to restrict the server to this computer.
+```
 
-Cổng được chỉ định bị chiếm: mã 8. Cổng mặc định bị chiếm chỉ được hỏi cổng thay thế qua terminal khi cho phép tương tác; không có terminal thì dừng.
+Khi local-only:
 
-`--local-only` không được báo thành công bằng cách dùng lại daemon đang bind LAN. Yêu cầu stop rõ ràng trước khi đổi bind.
+```text
+Local-only bind; LAN access is disabled.
+```
 
-Dùng cơ chế detached hiện có để daemon sống sau khi terminal đóng. Không tạo cơ chế kill theo cổng.
+Không in `0.0.0.0` như URL truy cập.
 
-## 7. File cần tạo/sửa và thứ tự triển khai
+---
 
-| Bước | File/module | Nội dung | Tiêu chí hoàn thành |
-| --- | --- | --- | --- |
-| 1 | `scripts/install_runtime.py` | Củng cố metadata, stage và phục hồi; quy định hợp đồng bootstrap | Đọc được metadata cũ; metadata lỗi không bị reset |
-| 2 | `install.sh` | Entry point Bash, tải archive, staging, lock, uv/Python và gọi runtime | Không phụ thuộc checkout/Git/Python có sẵn; chạy qua pipe |
-| 3 | `install.ps1` | Entry point PowerShell tương đương | Chạy qua `iex`/scriptblock, truyền lỗi native đầy đủ |
-| 4 | `scripts/bootstrap_common.sh`, `.ps1` | Chuẩn hóa version/checksum/error handling | Binary hỏng hoặc sai hợp đồng không được tái sử dụng im lặng |
-| 5 | `scripts/install_runtime.py` | Dependency, config, lỗi hệ thống, `_active`, timeout và logging | Cài dở phục hồi được; không sửa server đang hoạt động |
-| 6 | `artemis/runtime/daemon_client.py`; lifecycle module nếu cần | Bảo đảm identity loopback không qua proxy, giữ kiểm instance | Không nhận server khác là bản cài thành công |
-| 7 | `start.sh`, `scripts/start.ps1`, `start.bat` | Rà soát đường dẫn tích hợp; chỉ sửa nếu có lệch hợp đồng | Lệnh start của bản cài dùng runtime manager và port đã lưu |
-| 8 | `scripts/check_installer_release.py` | Đồng bộ danh sách file; làm rõ phạm vi kiểm archive | Kết quả reachability không bị mô tả là E2E PASS |
-| 9 | `README.md`, `docs/installation.md` | Cập nhật theo hành vi thực tế | Hai one-liner, prerequisite, recovery và giới hạn chính xác |
-| 10 | `docs/tickets/.../test-report.md` | Tester ghi đúng một testcase và dữ liệu từng môi trường | Có bằng chứng hoặc trạng thái NOT RUN/BLOCKED trung thực |
+## 8. Chạy lại và phục hồi
 
-Không sửa frontend, backend API hoặc lockfile nếu không có lỗi trực tiếp cản trở installer.
+- Nhận diện instance bằng `.artemis-install.json`.
+- Nếu fingerprint và artifact còn hợp lệ, bỏ qua sync/build không cần thiết.
+- Không tự nâng cấp source.
+- Không restart daemon đang hoạt động trừ khi người dùng gọi restart rõ ràng.
+- Không đổi bind mode ngầm.
+- Nếu muốn chuyển LAN ↔ local-only khi daemon đang chạy, yêu cầu stop rõ ràng trước.
+- Nếu cài dở, báo stage và log cần kiểm tra.
+- Không tự xóa lock nếu chưa xác nhận installer khác không còn chạy.
 
-## 8. Mã lỗi và giới hạn thời gian
+---
 
-| Mã | Nhóm lỗi |
-| --- | --- |
-| `0` | Readiness hoàn tất |
-| `2` | Tham số hoặc nền tảng không hỗ trợ |
-| `3` | Quyền, thư mục đích, metadata hoặc lock |
-| `4` | Download, archive hoặc checksum |
-| `5` | Python/uv/dependency hoặc thư viện hệ thống |
-| `6` | Cấu hình |
-| `7` | npm, frontend build hoặc artifact |
-| `8` | Cổng, lifecycle hoặc readiness |
-| `130` | Hủy khi bắt được tín hiệu |
+## 9. Kiểm thử tự động
 
-Giới hạn:
+### 9.1. Installer/runtime
 
-- Download: tối đa 3 lần, tối đa 600 giây mỗi request.
-- Dependency, gồm bootstrap Python: tối đa 1.800 giây mỗi command.
-- Build: tối đa 1.200 giây.
-- Readiness: deadline 120 giây, polling hữu hạn.
-- Timeout/hủy chỉ kết thúc cây tiến trình do bước hiện tại tạo; không dừng server khác.
+Chạy:
 
-Log phải có giai đoạn, thời điểm, thời lượng, kết quả và mã lỗi. Trước khi có thư mục đích, lỗi ghi ra terminal và log bootstrap tạm có đường dẫn rõ ràng; sau khi có đích, lưu sự kiện tại `logs/install.log`.
+```powershell
+python -m pytest tests/unit/test_install_runtime.py tests/integration/installer
+```
 
-Không log toàn bộ environment, `.env` hoặc token lifecycle.
+Kiểm tra:
 
-## 9. Cập nhật README và hướng dẫn cài đặt
+- tham số sai
+- port ngoài phạm vi
+- archive lỗi
+- archive thiếu file
+- archive có symlink/path traversal
+- checksum
+- lock
+- đường dẫn có khoảng trắng
+- rerun
+- giữ nguyên cấu hình
+- port conflict
+- readiness timeout
+- đúng instance
+- daemon còn chạy sau khi terminal đóng
 
-README cần đưa Internet installer thành luồng rõ ràng, liên kết chi tiết tới `docs/installation.md`:
+### 9.2. Backend Model Settings
 
-1. Hai lệnh chính xác theo ticket.
-2. Ví dụ Bash có `set -o pipefail` ở shell gọi để không che lỗi curl.
-3. Ví dụ truyền thư mục/cổng, gồm đường dẫn có khoảng trắng.
-4. Matrix và công cụ bootstrap tối thiểu.
-5. Thư mục mặc định, cổng 8009, bind `0.0.0.0`, tùy chọn local-only.
-6. Giải thích quyền cài thư viện hệ thống khi cần.
-7. Các bước tải runtime, sync, build và start.
-8. Lệnh `status`, `start`, `stop`, `restart` dùng interpreter của bản cài.
-9. Đường dẫn log, cách chạy lại và xử lý lock/cài dở.
-10. Cách mở Settings để cấu hình model và Android.
-11. Không yêu cầu API key/Android để chỉ mở giao diện.
-12. Trạng thái kiểm chứng public và máy sạch theo bằng chứng thực tế.
+Chạy:
 
-Giữ hướng dẫn dành cho developer checkout nhưng phân biệt rõ với bản cài snapshot. Không xóa cảnh báo phát hành chưa hoàn tất chỉ vì hai file đã được tạo local.
+```powershell
+python -m pytest tests/unit/admin_console/test_model_settings.py
+```
 
-## 10. Kiểm thử — đúng một testcase
+Các trường hợp bắt buộc:
 
-### TC-INSTALL-001 — Cài vào thư mục mới và truy cập web quản trị
+1. Loopback bind + loopback client → GET/PUT được phép.
+2. LAN bind `0.0.0.0` + client LAN + Host/Origin cùng origin → GET được phép.
+3. LAN bind `0.0.0.0` + client LAN + PUT hợp lệ → đi qua authorization và được xử lý.
+4. LAN bind + origin khác host → `403`.
+5. LAN bind + Host không được security boundary chấp nhận → `403`.
+6. Local-only bind + client remote → `403 Model settings are local-only`.
+7. Lifecycle API từ remote vẫn `403`.
+8. SMTP/Windows startup/ADB local-only không bị mở rộng.
+9. API key không xuất hiện trong response hoặc log.
 
-**Trạng thái hiện tại:** `NOT RUN`.
+### 9.3. Security boundary
 
-Một định nghĩa testcase, chạy với dữ liệu Linux/Windows. Các lượt chạy không tạo thêm testcase ID.
+Chạy:
 
-| Dữ liệu | Môi trường |
-| --- | --- |
-| Linux | Ubuntu 22.04/24.04, glibc, x86_64, Bash |
-| Windows | Windows 11 x64, Windows PowerShell 5.1 hoặc PowerShell 7 |
+```powershell
+python -m pytest tests/unit/admin_console/test_security_boundary.py
+```
 
-Báo cáo chính xác OS/shell đã chạy; một lượt PASS không chứng minh các biến thể chưa chạy.
+Nếu cần bổ sung test:
 
-### 10.1. Điều kiện
+- Host IP literal hợp lệ.
+- Origin cùng IP và port hợp lệ.
+- Cross-origin bị từ chối.
+- DNS rebinding bị từ chối.
+- Security headers vẫn có.
+- API response vẫn `no-store`.
 
-- Máy/VM sạch, chưa có Git/Python/uv/Node/npm và cache ARTEMIS.
-- Có các công cụ bootstrap tối thiểu.
-- Thư mục đích mới, rỗng hoặc chưa tồn tại.
-- Cổng 8009 trống.
-- Internet truy cập được các nguồn dependency.
-- Đối với nghiệm thu public, bản triển khai phải được người có quyền phát hành lên `nextjs`.
-- Có trình duyệt để kiểm tra hiển thị thực tế.
+### 9.4. Shell và parser
 
-Không coi workspace hiện tại có `.venv`, cache hoặc build là máy sạch.
+Linux/macOS shell:
 
-### 10.2. Lệnh public
+```bash
+bash -n install.sh scripts/bootstrap_common.sh
+```
 
-Chạy tại thư mục kiểm thử mới được cho phép.
+PowerShell:
 
-Linux:
+```powershell
+$null = [System.Management.Automation.Language.Parser]::ParseFile(
+  (Resolve-Path .\install.ps1),
+  [ref]$null,
+  [ref]$null
+)
+```
+
+Python:
+
+```powershell
+python -m compileall scripts/install_runtime.py apps/admin_console
+```
+
+Frontend nếu có thay đổi UI:
+
+```powershell
+npm --prefix apps/showcase_next test
+npm --prefix apps/showcase_next run build
+```
+
+---
+
+## 10. Một testcase nghiệm thu duy nhất
+
+### TC-INSTALL-001 — Cài qua Internet vào thư mục mới và mở web quản trị
+
+Không tạo testcase E2E khác.
+
+#### Linux
 
 ```bash
 set -o pipefail
 curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh \
-  | bash -s -- --install-dir "$PWD/artemis" --port 8009 --local-only --non-interactive
+  | bash -s -- --install-dir "$PWD/artemis" --port 8009 --non-interactive
 ```
 
-Windows:
+Kiểm tra:
+
+1. OS, architecture, shell và công cụ trước cài.
+2. Thư mục đích mới/rỗng.
+3. Installer tải source, cài runtime, sync dependency, build frontend và start daemon.
+4. Exit code bằng `0`.
+5. `.venv`, metadata, `.env`, static export và log tồn tại.
+6. Readiness đúng instance.
+7. Mở Home.
+8. Mở `/settings/?tab=system`.
+9. Mở `/settings/?tab=models`.
+10. Nếu dùng bind LAN, mở Models bằng IP LAN và xác nhận không còn lỗi `Model settings are local-only`.
+11. Kiểm tra asset trả đúng nội dung.
+12. Đóng terminal installer, reload trình duyệt và xác nhận web vẫn hoạt động.
+
+#### Windows
 
 ```powershell
 & ([scriptblock]::Create((Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1'))) `
   -InstallDir (Join-Path (Get-Location).Path 'artemis') `
-  -Port 8009 -LocalOnly -NonInteractive
+  -Port 8009 -NonInteractive
 ```
 
-Hai one-liner không tham số vẫn là hợp đồng bắt buộc. Lượt chạy trên dùng cùng entry point với thư mục đích tường minh để thu bằng chứng.
+Thực hiện cùng các bước và bằng chứng như Linux.
 
-### 10.3. Trình tự và kết quả mong đợi
+Nếu chạy với `--local-only`/`-LocalOnly`, chỉ xác nhận truy cập local; không kết luận truy cập LAN.
 
-| Bước | Thực hiện | Kết quả mong đợi |
-| --- | --- | --- |
-| 1 | Ghi OS, architecture, shell, công cụ và trạng thái đích | Chứng minh điều kiện máy sạch/thư mục mới |
-| 2 | Chạy installer, ghi command và thời gian | Không phải clone hoặc cài runtime thủ công |
-| 3 | Kiểm tra output và thư mục cài | Có source, `.venv`, cấu hình, metadata, static export và log |
-| 4 | Kiểm readiness | Đúng instance, Home/Settings/asset hợp lệ |
-| 5 | Mở `/` rồi `/settings/?tab=system` | Giao diện hiển thị, điều hướng được, không trắng trang hoặc “Not Built” |
-| 6 | Đóng terminal cài đặt, tải lại trình duyệt | Web tiếp tục hoạt động |
-| 7 | Thu bằng chứng và kết luận | Kết quả riêng cho mỗi môi trường thực thi |
+#### Bằng chứng phải lưu
 
-Không dùng một khoảng sleep cố định thay thế readiness.
+- OS/version/architecture/shell
+- trạng thái công cụ trước cài
+- command, thời gian và exit code
+- revision/source URL
+- log installer và daemon
+- runtime version
+- identity daemon
+- HTTP/static asset checks
+- screenshot Home, System, Models
+- reload sau khi đóng terminal
+- không đính kèm `.env`, API key hoặc lifecycle token
 
-### 10.4. Bằng chứng bắt buộc
+---
 
-- OS/version/architecture/shell và trạng thái runtime trước cài.
-- Thư mục đích trước cài.
-- Nguồn script/snapshot; checksum archive nếu có.
-- Command, thời điểm bắt đầu/kết thúc và trạng thái trả về.
-- Log installer đã loại secret; đường dẫn daemon log.
-- Phiên bản Python, uv, Node/npm thực dùng.
-- Kết quả identity đã lọc token.
-- Kết quả HTTP/hash đối chiếu export.
-- Screenshot Home và Settings có URL.
-- Bằng chứng tải lại thành công sau đóng terminal.
+## 11. Acceptance criteria
 
-### 10.5. Kiểm chứng local khi chưa được commit/push
+| ID | Tiêu chí |
+|---|---|
+| AC-01 | Có `install.sh`, `install.ps1` chạy được qua hai one-liner |
+| AC-02 | Máy sạch không cần Git, Python, uv, Node/npm cài sẵn |
+| AC-03 | Snapshot đầy đủ source, lockfile, template, helper và runtime |
+| AC-04 | Dependency sync và frontend build hoàn tất, lỗi không bị che |
+| AC-05 | Tạo cấu hình thiếu, giữ nguyên cấu hình có sẵn |
+| AC-06 | Daemon chạy nền, đúng instance, port, Home, Settings và asset |
+| AC-07 | Có URL và lệnh quản lý chính xác, hỗ trợ path có khoảng trắng |
+| AC-08 | Rerun, lock, interrupted install và port conflict đúng business rules |
+| AC-09 | README và `docs/installation.md` phản ánh đúng bind LAN/local-only |
+| AC-10 | `TC-INSTALL-001` có bằng chứng Linux và Windows sạch/public |
+| D-01 | Model Settings cho phép same-origin LAN khi server bind LAN |
+| D-02 | Model Settings vẫn loopback-only khi bind local-only |
+| D-03 | Cross-origin, Host không hợp lệ và DNS rebinding vẫn bị chặn |
+| D-04 | Lifecycle, SMTP, Windows startup và ADB local-only không bị mở rộng |
+| D-05 | Không làm lộ API key, lifecycle token hoặc secret trong response/log |
 
-Có thể chuẩn bị trước phát hành trong workspace:
+---
 
-- Kiểm syntax Bash/PowerShell.
-- Đối chiếu parser, quoting, mã lỗi và cleanup với các test sẵn có.
-- Dùng harness hiện hữu hoặc archive fixture đóng từ source local để kiểm đường đi pipeline.
-- Mọi staging/artifact local nằm dưới workspace được phép.
-- Nếu dùng archive/toolchain giả, báo rõ là kiểm bootstrap với fixture.
-- Nếu chạy runtime thật từ snapshot local, báo rõ nguồn local và môi trường thực tế; không gán thành kết quả URL public.
+## 12. Rủi ro và giới hạn
 
-Không thêm testcase nghiệm thu khác. Các kiểm tra syntax/review và suite hiện hữu là bằng chứng hỗ trợ, không thay thế TC-INSTALL-001.
+- Bind LAN hiện không có hệ thống tài khoản; README phải khuyến nghị `--local-only`, SSH tunnel hoặc mạng tin cậy khi cần bảo vệ console.
+- Không tin kết quả chỉ từ HTTP 200 hoặc TCP mở.
+- Workspace hiện tại có cache, `.venv` và build nên không thay thế máy sạch.
+- URL public trên branch `nextjs` phải trỏ đúng revision đã review trước khi chạy nghiệm thu.
+- Chưa được đánh dấu PASS khi thiếu bằng chứng Linux sạch, Windows sạch hoặc browser evidence.
 
-Công cụ `check_installer_release.py` có thể được chạy sau khi có bản public để kiểm file tải được và khớp checkout. Kết quả đó không chứng minh dependency/build hoặc trình duyệt hoạt động.
+---
 
-### 10.6. Quy tắc kết luận
+## 13. Thứ tự bàn giao
 
-- `PASS`: Đã thực hiện đủ các bước trên môi trường được ghi nhận, có bằng chứng.
-- `FAIL`: Có bước thực thi không đạt.
-- `BLOCKED`: Bị chặn bởi điều kiện ngoài triển khai, như chưa phát hành hoặc thiếu máy sạch.
-- `NOT RUN`: Chưa thực hiện.
+1. Developer triển khai installer và authorization policy.
+2. Developer chạy lint, parser, unit/integration và local runtime smoke.
+3. Người có quyền phát hành revision lên branch `nextjs`.
+4. Tester chạy đúng `TC-INSTALL-001` trên Linux sạch và Windows sạch.
+5. Tester cập nhật `test-report.md`.
+6. Chỉ kết luận PASS khi toàn bộ bằng chứng E2E đầy đủ.
 
-Không dùng fixture PASS, kiểm HTTP HEAD, syntax check hoặc một lượt Windows PASS để kết luận cả ticket PASS.
-
-## 11. Phụ thuộc và bàn giao Orchestrator
-
-Không có quyết định cần xác nhận để hoàn thành kế hoạch hoặc bắt đầu triển khai theo đặc tả BA.
-
-Các phụ thuộc trước nghiệm thu cuối:
-
-| Phụ thuộc | Hướng xử lý |
-| --- | --- |
-| Bản code chưa được phát hành lên `nextjs` | Người có quyền phát hành thực hiện; agent không tự commit/push |
-| Chưa có môi trường máy sạch | Orchestrator bố trí môi trường và quyền chạy |
-| Môi trường hiện tại hạn chế ghi/network | Developer/tester dùng cơ chế cấp quyền tương ứng khi thực thi |
-| URL public chưa được kiểm tra | Ghi chưa xác minh, không suy đoán từ tài liệu lịch sử |
-
-Nếu đến bước nghiệm thu vẫn thiếu điều kiện, Orchestrator cần hỏi cụ thể:
-
-- Ai sẽ phát hành bản triển khai đã review lên branch `nextjs`, và khi nào có thể kiểm tra hai URL?
-- Máy/VM Linux và Windows nào được phép dùng để chạy TC-INSTALL-001?
-
-Các câu hỏi này là phụ thuộc ở bước phát hành/kiểm thử, không chặn bàn giao plan cho developer.
-
-**Kết quả bàn giao:** Đủ thiết kế để triển khai hai entry point và tích hợp runtime hiện hữu. Chuyển thẳng Developer; sau đó Tester chạy TC-INSTALL-001 và lập `test-report.md`. Chưa có căn cứ đánh dấu ticket hoặc testcase PASS.
+Planner không sửa mã nguồn, không commit và không push.
