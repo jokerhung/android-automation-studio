@@ -1,0 +1,3 @@
+import { describe,expect,it } from 'vitest';
+import { SETTINGS_TABS,resolveSettingsTab,settingsTabHref } from '@/features/settings/tabs';
+describe('Settings tab query contract',()=>{it('preserves all Angular tab ids and falls back to General',()=>{expect(SETTINGS_TABS.map(([id])=>id)).toEqual(['general','models','email','android','system']);for(const [id] of SETTINGS_TABS){expect(resolveSettingsTab(id)).toBe(id);expect(settingsTabHref(id)).toBe(id==='general'?'/settings/':`/settings/?tab=${id}`)}expect(resolveSettingsTab(null)).toBe('general');expect(resolveSettingsTab('unknown')).toBe('general')})});

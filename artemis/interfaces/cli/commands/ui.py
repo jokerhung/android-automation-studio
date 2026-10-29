@@ -15,6 +15,7 @@
 """UI Launch and Web Console CLI Command (artemis ui)."""
 
 import logging
+import os
 from pathlib import Path
 import re
 import shutil
@@ -68,24 +69,32 @@ def _resolve_npm_executable(platform_name: str | None = None) -> str | None:
     return next((path for candidate in candidates if (path := shutil.which(candidate))), None)
 
 
-def _showcase_build_required(showcase_dir: Path) -> bool:
-    """Return whether the compiled Angular app is missing or older than its inputs."""
-    base_dist = showcase_dir / "dist"
-    candidates = [
-        base_dist / "frontend" / "browser" / "index.html",
-        base_dist / "browser" / "index.html",
-        base_dist / "frontend" / "index.html",
-        base_dist / "index.html",
-    ]
+def _frontend_framework() -> str:
+    """Return the explicitly selected frontend framework (Next.js only)."""
+    framework = os.environ.get("ARTEMIS_FRONTEND", "next").strip().lower()
+    if framework not in {"next"}:
+        raise ValueError("ARTEMIS_FRONTEND must be 'next' (Angular has been removed)")
+    return framework
+
+
+def _showcase_build_required(showcase_dir: Path, framework: str = "next") -> bool:
+    """Return whether the selected frontend build is missing or older than its inputs."""
+    candidates = [showcase_dir / "out" / "index.html"]
     built_indexes = [path for path in candidates if path.exists()]
     if not built_indexes:
         return True
 
     build_time = max(path.stat().st_mtime for path in built_indexes)
-    input_paths = [showcase_dir / "package.json", showcase_dir / "angular.json"]
-    source_dir = showcase_dir / "src"
-    if source_dir.exists():
-        input_paths.extend(path for path in source_dir.rglob("*") if path.is_file())
+    input_paths = [showcase_dir / "package.json", showcase_dir / "package-lock.json"]
+    config_name = "next.config.ts"
+    input_paths.append(showcase_dir / config_name)
+    input_paths.append(showcase_dir / "postcss.config.mjs")
+    for input_dir_name in ("src", "public"):
+        input_dir = showcase_dir / input_dir_name
+        if input_dir.exists():
+            input_paths.extend(path for path in input_dir.rglob("*") if path.is_file())
+    for tsconfig in showcase_dir.glob("tsconfig*.json"):
+        input_paths.append(tsconfig)
     return any(path.exists() and path.stat().st_mtime > build_time for path in input_paths)
 
 
@@ -119,7 +128,7 @@ def _run_build_step(console: Console, label: str, cmd: list[str], cwd: Path) -> 
     """Run one build step, relaying its output live and raising on failure.
 
     The child's stdout/stderr are forwarded line by line (ANSI stripped,
-    indented, dimmed) so npm summaries, ``ng build`` progress and any error
+    indented, dimmed) so npm summaries, ``next build`` progress and any error
     reach the terminal as they happen. On an interactive terminal a spinner
     with the elapsed time keeps ticking through the long silent phases
     (downloads, bundling); without a TTY a plain heartbeat line is printed
@@ -190,43 +199,48 @@ def _run_build_step(console: Console, label: str, cmd: list[str], cwd: Path) -> 
 
 
 def ensure_showcase_built(console: Console) -> None:
-    """Rebuild the Angular Showcase UI when its sources are newer than the dist build."""
+    """Build the selected Showcase frontend when its sources are newer than its artifact."""
     from artemis.config.paths import ROOT_DIR
     from artemis.resources import get_bundled_showcase_dist
 
-    showcase_dir = ROOT_DIR / "apps" / "showcase_ui"
-    # An installed wheel has no frontend source tree; its immutable build is
-    # prepared during packaging and must never trigger npm at runtime.
-    if not showcase_dir.is_dir() and get_bundled_showcase_dist() is not None:
+    framework = _frontend_framework()
+    app_name = "showcase_next"
+    showcase_dir = ROOT_DIR / "apps" / app_name
+    # Installed wheels contain immutable frontend assets and no source tree, so
+    # runtime startup must not require Node/npm.
+    if not showcase_dir.is_dir() and get_bundled_showcase_dist(framework) is not None:
         return
-    if not _showcase_build_required(showcase_dir):
+    if not _showcase_build_required(showcase_dir, framework):
         return
     npm_executable = _resolve_npm_executable()
     if not npm_executable:
         return
+    display_name = "Next.js"
     console.print(
-        "   [yellow]🎨 Showcase UI sources changed. Compiling Angular Showcase UI...[/yellow]"
+        f"   [yellow]🎨 Showcase UI sources changed. Compiling {display_name} Showcase UI...[/yellow]"
     )
     started = time.monotonic()
     try:
         if _npm_install_required(showcase_dir):
             _run_build_step(
                 console,
-                "① npm install (dependencies changed)",
-                [npm_executable, "install", "--no-audit", "--no-fund", "--loglevel=warn"],
+                "① npm ci (dependencies changed)",
+                [npm_executable, "ci", "--no-audit", "--no-fund", "--loglevel=warn"],
                 showcase_dir,
             )
-        _run_build_step(console, "② ng build", [npm_executable, "run", "build"], showcase_dir)
+        build_label = "② next build (static export)"
+        _run_build_step(console, build_label, [npm_executable, "run", "build"], showcase_dir)
         console.print(
-            f"   [green]✓ Showcase UI built in {_format_elapsed(time.monotonic() - started)}."
-            "[/green]\n"
+            f"   [green]✓ {display_name} Showcase UI built in "
+            f"{_format_elapsed(time.monotonic() - started)}.[/green]\n"
         )
     except Exception as e:
         console.print(
-            f"   [red]⚠ Failed to auto-build Showcase UI: {e}[/red]\n"
-            "     [dim]Build it by hand with: cd apps/showcase_ui && npm install && "
+            f"   [red]✗ Failed to auto-build {display_name} Showcase UI: {e}[/red]\n"
+            f"     [dim]Build it by hand with: cd apps/{app_name} && npm ci && "
             "npm run build[/dim]\n"
         )
+        raise typer.Exit(code=1) from e
 
 
 def load_session_reconciler() -> None:
@@ -296,9 +310,18 @@ def ui_command(
             help="Restart server by terminating any existing instance on the port first.",
         ),
     ] = False,
+    frontend: Annotated[
+        str | None,
+        typer.Option("--frontend", help="Frontend artifact: next."),
+    ] = None,
 ) -> None:
     """Launch the unified Artemis Showcase UI & Admin Console in one click."""
     console = Console()
+    if frontend is not None:
+        selected_frontend = frontend.strip().lower()
+        if selected_frontend not in {"next"}:
+            raise typer.BadParameter("must be 'next' (Angular has been removed)", param_hint="--frontend")
+        os.environ["ARTEMIS_FRONTEND"] = selected_frontend
     local_url = f"http://localhost:{port}"
 
     from artemis.runtime.server_lifecycle import (

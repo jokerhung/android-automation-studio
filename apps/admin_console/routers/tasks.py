@@ -345,57 +345,58 @@ async def stream_events(session_id: str = "active", client: str | None = None):
                 pass
 
         state.add_subscriber(callback)
-        yield f'event: info\ndata: {{"message": "Subscribed to session {session_id}"}}\n\n'
-
-        if session_id in ("all", "active"):
-            active_sid = state.active_session_id
-            if not active_sid:
-                running_item = next(
-                    (
-                        t
-                        for t in state.queue_items
-                        if isinstance(t, dict) and t.get("status") == "running"
-                    ),
-                    None,
-                )
-                if running_item:
-                    active_sid = running_item.get("session_id")
-            if not active_sid:
-                owner = DeviceExecutionLock.get_active_owner()
-                if owner and owner.session_id:
-                    active_sid = owner.session_id
-
-            if active_sid:
-                goal = state.current_goal or ""
-                profile = state.current_profile or "flash"
-                yield (
-                    "event: session_started\n"
-                    f"data: {json.dumps({'session_id': str(active_sid), 'initial_goal': goal, 'profile': profile}, default=str)}\n\n"
-                )
-                for progress_event in state.get_startup_progress(str(active_sid)):
-                    yield (
-                        "event: startup_progress\n"
-                        f"data: {json.dumps(progress_event, default=str)}\n\n"
-                    )
-                try:
-                    from apps.admin_console.database.repositories.step_repository import step_repo
-
-                    recorded_steps = step_repo.get_session_steps(str(active_sid))
-                    for step_dict in recorded_steps:
-                        yield (
-                            f"event: step_recorded\ndata: {json.dumps(step_dict, default=str)}\n\n"
-                        )
-                except Exception as exc:
-                    print(f"[Stream] Could not replay active steps: {exc}")
-        else:
-            for progress_event in state.get_startup_progress(session_id):
-                yield (
-                    f"event: startup_progress\ndata: {json.dumps(progress_event, default=str)}\n\n"
-                )
-
-        shutdown_waiter = asyncio.create_task(state.shutdown_event.wait())
+        shutdown_waiter = None
         queue_waiter = None
         try:
+            yield f'event: info\ndata: {{"message": "Subscribed to session {session_id}"}}\n\n'
+
+            if session_id in ("all", "active"):
+                active_sid = state.active_session_id
+                if not active_sid:
+                    running_item = next(
+                        (
+                            t
+                            for t in state.queue_items
+                            if isinstance(t, dict) and t.get("status") == "running"
+                        ),
+                        None,
+                    )
+                    if running_item:
+                        active_sid = running_item.get("session_id")
+                if not active_sid:
+                    owner = DeviceExecutionLock.get_active_owner()
+                    if owner and owner.session_id:
+                        active_sid = owner.session_id
+
+                if active_sid:
+                    goal = state.current_goal or ""
+                    profile = state.current_profile or "flash"
+                    yield (
+                        "event: session_started\n"
+                        f"data: {json.dumps({'session_id': str(active_sid), 'initial_goal': goal, 'profile': profile}, default=str)}\n\n"
+                    )
+                    for progress_event in state.get_startup_progress(str(active_sid)):
+                        yield (
+                            "event: startup_progress\n"
+                            f"data: {json.dumps(progress_event, default=str)}\n\n"
+                        )
+                    try:
+                        from apps.admin_console.database.repositories.step_repository import step_repo
+
+                        recorded_steps = step_repo.get_session_steps(str(active_sid))
+                        for step_dict in recorded_steps:
+                            yield (
+                                f"event: step_recorded\ndata: {json.dumps(step_dict, default=str)}\n\n"
+                            )
+                    except Exception as exc:
+                        print(f"[Stream] Could not replay active steps: {exc}")
+            else:
+                for progress_event in state.get_startup_progress(session_id):
+                    yield (
+                        f"event: startup_progress\ndata: {json.dumps(progress_event, default=str)}\n\n"
+                    )
+
+            shutdown_waiter = asyncio.create_task(state.shutdown_event.wait())
             while not state.is_shutting_down:
                 queue_waiter = asyncio.create_task(queue.get())
                 done, _ = await asyncio.wait(

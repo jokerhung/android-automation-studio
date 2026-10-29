@@ -1,0 +1,22 @@
+.execution-log { padding: 12px 0 20px; }
+.execution-step { margin: 0 0 28px; font-size: 13px; line-height: 1.65; }
+.execution-meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.execution-meta>span:first-child { color: var(--theme-text-secondary); font-weight: 500; }
+.execution-action { width: min(380px,100%); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin: 0 0 12px; padding: 0 12px; }
+.execution-action summary { display: flex; align-items: center; gap: 9px; min-height: 38px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--theme-text-secondary); list-style: none; }
+.execution-action summary::-webkit-details-marker { display: none; }
+.execution-action summary>svg { color: var(--muted); flex-shrink: 0; }
+.execution-action summary>span { overflow-wrap: anywhere; }
+.execution-action .execution-chevron { margin-left: auto; transition: transform .15s; }
+.execution-action:not([open]) .execution-chevron { transform: rotate(-90deg); }
+.execution-action[open] summary { border-bottom: 1px solid var(--line); }
+.execution-action dl { margin: 6px 0 10px; }
+.execution-action dl>div { display: grid; grid-template-columns: 76px minmax(0,1fr); gap: 8px; margin: 4px 0; align-items: baseline; }
+.execution-action dt { font-size: 12px; font-weight: 600; color: var(--theme-text-secondary); }
+.execution-action dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--text); font-size: 12px; }
+.execution-coordinates { color: var(--theme-info); border: 1px solid var(--theme-info-border); background: var(--theme-info-bg); border-radius: 3px; padding: 2px 6px; font-size: 11px; font-weight: 600; }
+.execution-narrative { padding: 0 18px; }
+.execution-narrative h3 { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--theme-text-secondary); margin: 10px 0 6px; }
+.execution-narrative p,.execution-pending { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--theme-text-secondary); margin: 0; font-size: 13px; line-height: 1.65; font-weight: 400; }
+.execution-error { border: 1px solid var(--theme-error-border); background: var(--theme-error-bg); color: var(--theme-error); border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 10px; }
+.execution-empty { padding: 24px 10px; color: var(--muted); font-size: 13px; }

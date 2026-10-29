@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": [
+    "next-env.d.ts",
+    "src/features/workspace/**/*.ts",
+    "src/features/workspace/**/*.tsx",
+    "src/features/legacy-check/**/*.ts",
+    "src/features/legacy-check/**/*.tsx",
+    "src/app/workspace/**/*.tsx",
+    "src/app/check/**/*.tsx",
+    "src/app/providers.tsx",
+    "src/lib/api/**/*.ts",
+    "src/lib/preferences/**/*.ts",
+    "src/lib/i18n/**/*.ts"
+  ],
+  "exclude": ["node_modules", "out"]
+}

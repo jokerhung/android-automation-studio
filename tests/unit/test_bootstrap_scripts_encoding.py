@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
-POWERSHELL_SCRIPTS = sorted(SCRIPTS_DIR.glob("*.ps1"))
+POWERSHELL_SCRIPTS = sorted(SCRIPTS_DIR.glob("*.ps1")) + [SCRIPTS_DIR.parent / "install.ps1"]
 
 
 def test_powershell_scripts_are_discovered():

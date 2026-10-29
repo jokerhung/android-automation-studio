@@ -16,10 +16,24 @@
 param(
     [ValidateRange(1, 65535)]
     [int]$Port = 8009,
-    [switch]$NoOpen = $false
+    [switch]$NoOpen = $false,
+    [switch]$Daemon = $false,
+    [switch]$Stop = $false,
+    [ValidateSet("next")]
+    [string]$Frontend = $(if ([string]::IsNullOrWhiteSpace($env:ARTEMIS_FRONTEND)) { "next" } else { $env:ARTEMIS_FRONTEND.Trim().ToLowerInvariant() })
 )
 
+if ($Daemon -and $Stop) {
+    Write-Host "   [ERROR] -Daemon and -Stop are mutually exclusive." -ForegroundColor Red
+    exit 1
+}
+
 $ErrorActionPreference = "Continue"
+if ($Frontend -notin @("next")) { throw "ARTEMIS_FRONTEND must be 'next' (Angular has been removed) (got: $Frontend)." }
+$env:ARTEMIS_FRONTEND = $Frontend
+$FrontendApp = "showcase_next"
+$FrontendLabel = "Next.js"
+$NodeRequirement = ">= 20.9.0"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Ensure modern TLS protocols are enabled for downloads (GitHub releases, nodejs.org, Google repositories)
@@ -30,6 +44,16 @@ try {
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $RootDir = Split-Path -Parent $ScriptDir
 Set-Location $RootDir
+
+# Installed instances use the saved host/port and never rebuild on start/stop.
+if (Test-Path -LiteralPath "$RootDir/.artemis-install.json") {
+    $installedAction = if ($Stop) { 'stop' } else { 'start' }
+    $installedArgs = @($installedAction)
+    if ($PSBoundParameters.ContainsKey('Port')) { $installedArgs += @('--port', "$Port") }
+    if (-not $NoOpen -and -not $Stop) { $installedArgs += '--open' }
+    & "$RootDir/.venv/Scripts/python.exe" "$RootDir/scripts/install_runtime.py" @installedArgs
+    exit $LASTEXITCODE
+}
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "       Artemis Autonomous Mobile Agent UI           " -ForegroundColor Cyan
@@ -218,20 +242,9 @@ function Install-PortableScrcpy {
 function Test-NodeCompatible {
     if (-not (Test-CommandExists "node") -or (-not (Test-CommandExists "npm") -and -not (Test-CommandExists "npm.cmd"))) { return $false }
     try {
-        $verRaw = (& node -v 2>$null)
-        if (-not $verRaw) { return $false }
-        $verStr = $verRaw.ToString().Trim().TrimStart('v')
-        $parts = $verStr.Split('.')
-        if ($parts.Count -ge 2) {
-            $major = [int]$parts[0]
-            $minor = [int]$parts[1]
-            if ($major -ge 26) { return $true }
-            if ($major -eq 24 -and $minor -ge 15) { return $true }
-            if ($major -eq 22 -and $minor -ge 22) { return $true }
-        }
-    } catch {
-        return $false
-    }
+        $version = [version]((& node -v 2>$null).ToString().Trim().TrimStart('v'))
+        return $version -ge [version]"20.9.0"
+    } catch { return $false }
     return $false
 }
 
@@ -310,6 +323,14 @@ if (-not (Test-CommandExists "uv")) {
     exit 1
 }
 
+# -Stop: just shut down the verified Artemis daemon on -Port and exit, no
+# toolchain checks, no dependency sync, no frontend build.
+if ($Stop) {
+    Write-Host "   [INFO] Stopping Artemis server on port $Port..." -ForegroundColor Yellow
+    uv run python -m artemis stop --port $Port
+    exit $LASTEXITCODE
+}
+
 # 3. Check and try installing missing system toolchains (ADB, FFmpeg, scrcpy)
 $missingCore = @()
 if (-not (Test-CommandExists "adb")) { $missingCore += "adb" }
@@ -370,110 +391,41 @@ if (-not (Test-Path ".env")) {
 Write-Host "   [INFO] Synchronizing Python runtime and project dependencies..." -ForegroundColor Cyan
 uv sync --locked --quiet
 
-# 6. Build Showcase UI when missing or older than its source/configuration
-$ShowcaseIndex = "$RootDir\apps\showcase_ui\dist\frontend\browser\index.html"
-$ShowcaseIndexAlt1 = "$RootDir\apps\showcase_ui\dist\browser\index.html"
-$ShowcaseIndexAlt2 = "$RootDir\apps\showcase_ui\dist\index.html"
-$showcaseCandidates = @($ShowcaseIndex, $ShowcaseIndexAlt1, $ShowcaseIndexAlt2)
-$existingShowcaseIndex = $showcaseCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-$frontendBuildRequired = -not $existingShowcaseIndex
-if ($existingShowcaseIndex) {
-    $builtAt = (Get-Item $existingShowcaseIndex).LastWriteTimeUtc
-    $frontendInputs = @(
-        "$RootDir\apps\showcase_ui\src",
-        "$RootDir\apps\showcase_ui\public"
-    ) | Where-Object { Test-Path $_ } | ForEach-Object {
-        Get-ChildItem -Path $_ -Recurse -File -ErrorAction SilentlyContinue
-    }
-    $frontendInputs += @(
-        "$RootDir\apps\showcase_ui\package.json",
-        "$RootDir\apps\showcase_ui\package-lock.json",
-        "$RootDir\apps\showcase_ui\angular.json",
-        "$RootDir\apps\showcase_ui\tsconfig.json",
-        "$RootDir\apps\showcase_ui\tsconfig.app.json"
-    ) | Where-Object { Test-Path $_ } | ForEach-Object { Get-Item $_ }
-    $frontendBuildRequired = $null -ne ($frontendInputs | Where-Object { $_.LastWriteTimeUtc -gt $builtAt } | Select-Object -First 1)
+# Build the selected frontend when its artifact is missing or stale
+Write-Host "`nChecking selected frontend build ($FrontendLabel)..." -ForegroundColor Yellow
+$FrontendDir = Join-Path $RootDir "apps\$FrontendApp"
+$FrontendCandidates = @((Join-Path $FrontendDir "out\index.html"))
+$InputRoots = @("src", "public")
+$InputFiles = @("package.json", "package-lock.json", "next.config.ts", "postcss.config.mjs", "tsconfig.json")
+$ExistingFrontendIndex = $FrontendCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+$FrontendBuildRequired = -not $ExistingFrontendIndex
+if ($ExistingFrontendIndex) {
+    $BuiltAt = (Get-Item $ExistingFrontendIndex).LastWriteTimeUtc
+    $FrontendInputs = foreach ($relative in $InputRoots) { $path = Join-Path $FrontendDir $relative; if (Test-Path $path) { Get-ChildItem $path -Recurse -File -ErrorAction SilentlyContinue } }
+    $FrontendInputs += foreach ($relative in $InputFiles) { $path = Join-Path $FrontendDir $relative; if (Test-Path $path) { Get-Item $path } }
+    $FrontendBuildRequired = $null -ne ($FrontendInputs | Where-Object { $_.LastWriteTimeUtc -gt $BuiltAt } | Select-Object -First 1)
 }
-if ($frontendBuildRequired) {
-    if (-not (Test-NodeCompatible)) {
-        if (Test-CommandExists "node") {
-            $curVer = (& node -v 2>$null)
-            Write-Host "   [INFO] Detected Node.js $curVer, but Angular CLI requires Node.js >= v22.22.0." -ForegroundColor Yellow
-        } else {
-            Write-Host "   [INFO] Node.js/npm not found (required for Showcase UI)." -ForegroundColor Cyan
-        }
-
-        # 1. Try nvm if available on Windows
-        if (Test-CommandExists "nvm") {
-            Write-Host "   [INFO] Installing Node.js 22 LTS via nvm..." -ForegroundColor Cyan
-            & nvm install 22.23.2 | Out-Null
-            & nvm use 22.23.2 | Out-Null
-            Update-EnvironmentPath
-        }
-
-        # 2. Try WinGet
-        if (-not (Test-NodeCompatible)) {
-            $useWinGetNode = $false
-            if (Test-CommandExists "winget") {
-                if ([Console]::IsInputRedirected -eq $false) {
-                    Write-Host "   [INFO] Node.js >= v22.22.0 required for Showcase UI." -ForegroundColor Cyan
-                    $ans = Read-Host "      Install/Upgrade Node.js via WinGet (may require Administrator)? [Y/n]"
-                    if ($ans -eq "" -or $ans -match "^[Yy]") {
-                        $useWinGetNode = $true
-                    }
-                } else {
-                    $useWinGetNode = $true
-                }
-            }
-
-            if ($useWinGetNode) {
-                Write-Host "   [INFO] Installing/Upgrading Node.js LTS via WinGet..." -ForegroundColor Yellow
-                winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements --silent 2>$null | Out-Null
-                Update-EnvironmentPath
-            }
-        }
-
-        # 3. Zero-admin user-space fallback for Node.js if still not compatible
-        if (-not (Test-NodeCompatible)) {
-            Install-PortableNode
-        }
-    }
-
-    if (Test-NodeCompatible) {
-        $nodeVer = (& node -v 2>$null)
-        Write-Host "   [OK] Node.js $nodeVer is ready." -ForegroundColor Green
-        Write-Host "   [INFO] Showcase UI build is missing or stale. Compiling Angular Showcase UI..." -ForegroundColor Yellow
-        Push-Location "$RootDir\apps\showcase_ui"
-        try {
-            $npmExec = if (Test-CommandExists "npm.cmd") { "npm.cmd" } else { "npm" }
-            Write-Host "   [INFO] Installing frontend npm dependencies..." -ForegroundColor Cyan
-            & $npmExec install --no-audit --no-fund --loglevel=error
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "   [WARN] npm install returned exit code $LASTEXITCODE. Trying silent install..." -ForegroundColor DarkYellow
-                & $npmExec install --silent
-            }
-            $cliNodeVersion = "$RootDir\apps\showcase_ui\node_modules\@angular\cli\src\utilities\node-version.js"
-            if (Test-Path $cliNodeVersion) {
-                (Get-Content $cliNodeVersion) -replace '22\.22\.3', '22.22.0' | Set-Content $cliNodeVersion
-            }
-            Write-Host "   [INFO] Building Angular frontend application..." -ForegroundColor Cyan
-            & $npmExec run build
-            if (Test-Path $ShowcaseIndex) {
-                Write-Host "   [OK] Showcase UI compiled successfully." -ForegroundColor Green
-            } elseif (Test-Path $ShowcaseIndexAlt1) {
-                Write-Host "   [OK] Showcase UI compiled successfully." -ForegroundColor Green
-            } else {
-                Write-Host "   [WARN] Showcase UI build finished but index.html was not found in expected dist directory." -ForegroundColor DarkYellow
-            }
-        } catch {
-            Write-Host "   [WARN] Failed to build Showcase UI: $_" -ForegroundColor DarkYellow
-        } finally {
-            Pop-Location
-        }
-    } else {
-        Write-Host "   [WARN] Node.js >= v22.22.0 not found. Showcase UI will show fallback notice on launch." -ForegroundColor DarkYellow
-    }
-}
+if ($FrontendBuildRequired) {
+    if (-not (Test-NodeCompatible) -and (Test-CommandExists "nvm")) { & nvm use 22 | Out-Null; Update-EnvironmentPath }
+    if (-not (Test-NodeCompatible)) { Install-PortableNode | Out-Null; Update-EnvironmentPath }
+    if (-not (Test-NodeCompatible)) { Write-Error "Cannot build ${FrontendLabel}: Node.js $NodeRequirement and npm are required."; exit 1 }
+    $npmExec = if (Test-CommandExists "npm.cmd") { "npm.cmd" } else { "npm" }
+    Push-Location $FrontendDir
+    try {
+        Write-Host "   [INFO] Installing $FrontendLabel dependencies..." -ForegroundColor Cyan
+        if (Test-Path "package-lock.json") { & $npmExec ci --no-audit --no-fund } else { & $npmExec install --no-audit --no-fund }
+        if ($LASTEXITCODE -ne 0) { throw "npm dependency install failed with exit code $LASTEXITCODE" }
+        Write-Host "   [INFO] Building $FrontendLabel frontend application..." -ForegroundColor Cyan
+        & $npmExec run build
+        if ($LASTEXITCODE -ne 0) { throw "$FrontendLabel build failed with exit code $LASTEXITCODE" }
+    } catch {
+        Write-Error "$FrontendLabel frontend build failed; the previous artifact, if any, was not removed. $_"
+        exit 1
+    } finally { Pop-Location }
+    $BuiltFrontendIndex = $FrontendCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $BuiltFrontendIndex) { Write-Error "$FrontendLabel build completed but expected artifact was not found: $($FrontendCandidates -join ', ')"; exit 1 }
+    Write-Host "   [OK] $FrontendLabel frontend compiled successfully." -ForegroundColor Green
+} else { Write-Host "   [OK] Selected $FrontendLabel frontend artifact is current." -ForegroundColor Green }
 
 # 7. Optionally configure MCP for detected AI IDEs
 Write-Host ""
@@ -503,17 +455,64 @@ if ($installMcp -match "^[Yy]") {
 }
 Write-Host ""
 
-# 8. Launch unified Showcase UI & open browser
+# 8. Launch unified Showcase UI & open browser (or detach as a background daemon)
 # Ensure local ADB daemon is warm & listening
 Start-LocalAdbServer
 
 # Launch via `python -m artemis` (not the `artemis.exe` console-script shim) so the
 # long-running server never locks .venv\Scripts\artemis.exe against `uv sync` reinstalls.
-Write-Host "   [INFO] Launching Artemis Showcase UI & Admin Console..." -ForegroundColor Green
-if ($NoOpen) {
-    uv run python -m artemis ui --port $Port --no-open
+if ($Daemon) {
+    Write-Host "   [INFO] Launching Artemis Showcase UI & Admin Console as a background daemon..." -ForegroundColor Green
+    $daemonArgs = @("-m", "artemis", "restart", "--port", "$Port", "--daemon")
+    $daemonArgs += if ($NoOpen) { "--no-open" } else { "--open" }
+    # Launch the venv's pythonw.exe directly (not `python.exe`, and not
+    # through `uv run`). Two layers were tried and both still leaked a
+    # visible console on this launch chain:
+    #   - `uv run python -m artemis restart --daemon`: `uv` re-execs the
+    #     Python process through its own child launcher, which opens a
+    #     fresh console for it regardless of `uv`'s own window state.
+    #   - venv's `python.exe` directly: on a uv-managed venv, that is a thin
+    #     stub that re-execs the real base CPython interpreter, and that
+    #     redirect does not propagate CREATE_NO_WINDOW either.
+    # `pythonw.exe` (the windowless/GUI-subsystem build) does not have this
+    # problem at any layer, because there is no console subsystem to ever
+    # attach one to, in the stub or in the base interpreter it re-execs.
+    # uv sync already ran earlier in this script, so the venv is current.
+    $venvPythonW = Join-Path $RootDir ".venv\Scripts\pythonw.exe"
+    if (-not (Test-Path $venvPythonW)) {
+        Write-Host "   [ERROR] venv pythonw.exe not found at $venvPythonW. Run 'uv sync' first." -ForegroundColor Red
+        exit 1
+    }
+    # This CLI call only verifies the port and spawns the actual detached
+    # daemon (apps.admin_console.server, itself already CREATE_NO_WINDOW),
+    # then exits. Its exit code is not reliable under pythonw.exe (Rich/Typer
+    # console output can fail with no console attached), so success is
+    # judged solely by polling the port below, not by $LASTEXITCODE here.
+    Start-Process -FilePath $venvPythonW -ArgumentList $daemonArgs -WindowStyle Hidden -WorkingDirectory $RootDir
+    $daemonUp = $false
+    for ($i = 0; $i -lt 60; $i++) {
+        Start-Sleep -Milliseconds 1000
+        $test = Test-NetConnection -ComputerName "127.0.0.1" -Port $Port -InformationLevel Quiet -WarningAction SilentlyContinue
+        if ($test) { $daemonUp = $true; break }
+    }
+    if ($daemonUp) {
+        $LASTEXITCODE = 0
+        Write-Host "   [OK] Artemis server is running in the background." -ForegroundColor Green
+        Write-Host "   Web UI: http://localhost:$Port" -ForegroundColor Cyan
+        Write-Host "   Check status anytime with: uv run python -m artemis status --port $Port" -ForegroundColor Cyan
+        Write-Host "   Stop it with: .\start.bat -Stop -Port $Port" -ForegroundColor Cyan
+    } else {
+        $LASTEXITCODE = 1
+        Write-Host "   [ERROR] Background daemon did not come up on port $Port within 60s." -ForegroundColor Red
+        Write-Host "   Check logs under: $env:LOCALAPPDATA\Artemis\logs\daemon-$Port.log" -ForegroundColor Yellow
+    }
 } else {
-    uv run python -m artemis ui --port $Port --open
+    Write-Host "   [INFO] Launching Artemis Showcase UI & Admin Console..." -ForegroundColor Green
+    if ($NoOpen) {
+        uv run python -m artemis ui --port $Port --no-open
+    } else {
+        uv run python -m artemis ui --port $Port --open
+    }
 }
 
 if ($LASTEXITCODE -ne 0) {

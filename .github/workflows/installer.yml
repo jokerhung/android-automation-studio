@@ -1,0 +1,74 @@
+name: Installer contracts
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      verify_public:
+        description: 'Verify anonymous public installer downloads after publication'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, windows-latest, macos-14, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.13'
+      - name: Prepare Linux OpenCV libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0
+      - name: Install locked test environment
+        run: uv sync --locked --python 3.12 --dev
+      - name: Bash syntax
+        shell: bash
+        run: bash -n install.sh scripts/bootstrap_common.sh start.sh scripts/install_deps.sh
+      - name: PowerShell syntax and usage
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          foreach ($file in @('install.ps1', 'scripts/bootstrap_common.ps1', 'scripts/start.ps1')) {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $file), [ref]$tokens, [ref]$parseErrors) | Out-Null
+            if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+          }
+          ./install.ps1 -Help
+      - name: Unit and bootstrap behavior contracts
+        run: >-
+          uv run --no-sync pytest -q
+          tests/unit/test_install_runtime.py
+          tests/unit/test_installer_release_check.py
+          tests/unit/runtime/test_network_urls.py
+          tests/unit/runtime/test_background_runtime.py
+          tests/unit/runtime/test_daemon_client.py
+          tests/unit/test_bootstrap_scripts_encoding.py
+          tests/integration/installer
+          -m "not android" --override-ini addopts=
+
+# GitHub runners contain development tools. This is not clean-machine acceptance;
+# VM and second-device LAN checks are documented in the ticket test cases.
+
+  public-downloads:
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_public
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check published installers, helpers and source archives
+        run: python scripts/check_installer_release.py

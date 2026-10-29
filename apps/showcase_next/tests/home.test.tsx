@@ -1,0 +1,33 @@
+import { act,render,screen,waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
+import { AppProviders,useAppPreferences } from '@/app/providers';
+import { UI_PREFERENCES_STORAGE_KEY } from '@/lib/preferences/preferences';
+import { HomeLauncher } from '@/features/home/home-launcher';
+
+const push=vi.fn();
+vi.mock('next/navigation',()=>({useRouter:()=>({push})}));
+const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
+function ready(){return {overall_ready:true,blocker_count:0,passed_blocker_count:3,probes:[],active_device:{serial:'emulator-5554',state:'device',model:'Pixel',is_locked:false,installed_packages:['com.google.android.apps.maps']},timestamp:1};}
+function PreferenceControls(){const {setLanguage,setTheme}=useAppPreferences();return <><button onClick={()=>setLanguage('vi')}>local-language</button><button onClick={()=>setTheme('dark')}>local-theme</button></>}
+function renderHome(withControls=false){return render(<AppProviders>{withControls&&<PreferenceControls/>}<HomeLauncher/></AppProviders>);}
+
+describe('Home launcher',()=>{
+ beforeEach(()=>{push.mockReset();localStorage.clear();}); afterEach(()=>vi.unstubAllGlobals());
+ it('loads runtime readiness and backend tuning defaults with abort signals',async()=>{const fetchMock=vi.fn().mockImplementation((url:string)=>Promise.resolve(url==='/api/system/readiness'?json(ready()):json({verification_level:'strict',explorer_mode:'ultra'})));vi.stubGlobal('fetch',fetchMock);renderHome();expect(await screen.findByText('System ready')).toBeInTheDocument();await userEvent.setup().click(screen.getByTitle('Deeper planning for complex and multi-app tasks'));await waitFor(()=>expect(screen.getByRole('slider',{name:'Result check'})).toHaveValue('3'));expect(screen.getByRole('slider',{name:'Screen reading'})).toHaveValue('2');expect(fetchMock).toHaveBeenNthCalledWith(1,'/api/system/readiness',expect.objectContaining({credentials:'same-origin',signal:expect.any(AbortSignal)}));expect(fetchMock).toHaveBeenNthCalledWith(2,'/api/run/defaults',expect.objectContaining({signal:expect.any(AbortSignal)}));});
+ it('submits the Pro payload once and routes to workspace',async()=>{const fetchMock=vi.fn().mockImplementation((url:string)=>Promise.resolve(url==='/api/system/readiness'?json(ready()):url==='/api/run/defaults'?json({verification_level:'final',explorer_mode:'flash'}):json({tasks:[{session_id:'s1'}]})));vi.stubGlobal('fetch',fetchMock);renderHome();await screen.findByText('System ready');const user=userEvent.setup();await user.click(screen.getByTitle('Deeper planning for complex and multi-app tasks'));await user.type(screen.getByLabelText('Task goal'),'Compare recent Android releases');await user.type(screen.getByLabelText('Expected output'),'A comparison table');const verification=screen.getByRole('slider',{name:'Result check'});verification.focus();verification.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}));verification.dispatchEvent(new Event('change',{bubbles:true}));await user.click(screen.getByRole('button',{name:/Run task/}));await waitFor(()=>expect(push).toHaveBeenCalledWith('/workspace'));const runCalls=fetchMock.mock.calls.filter(([url])=>url==='/api/run');expect(runCalls).toHaveLength(1);expect(JSON.parse(runCalls[0]![1].body)).toEqual({goal:'Compare recent Android releases',profile:'pro',expected_output:'A comparison table',enable_outputter:true,verification_level:'final',explorer_mode:'flash'});expect(runCalls[0]![1]).toEqual(expect.objectContaining({method:'POST',credentials:'same-origin',signal:expect.any(AbortSignal)}));});
+ it('shows submission errors without retrying the mutation',async()=>{const fetchMock=vi.fn().mockImplementation((url:string)=>Promise.resolve(url==='/api/system/readiness'?json(ready()):url==='/api/run/defaults'?json({}):json({detail:'Runner busy'},409)));vi.stubGlobal('fetch',fetchMock);renderHome();await screen.findByText('System ready');const user=userEvent.setup();await user.type(screen.getByLabelText('Task goal'),'Open Settings');await user.click(screen.getByRole('button',{name:/Run task/}));expect(await screen.findByRole('alert')).toHaveTextContent('Runner busy');expect(fetchMock.mock.calls.filter(([url])=>url==='/api/run')).toHaveLength(1);expect(push).not.toHaveBeenCalled();});
+ it('keeps run disabled when readiness reports blockers',async()=>{vi.stubGlobal('fetch',vi.fn().mockImplementation((url:string)=>Promise.resolve(url==='/api/system/readiness'?json({...ready(),overall_ready:false,blocker_count:2}):json({}))));renderHome();expect(await screen.findByText('Setup required')).toBeInTheDocument();await userEvent.setup().type(screen.getByLabelText('Task goal'),'Open Maps');expect(screen.getByRole('button',{name:/Run task/})).toBeDisabled();expect(screen.getByRole('link',{name:'Open system setup'})).toHaveAttribute('href','/settings?tab=system');});
+ it('keeps dirty Home drafts across local and cross-tab language/theme changes',async()=>{
+  vi.stubGlobal('fetch',vi.fn().mockImplementation((url:string)=>Promise.resolve(url==='/api/system/readiness'?json(ready()):json({}))));
+  renderHome(true); await screen.findByText('System ready'); const user=userEvent.setup();
+  const goal=screen.getByLabelText('Task goal'); await user.type(goal,'Unsaved home goal');
+  await user.click(screen.getByTitle('Deeper planning for complex and multi-app tasks'));
+  const expected=screen.getByLabelText('Expected output'); await user.type(expected,'Unsaved home output');
+  await user.click(screen.getByText('local-language')); await user.click(screen.getByText('local-theme'));
+  expect(goal).toHaveValue('Unsaved home goal'); expect(expected).toHaveValue('Unsaved home output');
+  act(()=>window.dispatchEvent(new StorageEvent('storage',{key:UI_PREFERENCES_STORAGE_KEY,newValue:JSON.stringify({version:1,language:'en',theme:'light'})})));
+  expect(goal).toHaveValue('Unsaved home goal'); expect(expected).toHaveValue('Unsaved home output');
+ });
+ it('applies a recommended task and its profile',async()=>{vi.stubGlobal('fetch',vi.fn().mockImplementation((url:string)=>Promise.resolve(url==='/api/system/readiness'?json(ready()):json({}))));renderHome();await screen.findByText('System ready');await userEvent.setup().click(screen.getByRole('button',{name:/Commute ETA & Message Draft/}));expect(screen.getByLabelText('Task goal')).toHaveValue('Open Google Maps to check commute time to the airport, calculate arrival time, then open Messages and draft an ETA text.');expect(screen.getByLabelText('Expected output')).toBeInTheDocument();});
+});

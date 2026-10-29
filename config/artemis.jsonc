@@ -8,11 +8,11 @@
   // ------------------------------------------------------------------------------
   "default": {
     "provider": "openai",
-    "model": "gpt-5.6-sol",
+    "model": "gpt-6.1-sol",
     "thinking_level": "medium",
     "fallback": {
       "provider": "openai",
-      "model": "gpt-5.6-luna",
+      "model": "gpt-6-luna",
       "thinking_level": "medium",
       "api_base": "http://localhost:58982/v1"
     },
