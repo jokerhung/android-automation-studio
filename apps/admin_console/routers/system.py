@@ -47,7 +47,11 @@ class WindowsStartupRequest(BaseModel):
 def get_windows_startup(request: Request):
     from artemis.runtime.windows_startup import get_startup_status
 
-    _require_loopback_request(request, "Windows startup settings are local-only.")
+    # The installer exposes the console on the LAN by default.  Keep this
+    # endpoint aligned with the server bind: a loopback server remains local
+    # only, while a LAN-bound server can be managed from its same-origin LAN
+    # URL just like the other settings pages.
+    _require_server_bound_request(request, "Windows startup settings are local-only.")
     try:
         return get_startup_status()
     except OSError:
@@ -63,7 +67,7 @@ def update_windows_startup(payload: WindowsStartupRequest, request: Request):
     except ImportError:
         from apps.admin_console.core.state import state
 
-    _require_loopback_request(request, "Windows startup settings are local-only.")
+    _require_server_bound_request(request, "Windows startup settings are local-only.")
     origin = request.headers.get("origin")
     if origin and urlsplit(origin).netloc.lower() != request.headers.get("host", "").lower():
         raise HTTPException(403, "Change startup settings from the same-origin Artemis console.")

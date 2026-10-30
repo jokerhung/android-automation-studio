@@ -29,7 +29,7 @@ async def test_startup_mutation_uses_server_port(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "peer,origin", [("192.168.1.2", "http://localhost"), ("127.0.0.1", "http://localhost:1234")]
+    "peer,origin", [("127.0.0.1", "http://localhost:1234")]
 )
 async def test_startup_rejects_remote_and_cross_origin(peer, origin):
     with patch("artemis.runtime.windows_startup.set_startup_enabled") as update:
@@ -41,6 +41,25 @@ async def test_startup_rejects_remote_and_cross_origin(peer, origin):
             )
     assert result.status_code == 403
     update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_startup_allows_same_origin_lan_when_server_is_lan_bound(monkeypatch):
+    monkeypatch.setattr(state, "host", "0.0.0.0")
+    monkeypatch.setattr(state, "port", 8009)
+    with patch(
+        "artemis.runtime.windows_startup.get_startup_status",
+        return_value={"supported": True, "enabled": False, "port": 8009},
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app, client=("10.201.21.211", 1234)),
+            base_url="http://10.201.21.211:8009",
+        ) as client:
+            result = await client.get(
+                "/api/system/windows-startup",
+                headers={"Origin": "http://10.201.21.211:8009"},
+            )
+    assert result.status_code == 200
 
 
 @pytest.mark.asyncio
