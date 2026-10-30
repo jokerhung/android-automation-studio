@@ -496,10 +496,10 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Run the Artemis Admin Console server")
     parser.add_argument(
         "--host",
-        default=os.environ.get("ARTEMIS_SERVER_HOST", "127.0.0.1"),
+        default=os.environ.get("ARTEMIS_SERVER_HOST", "0.0.0.0"),
         help=(
-            "Address to bind the HTTP server to. Defaults to loopback; expose "
-            "remotely via a Tailscale/SSH tunnel rather than a wide bind."
+            "Address to bind the HTTP server to. Defaults to LAN reachable; use "
+            "127.0.0.1 for local-only access."
         ),
     )
     parser.add_argument(

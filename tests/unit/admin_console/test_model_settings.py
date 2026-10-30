@@ -134,7 +134,20 @@ async def test_busy_task_blocks_save_and_restart(service, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_remote_cannot_change_models():
+async def test_remote_can_change_models_when_server_is_lan_bound(monkeypatch):
+    monkeypatch.setattr(router.state, "host", "0.0.0.0")
+    async with AsyncClient(
+        transport=ASGITransport(app=app, client=("192.168.1.50", 1234)), base_url="http://localhost"
+    ) as client:
+        response = await client.put("/api/settings/model", json={})
+    # The request reaches payload validation, proving the LAN peer is no
+    # longer rejected by the loopback-only guard.
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_remote_cannot_change_models_when_server_is_loopback(monkeypatch):
+    monkeypatch.setattr(router.state, "host", "127.0.0.1")
     async with AsyncClient(
         transport=ASGITransport(app=app, client=("192.168.1.50", 1234)), base_url="http://localhost"
     ) as client:

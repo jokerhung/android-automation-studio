@@ -202,3 +202,8 @@ def test_output_has_actual_port_and_local_only_has_no_lan(isolated_install, monk
     assert "http://0.0.0.0" not in output
     installer.show_access(8123, "127.0.0.1")
     assert "192.168.1.7" not in capsys.readouterr().out
+
+
+def test_default_install_bind_ignores_stale_loopback_state():
+    assert installer.bind_host(argparse.Namespace(local_only=False)) == "0.0.0.0"
+    assert installer.bind_host(argparse.Namespace(local_only=True)) == "127.0.0.1"

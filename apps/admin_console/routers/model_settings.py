@@ -18,7 +18,11 @@ try:
         ModelSettingsService,
         ModelSettingsUpdate,
     )
-    from admin_console.routers.system import _require_loopback_request, state, scheduler_service
+    from admin_console.routers.system import (
+        _require_server_bound_request,
+        state,
+        scheduler_service,
+    )
     from admin_console.services.email_notification_service import email_notification_service
 except ImportError:
     from apps.admin_console.services.model_settings_service import (
@@ -26,7 +30,7 @@ except ImportError:
         ModelSettingsUpdate,
     )
     from apps.admin_console.routers.system import (
-        _require_loopback_request,
+        _require_server_bound_request,
         state,
         scheduler_service,
     )
@@ -36,7 +40,7 @@ router = APIRouter(prefix="/api/settings/model", tags=["settings"])
 
 
 def authorize(request):
-    _require_loopback_request(request, "Model settings are local-only.")
+    _require_server_bound_request(request, "Model settings are local-only.")
     origin = request.headers.get("origin")
     if origin and urlsplit(origin).netloc.lower() != request.headers.get("host", "").lower():
         raise HTTPException(403, "Use the same-origin Artemis console.")

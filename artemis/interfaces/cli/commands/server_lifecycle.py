@@ -70,11 +70,11 @@ def restart_command(
             "--host",
             "-H",
             help=(
-                "Bind host address for the UI server. Defaults to loopback; for remote "
-                "access prefer a Tailscale/SSH tunnel over a wide bind."
+                "Bind host address for the UI server. Defaults to LAN reachable; use "
+                "127.0.0.1 for local-only access."
             ),
         ),
-    ] = "127.0.0.1",
+    ] = "0.0.0.0",
     port: Annotated[
         int,
         typer.Option("--port", "-p", help="Port to run the unified UI server on."),

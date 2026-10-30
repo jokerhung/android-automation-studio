@@ -361,14 +361,6 @@ def prepare(args, state: dict) -> int:
             save_state(state)
         else:
             print("[GIU] 3/6 Python environment is current", flush=True)
-        configure = [str(PYTHON), str(Path(__file__)), "_configure"]
-        if args.port is not None:
-            configure += ["--port", str(args.port)]
-        for name in ("local_only", "non_interactive"):
-            if getattr(args, name):
-                configure.append("--" + name.replace("_", "-"))
-        run(configure, timeout=60, code=6, preserve_code=True)
-        state = read_state()
         if not build_current:
             print("[DANG] 5/6 Building frontend", flush=True)
             (ROOT / ".tools").mkdir(exist_ok=True)
@@ -383,6 +375,16 @@ def prepare(args, state: dict) -> int:
             save_state(state)
     else:
         print("[GIU] 3/6 Dependencies and 5/6 frontend are current", flush=True)
+    # Always apply the requested access mode.  The bind address is runtime
+    # configuration and must not depend on whether dependencies/assets changed.
+    configure = [str(PYTHON), str(Path(__file__)), "_configure"]
+    if args.port is not None:
+        configure += ["--port", str(args.port)]
+    for name in ("local_only", "non_interactive"):
+        if getattr(args, name):
+            configure.append("--" + name.replace("_", "-"))
+    run(configure, timeout=60, code=6, preserve_code=True)
+    state = read_state()
     command = [str(PYTHON), str(Path(__file__)), "_finish"]
     if args.port is not None:
         command += ["--port", str(args.port)]
@@ -566,6 +568,13 @@ def show_access(port: int, host: str) -> None:
         print(f"{action}: {rendered}")
 
 
+def bind_host(args) -> str:
+    """Select the installer bind address from its explicit access mode."""
+    # Do not reuse stale state from a previous `artemis ui` invocation. The
+    # default installer mode is LAN reachable; --local-only is the opt-out.
+    return "127.0.0.1" if args.local_only else "0.0.0.0"
+
+
 def manage(args, state: dict) -> int:
     from artemis.runtime.background_runtime import ensure_background_runtime
     from artemis.runtime.server_lifecycle import read_server_info
@@ -587,7 +596,7 @@ def manage(args, state: dict) -> int:
         elif install_lock.exists():
             raise InstallError(3, "Installer is running; retry management after it finishes")
 
-    host = "127.0.0.1" if args.local_only else state.get("host", "0.0.0.0")
+    host = bind_host(args)
     port = (
         choose_port(args, state, host)
         if args.action == "_finish"
@@ -619,11 +628,17 @@ def manage(args, state: dict) -> int:
             raise InstallError(
                 8, "Running instance has LAN bind. Stop it explicitly before selecting --local-only"
             )
-        host = actual_host
-        print("[GIU] Reusing verified running ARTEMIS instance", flush=True)
-    elif status.presence is not DaemonPresence.STOPPED:
+        if actual_host == host:
+            host = actual_host
+            print("[GIU] Reusing verified running ARTEMIS instance", flush=True)
+        else:
+            print(f"[DANG] Rebinding running ARTEMIS from {actual_host} to {host}", flush=True)
+            if not adapter.stop(timeout=30):
+                raise InstallError(8, "Verified daemon did not stop; bind address was not changed")
+            status = adapter.status()
+    if status.presence is not DaemonPresence.STOPPED and status.presence is not DaemonPresence.ARTEMIS:
         raise InstallError(8, f"Port {port} is occupied by an unverified process")
-    else:
+    if status.presence is DaemonPresence.STOPPED:
         print("[DANG] 6/6 Starting background ARTEMIS", flush=True)
         # The lifecycle waiter may see a listening socket before identity is
         # initialized. The bounded loop below performs the final verification.
@@ -738,7 +753,7 @@ def main() -> int:
             from artemis.config.paths import get_server_info_file
 
             initialize_config()
-            host = "127.0.0.1" if args.local_only else state.get("host", "0.0.0.0")
+            host = bind_host(args)
             port = choose_port(args, state, host)
             state.update(host=host, port=port, server_info_dir=str(get_server_info_file().parent))
             save_state(state)

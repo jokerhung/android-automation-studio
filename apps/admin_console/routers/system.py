@@ -124,6 +124,24 @@ def _require_loopback_request(request: Request, detail: str) -> None:
         raise HTTPException(status_code=403, detail=detail)
 
 
+def _require_server_bound_request(request: Request, detail: str) -> None:
+    """Allow requests when the console is intentionally exposed beyond localhost.
+
+    The installer binds the normal (non ``--local-only``) server to ``0.0.0.0``
+    so the web console is reachable from the LAN.  Endpoints which configure
+    the server itself should follow that binding: a loopback bind remains
+    local-only, while a wildcard or LAN bind permits an authenticated
+    same-origin browser request from the network.
+    """
+    bound_host = getattr(state, "host", "127.0.0.1")
+    try:
+        bound_is_loopback = ipaddress.ip_address(bound_host).is_loopback
+    except ValueError:
+        bound_is_loopback = bound_host.lower() == "localhost"
+    if bound_is_loopback:
+        _require_loopback_request(request, detail)
+
+
 def _require_local_lifecycle_request(request: Request) -> None:
     """Authorize a process-lifecycle request from the local CLI only."""
     _require_loopback_request(request, "Server lifecycle controls are local-only.")

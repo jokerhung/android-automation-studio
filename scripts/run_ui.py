@@ -76,7 +76,7 @@ def main() -> None:
         "-H",
         "--host",
         type=str,
-        default="127.0.0.1",
+        default="0.0.0.0",
         help="Host address to bind (loopback by default; use a tunnel for remote access)",
     )
     parser.add_argument(
