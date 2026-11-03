@@ -3,7 +3,7 @@ import { reduceStreamEvents } from './realtime';
 import { snapshotIsCurrent } from './snapshot';
 import type { AsyncResource, SessionDetails, WorkspaceAction, WorkspaceState } from './types';
 
-export const initialWorkspaceState: WorkspaceState = { sessions: [], sessionsRequestId: 0, sessionsUpdatedAt: 0, status: null, statusRequestId: 0, statusUpdatedAt: 0, selectedSessionId: null, selectionGeneration: 0, details: {}, connection: 'idle', streamAttempt: 0, error: null, streamEvents: [], latestAuxiliaryEvent: null, player: { sessionId: null, mode: 'video', stepIndex: 0, playing: false, playbackRate: 1, currentTime: 0, activeSegmentIndex: 0 } };
+export const initialWorkspaceState: WorkspaceState = { sessions: [], sessionsRequestId: 0, sessionsUpdatedAt: 0, status: null, statusRequestId: 0, statusUpdatedAt: 0, selectedSessionId: null, selectionGeneration: 0, details: {}, connection: 'idle', streamAttempt: 0, error: null, streamEvents: [], latestAuxiliaryEvent: null, player: { sessionId: null, mode: 'video', stepIndex: 0, playing: false, playbackRate: 2, currentTime: 0, activeSegmentIndex: 0 } };
 const emptyDetails = (requestId: number): AsyncResource<SessionDetails> => ({ data: null, loading: true, error: null, requestId });
 
 export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
@@ -36,7 +36,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       const resource=state.details[action.sessionId]; if(!resource?.data)return state;
       return { ...state, details: { ...state.details, [action.sessionId]: { ...resource, data: { ...resource.data, video: action.video } } } };
     }
-    case 'playerSessionChanged': return state.player.sessionId===action.sessionId ? state : { ...state, player: { sessionId: action.sessionId, mode: action.mode, stepIndex: 0, playing: false, playbackRate: 1, currentTime: 0, activeSegmentIndex: 0 } };
+    case 'playerSessionChanged': return state.player.sessionId===action.sessionId ? state : { ...state, player: { sessionId: action.sessionId, mode: action.mode, stepIndex: 0, playing: false, playbackRate: 2, currentTime: 0, activeSegmentIndex: 0 } };
     case 'playerPatched': return { ...state, player: { ...state.player, ...action.patch } };
     case 'streamEventsReceived': {
       if (action.sessionId !== state.selectedSessionId || action.generation !== state.selectionGeneration) return state;

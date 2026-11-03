@@ -125,9 +125,28 @@
   .workspace-page.ws-three-columns .ws-task-meta { display: flex; gap: 8px; }
 }
 @media(max-width:760px) {
-  .workspace-page.ws-three-columns { padding: 60px 10px 140px; height: auto; overflow: visible; }
-  .workspace-page.ws-three-columns .ws-layout { display: flex; flex-direction: column; height: auto; gap: 14px; }
-  .workspace-page.ws-three-columns .ws-rail { order: 0; height: auto; max-height: 260px; border: 1px solid var(--line); border-radius: 12px; }
+  .workspace-page.ws-three-columns {
+    width: 100%; max-width: none; margin: 0 auto;
+    padding: 60px 10px 140px; height: auto; overflow: visible;
+  }
+  .workspace-page.ws-three-columns .ws-layout {
+    display: flex; flex-direction: column; align-items: stretch;
+    width: 100%; min-width: 0; max-width: 100%; margin-inline: auto;
+    height: auto; gap: 14px;
+  }
+  .workspace-page.ws-three-columns .ws-rail,
+  .workspace-page.ws-three-columns .ws-main,
+  .workspace-page.ws-three-columns .ws-viewer-column {
+    box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%;
+    margin-inline: auto; flex-shrink: 0; scrollbar-gutter: auto;
+  }
+  .workspace-page.ws-three-columns .ws-rail {
+    order: 0; display: block; height: auto; max-height: none; overflow: visible;
+    border: 1px solid var(--line); border-radius: 12px;
+  }
+  .workspace-page.ws-three-columns .ws-task-list {
+    max-height: clamp(320px, 55dvh, 560px); overflow-y: auto;
+  }
   .workspace-page.ws-three-columns .ws-main { order: 1; min-height: 260px; height: auto; overflow: visible; padding: 0; }
   .workspace-page.ws-three-columns .ws-viewer-column { order: 2; width: 100%; height: auto; padding: 0; overflow: visible; }
   .workspace-page.ws-three-columns .ws-device-card { max-width: 360px; margin: auto; }
