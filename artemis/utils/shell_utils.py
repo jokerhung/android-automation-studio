@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import subprocess
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 
 def run_shell_command_on_host(command: str) -> str:
@@ -25,6 +26,7 @@ def run_shell_command_on_host(command: str) -> str:
             check=True,
             capture_output=True,
             text=True,
+            **hidden_process_kwargs(),
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:

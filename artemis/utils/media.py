@@ -22,6 +22,7 @@ import subprocess
 import tempfile
 
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 from PIL import Image
 
 logger = get_logger(__name__)
@@ -129,6 +130,7 @@ def _save_gif_ffmpeg(
             ],
             capture_output=True,
             text=True,
+            **hidden_process_kwargs(),
         )
         if result.returncode != 0:
             raise RuntimeError(f"ffmpeg palette generation failed: {result.stderr}")
@@ -153,6 +155,7 @@ def _save_gif_ffmpeg(
             ],
             capture_output=True,
             text=True,
+            **hidden_process_kwargs(),
         )
         if result.returncode != 0:
             raise RuntimeError(f"ffmpeg GIF creation failed: {result.stderr}")

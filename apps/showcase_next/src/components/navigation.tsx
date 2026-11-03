@@ -1,10 +1,10 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, PanelsTopLeft, CalendarClock, Settings } from 'lucide-react';
+import { Home, PanelsTopLeft, CalendarClock, Settings, Smartphone } from 'lucide-react';
 import { useAppPreferences } from '@/app/providers';
 import { Button } from '@/components/ui/button';
-const items = [['/', 'nav.home', Home], ['/workspace/', 'nav.workspace', PanelsTopLeft], ['/task-schedule/', 'nav.schedule', CalendarClock], ['/settings/', 'nav.settings', Settings]] as const;
+const items = [['/', 'nav.home', Home], ['/workspace/', 'nav.workspace', PanelsTopLeft], ['/remote/', 'nav.remote', Smartphone], ['/task-schedule/', 'nav.schedule', CalendarClock], ['/settings/', 'nav.settings', Settings]] as const;
 export function Navigation() {
   const pathname = usePathname(); const { t } = useAppPreferences();
   return <header className="topbar"><nav className="nav" aria-label={t('nav.main')}>

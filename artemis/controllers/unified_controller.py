@@ -83,6 +83,12 @@ class UnifiedMobileController:
         }
         if os.name == "nt":
             kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            # Preserve the console/process group required for CTRL_BREAK so
+            # scrcpy can flush its recording, while hiding the console window.
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            kwargs["startupinfo"] = startupinfo
         return await asyncio.create_subprocess_exec(*command, **kwargs)
 
     @staticmethod
@@ -93,7 +99,7 @@ class UnifiedMobileController:
         try:
             process.send_signal(signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGINT)
             await asyncio.wait_for(process.wait(), timeout=8.0)
-        except (ProcessLookupError, TimeoutError):
+        except (OSError, TimeoutError):
             if process.returncode is None:
                 process.terminate()
                 await asyncio.wait_for(process.wait(), timeout=5.0)

@@ -34,6 +34,7 @@ from artemis.constants import SAFETY_SETTINGS_BLOCK_NONE
 from artemis.data_engine.trace import CURRENT_TRACE_ID, TraceSpan
 from artemis.llm.google import normalize_usage
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -472,6 +473,7 @@ async def _persist_timeline_events(
                 *ffmpeg_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **hidden_process_kwargs(),
             )
             await proc.communicate()
         except Exception as e:

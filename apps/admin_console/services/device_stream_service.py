@@ -1,140 +1,115 @@
-# Copyright 2026 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-"""Device Live Screen Streaming Service.
-
-Provides real-time, low-latency device screen frames over HTTP MJPEG and WebSocket.
-Operates concurrently with ADB agent actions with zero interference.
-"""
-
-import asyncio
-import logging
-import subprocess
-import time
+"""Per-device screen capture registry used by the Remote Phone UI."""
+from __future__ import annotations
+import asyncio, io, logging, subprocess, time
+from dataclasses import dataclass, field
 from collections.abc import AsyncGenerator
-
 from artemis.toolchain import find_adb
 from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = logging.getLogger("artemis.stream_service")
 
+@dataclass
+class DeviceProducer:
+    serial: str
+    subscriber_count: int = 0
+    latest_frame: bytes | None = None
+    frame_sequence: int = 0
+    captured_at: float = 0.0
+    last_error: str | None = None
+    screen_width: int | None = None
+    screen_height: int | None = None
+    rotation: int = 0
+    task: asyncio.Task | None = field(default=None, repr=False)
 
 class DeviceStreamService:
-    """Manages real-time screen capture and distribution to web clients."""
-
-    def __init__(self):
-        self._active_listeners = 0
+    """One capture task and latest-frame buffer per ADB serial."""
+    def __init__(self) -> None:
+        self._producers: dict[str, DeviceProducer] = {}
         self._lock = asyncio.Lock()
+        self._active_listeners = 0  # legacy compatibility
         self._latest_frame: bytes | None = None
-        self._last_frame_time: float = 0.0
-        self._is_capturing = False
+        self._last_frame_time = 0.0
         self._capture_task: asyncio.Task | None = None
 
     async def get_device_serial(self) -> str | None:
-        """Find the currently connected active ADB device serial."""
         try:
-            adb_bin = find_adb()
-            proc = await asyncio.create_subprocess_exec(
-                adb_bin,
-                "devices",
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                **hidden_process_kwargs(),
-            )
+            proc = await asyncio.create_subprocess_exec(find_adb(), "devices", stdout=subprocess.PIPE, stderr=subprocess.PIPE, **hidden_process_kwargs())
             stdout, _ = await proc.communicate()
-            lines = stdout.decode().strip().splitlines()
-            for line in lines[1:]:
-                parts = line.strip().split()
-                if len(parts) >= 2 and parts[1] == "device":
-                    return parts[0]
-        except Exception as e:
-            logger.warning(f"Error checking adb devices: {e}")
+            for line in stdout.decode(errors="replace").splitlines()[1:]:
+                parts = line.split()
+                if len(parts) >= 2 and parts[1] == "device": return parts[0]
+        except Exception as exc: logger.warning("ADB discovery failed: %s", exc)
         return None
 
-    async def _capture_loop(self):
-        """Background frame capture loop that runs while listeners > 0."""
-        logger.info("[StreamService] Starting live screen capture loop...")
-        while self._active_listeners > 0:
-            try:
-                start_t = time.time()
-                serial = await self.get_device_serial()
-                adb_bin = find_adb()
-                cmd = (
-                    [adb_bin, "-s", serial, "exec-out", "screencap", "-p"]
-                    if serial
-                    else [adb_bin, "exec-out", "screencap", "-p"]
-                )
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    **hidden_process_kwargs(),
-                )
-                stdout, _ = await proc.communicate()
-                if proc.returncode == 0 and len(stdout) > 1000:
-                    self._latest_frame = stdout
-                    self._last_frame_time = time.time()
-
-                elapsed = time.time() - start_t
-                delay = max(0.03, 0.08 - elapsed)
-                await asyncio.sleep(delay)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"[StreamService] Capture error: {e}")
-                await asyncio.sleep(0.5)
-
-        logger.info("[StreamService] Stopping live screen capture loop (0 listeners).")
-        self._is_capturing = False
-
-    async def start_capturing(self):
-        """Register a new listener and start background capture if needed."""
-        async with self._lock:
-            self._active_listeners += 1
-            if not self._is_capturing or self._capture_task is None or self._capture_task.done():
-                self._is_capturing = True
-                self._capture_task = asyncio.create_task(self._capture_loop())
-
-    async def stop_capturing(self):
-        """Deregister a listener and stop capture loop when count reaches 0."""
-        async with self._lock:
-            self._active_listeners = max(0, self._active_listeners - 1)
-            if self._active_listeners == 0 and self._capture_task and not self._capture_task.done():
-                self._capture_task.cancel()
-                self._is_capturing = False
-
-    async def mjpeg_frame_generator(self) -> AsyncGenerator[bytes, None]:
-        """Async generator streaming MJPEG multipart bytes to HTTP response."""
-        await self.start_capturing()
+    @staticmethod
+    def _jpeg(raw: bytes) -> tuple[bytes, int | None, int | None]:
         try:
-            last_sent_time = 0.0
-            while True:
-                if self._latest_frame and self._last_frame_time > last_sent_time:
-                    last_sent_time = self._last_frame_time
-                    frame_bytes = self._latest_frame
-                    yield (
-                        b"--frame\r\n"
-                        b"Content-Type: image/png\r\n"
-                        b"Content-Length: "
-                        + str(len(frame_bytes)).encode()
-                        + b"\r\n\r\n"
-                        + frame_bytes
-                        + b"\r\n"
-                    )
-                await asyncio.sleep(0.04)
-        finally:
-            await self.stop_capturing()
+            from PIL import Image
+            image = Image.open(io.BytesIO(raw)).convert("RGB")
+            width, height = image.size
+            scale = min(1.0, 960 / max(width, height))
+            if scale < 1: image = image.resize((round(width * scale), round(height * scale)), Image.Resampling.LANCZOS)
+            out = io.BytesIO(); image.save(out, format="JPEG", quality=70, optimize=True)
+            return out.getvalue(), width, height
+        except Exception: return raw, None, None
 
+    async def _capture_loop(self, producer: DeviceProducer | None = None) -> None:
+        # The optional form preserves the legacy workspace test/helper contract.
+        legacy = producer is None
+        if producer is None:
+            serial = await self.get_device_serial()
+            if not serial: return
+            producer = DeviceProducer(serial, subscriber_count=self._active_listeners)
+            self._producers[serial] = producer
+        try:
+            while (self._active_listeners > 0 if legacy else producer.subscriber_count > 0):
+                started = time.monotonic()
+                proc = await asyncio.create_subprocess_exec(find_adb(), "-s", producer.serial, "exec-out", "screencap", "-p", stdout=subprocess.PIPE, stderr=subprocess.PIPE, **hidden_process_kwargs())
+                raw, stderr = await proc.communicate()
+                if proc.returncode == 0 and len(raw) > 100:
+                    frame, width, height = await asyncio.to_thread(self._jpeg, raw)
+                    producer.latest_frame, producer.frame_sequence = frame, producer.frame_sequence + 1
+                    producer.captured_at, producer.last_error = time.monotonic(), None
+                    producer.screen_width, producer.screen_height = width, height
+                    self._latest_frame, self._last_frame_time = frame, time.time()
+                else: producer.last_error = stderr.decode(errors="replace")[-300:] or "screencap failed"
+                await asyncio.sleep(max(0.03, 0.2 - (time.monotonic() - started)))
+        except asyncio.CancelledError: raise
+        except Exception as exc: producer.last_error = str(exc)
+
+    async def _acquire(self, serial: str) -> DeviceProducer:
+        async with self._lock:
+            producer = self._producers.get(serial) or DeviceProducer(serial)
+            self._producers[serial] = producer; producer.subscriber_count += 1
+            if producer.task is None or producer.task.done(): producer.task = asyncio.create_task(self._capture_loop(producer))
+            return producer
+
+    async def _release(self, producer: DeviceProducer) -> None:
+        async with self._lock:
+            producer.subscriber_count = max(0, producer.subscriber_count - 1)
+            if producer.subscriber_count: return
+            task, producer.task = producer.task, None; producer.latest_frame = None
+            if task and not task.done():
+                task.cancel()
+                try: await task
+                except asyncio.CancelledError: pass
+            self._producers.pop(producer.serial, None)
+
+    async def mjpeg_frame_generator(self, serial: str | None = None) -> AsyncGenerator[bytes, None]:
+        serial = serial or await self.get_device_serial()
+        if not serial: return
+        producer = await self._acquire(serial); last_sequence = 0
+        try:
+            while True:
+                if producer.latest_frame is not None and producer.frame_sequence > last_sequence:
+                    last_sequence = producer.frame_sequence; frame = producer.latest_frame
+                    yield b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(frame)).encode() + b"\r\n\r\n" + frame + b"\r\n"
+                await asyncio.sleep(0.04)
+        finally: await self._release(producer)
+
+    async def get_state(self, serial: str) -> dict:
+        p = self._producers.get(serial)
+        age = None if not p or not p.captured_at else max(0, round((time.monotonic() - p.captured_at) * 1000))
+        return {"serial": serial, "state": "device" if p else "unknown", "frame_sequence": p.frame_sequence if p else 0, "frame_age_ms": age, "screen_width": p.screen_width if p else None, "screen_height": p.screen_height if p else None, "rotation": p.rotation if p else 0, "stream_url": f"/api/remote/stream?device_serial={serial}", "last_error": p.last_error if p else None}
 
 device_stream_service = DeviceStreamService()

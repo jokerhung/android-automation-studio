@@ -1,6 +1,6 @@
 .workspace-page.ws-three-columns .ws-main {
   display: flex; flex-direction: column;
-  overflow: hidden; padding-bottom: 0; min-height: 0;
+  overflow: hidden; padding-bottom: var(--ws-composer-clearance, 120px); min-height: 0; box-sizing: border-box;
 }
 .workspace-page.ws-three-columns .ws-session-header,
 .workspace-page.ws-three-columns .ws-main>.ws-alert {
@@ -23,7 +23,7 @@
   overscroll-behavior: contain; scrollbar-gutter: stable;
 }
 .workspace-page.ws-three-columns .ws-log-content {
-  padding-bottom: 120px; display: flow-root;
+  padding-bottom: 16px; display: flow-root;
 }
 @media(max-width:760px) {
   .workspace-page.ws-three-columns .ws-main { height: 70dvh; min-height: 320px; flex: none; }
@@ -32,3 +32,8 @@
 .ws-video-timeline input[type="range"] { display: block; width: 100%; height: 18px; padding: 0; margin: 0; cursor: pointer; accent-color: var(--accent); }
 .ws-video-timeline input:disabled { cursor: not-allowed; opacity: .5; }
 .ws-video-time { text-align: center; font-variant-numeric: tabular-nums; font-family: ui-monospace,monospace; color: var(--text); }
+.ws-running-status { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 10px 17px; border-top: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: .76rem; }
+.ws-running-status span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-event-spinner { flex: 0 0 auto; color: var(--accent); animation: ws-event-spin 1s linear infinite; }
+@keyframes ws-event-spin { to { transform: rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .ws-event-spinner { animation: none; } }

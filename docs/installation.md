@@ -204,6 +204,10 @@ export; TCP liveness and HTTP 200 alone cannot pass.
 Installer stage/exit records are in `logs/install.log`; command details also
 appear in the terminal. The server log's actual path is printed after startup.
 Do not post `.env` or lifecycle metadata containing the internal token.
+
+## Remote Phone
+
+After the console is running, open `/remote/` to view and control one connected Android device. Screen capture uses per-device MJPEG and controls use same-origin JSON requests. Control is restricted to loopback by default; set `ARTEMIS_REMOTE_CONTROL_ALLOW_LAN=1` only on a trusted LAN. ADB input and `screencap` latency are suitable for normal UI actions, not real-time games.
 After a readiness timeout a server may still be starting; inspect status and
 stop it explicitly before changing configuration or retrying a repair.
 

@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 from artemis.platform import OSType, platform
 from artemis.toolchain import toolchain
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -314,6 +315,7 @@ class EmulatorManager:
                         "-l",
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
+                        **hidden_process_kwargs(),
                     )
                     stdout, _ = await p.communicate()
                     out_text = stdout.decode(errors="replace")
@@ -381,6 +383,7 @@ class EmulatorManager:
                         "getprop sys.boot_completed",
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
+                        **hidden_process_kwargs(),
                     )
                     stdout, _ = await p.communicate()
                     boot_completed = stdout.decode(errors="replace").strip()
@@ -466,6 +469,7 @@ class EmulatorManager:
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                         timeout=5,
+                        **hidden_process_kwargs(),
                     )
                 except (OSError, subprocess.SubprocessError):
                     # Graceful `adb emu kill` failed or timed out; the direct

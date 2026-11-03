@@ -12,6 +12,7 @@ import { PreferencesPanel } from '@/components/preferences-panel';
 import { useAppPreferences } from '@/app/providers';
 import {
   settingsApi,
+  type AvailableModels,
   type ModelProvider,
   type ModelSettings,
   type StartupStatus,
@@ -73,6 +74,7 @@ export function GeneralSettings() {
 }
 
 type ModelDraft = {
+  codex_path: string;
   provider: ModelProvider;
   default_model: string;
   fallback_model: string;
@@ -81,6 +83,7 @@ type ModelDraft = {
 };
 
 const blankDraft: ModelDraft = {
+  codex_path: '',
   provider: 'openai',
   default_model: '',
   fallback_model: '',
@@ -89,6 +92,7 @@ const blankDraft: ModelDraft = {
 };
 
 const providers: Array<[ModelProvider, string]> = [
+  ['openai_acp', 'OpenAI ACP'],
   ['openai', 'OpenAI'],
   ['google', 'Google Gemini'],
   ['anthropic', 'Anthropic'],
@@ -111,10 +115,46 @@ export function ModelSettingsPanel() {
   const [error, setError] = useState('');
   const lifetime = useRef<AbortController | null>(null);
   const restoreFocus = useRef<string | null>(null);
+  const modelListRequest = useRef<AbortController | null>(null);
+  const [modelList, setModelList] = useState<AvailableModels | null>(null);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [modelListError, setModelListError] = useState('');
+
+  // Any connection edit invalidates both the list and an in-flight response.
+  useEffect(() => {
+    modelListRequest.current?.abort();
+    setModelList(null);
+    setFetchingModels(false);
+    setModelListError('');
+    return () => modelListRequest.current?.abort();
+  }, [draft.provider, draft.base_url, draft.fallback_url, draft.codex_path, apiKey]);
+
+  async function fetchModels() {
+    modelListRequest.current?.abort();
+    const controller = new AbortController();
+    modelListRequest.current = controller;
+    setFetchingModels(true);
+    setModelListError('');
+    try {
+      const result = await settingsApi.availableModels({
+        provider: draft.provider,
+        base_url: draft.base_url,
+        fallback_url: draft.fallback_url,
+        api_key: apiKey || null,
+        codex_path: draft.codex_path,
+      }, controller.signal);
+      if (!controller.signal.aborted) setModelList(result);
+    } catch (reason) {
+      if (!controller.signal.aborted) setModelListError(errorText(reason, t('settings.models.fetchError')));
+    } finally {
+      if (!controller.signal.aborted) setFetchingModels(false);
+    }
+  }
 
   function apply(value: ModelSettings) {
     setSaved(value);
     setDraft({
+      codex_path: value.codex_path ?? '',
       provider: value.provider,
       default_model: value.default_model,
       fallback_model: value.fallback_model,
@@ -244,29 +284,54 @@ export function ModelSettingsPanel() {
                 {providers.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
               </select>
             </label>
+            {draft.provider === 'openai_acp' && <>
+              <p>{t('settings.models.acpBody')}</p>
+              <label>
+                {t('settings.models.codexPath')}
+                <input name="codexPath" value={draft.codex_path} placeholder={t('settings.models.codexAuto')}
+                  onChange={event=>setDraft({...draft,codex_path:event.target.value})}/>
+              </label>
+            </>}
+            <div className="buttonRow">
+              <Button variant="outline" type="button" disabled={fetchingModels} onClick={()=>void fetchModels()}>
+                {t(fetchingModels ? 'settings.models.fetching' : 'settings.models.fetch')}
+              </Button>
+            </div>
+            {modelListError && <p role="alert" className="inlineError">{modelListError}</p>}
+            {modelList && <p role="status">{t('settings.models.fetched', {defaultCount:modelList.default_models.length, fallbackCount:modelList.fallback_models.length})}</p>}
             <div className="fieldGrid">
               <label>
                 {t('settings.models.default')}
                 <input
                   name="defaultModel"
+                  list="default-model-options"
+                  autoComplete="off"
                   required
                   maxLength={200}
                   value={draft.default_model}
                   onChange={(event) => setDraft({ ...draft, default_model: event.target.value })}
                 />
+                <datalist id="default-model-options">
+                  {modelList?.default_models.map(model=><option key={model} value={model}/>) }
+                </datalist>
               </label>
               <label>
                 {t('settings.models.fallback')}
                 <input
                   name="fallbackModel"
+                  list="fallback-model-options"
+                  autoComplete="off"
                   required
                   maxLength={200}
                   value={draft.fallback_model}
                   onChange={(event) => setDraft({ ...draft, fallback_model: event.target.value })}
                 />
+                <datalist id="fallback-model-options">
+                  {modelList?.fallback_models.map(model=><option key={model} value={model}/>) }
+                </datalist>
               </label>
             </div>
-            <label>
+            {draft.provider !== 'openai_acp' && <label>
               {t('settings.models.apiKey')}
               <small>{saved.keys_configured[draft.provider] ? t('settings.models.configured') : t('settings.models.notConfigured')}</small>
               <input
@@ -277,8 +342,8 @@ export function ModelSettingsPanel() {
                 onChange={(event) => setApiKey(event.target.value)}
                 placeholder={t('settings.models.credential')}
               />
-            </label>
-            {draft.provider !== 'google' && (
+            </label>}
+            {draft.provider !== 'google' && draft.provider !== 'openai_acp' && (
               <div className="fieldGrid">
                 <label>
                   {t('settings.models.baseUrl')}

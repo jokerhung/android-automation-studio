@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -16,6 +17,7 @@ from artemis.utils.subprocess_utils import hidden_process_kwargs
 try:
     from admin_console.services.model_settings_service import (
         ModelSettingsService,
+        ModelListRequest,
         ModelSettingsUpdate,
     )
     from admin_console.routers.system import (
@@ -27,6 +29,7 @@ try:
 except ImportError:
     from apps.admin_console.services.model_settings_service import (
         ModelSettingsService,
+        ModelListRequest,
         ModelSettingsUpdate,
     )
     from apps.admin_console.routers.system import (
@@ -53,6 +56,28 @@ def get_model_settings(request: Request):
         return ModelSettingsService().get()
     except (ValueError, OSError):
         raise HTTPException(500, "Unable to read model configuration files.") from None
+
+
+@router.post("/available")
+async def list_available_models(request: Request):
+    authorize(request)
+    try:
+        payload = ModelListRequest.model_validate(await request.json())
+    except (ValidationError, ValueError):
+        raise HTTPException(422, "Check the provider, API key and endpoint URLs.") from None
+    try:
+        return await ModelSettingsService().list_models(payload)
+    except ValueError as exc:
+        # JSON parsing errors can contain upstream data; never echo that data.
+        if isinstance(exc, json.JSONDecodeError):
+            raise HTTPException(502, "The endpoint returned an invalid model list.") from None
+        raise HTTPException(502, str(exc)) from None
+    except OSError:
+        raise HTTPException(500, "Unable to read model credentials.") from None
+    except TimeoutError:
+        raise HTTPException(504, "Codex ACP did not respond in time. Check Codex login and configuration.") from None
+    except RuntimeError:
+        raise HTTPException(502, "Codex ACP connection failed. Check the installed Codex CLI.") from None
 
 
 def launch_restart(port, host, drop_env):

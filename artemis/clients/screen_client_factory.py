@@ -47,6 +47,7 @@ from artemis.config.constants import ENV_ARTEMIS_HIERARCHY_BACKEND
 from artemis.runtime.adb_endpoint import adb_command
 from artemis.runtime.helper_manager import ProvisionEvent
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -82,6 +83,7 @@ def device_state(device_id: str, timeout: float = 5.0) -> str | None:
             text=True,
             timeout=timeout,
             check=False,
+            **hidden_process_kwargs(),
         )
     except (OSError, subprocess.SubprocessError):
         return None

@@ -8,15 +8,13 @@
   // ------------------------------------------------------------------------------
   "default": {
     "provider": "openai",
-    "model": "gpt-6.1-sol",
-    "thinking_level": "medium",
+    "model": "deepseek-v4.1-flash",
     "fallback": {
       "provider": "openai",
-      "model": "gpt-6-luna",
-      "thinking_level": "medium",
-      "api_base": "http://localhost:58982/v1"
+      "model": "gpt-6.1-sol",
+      "api_base": "https://api.vilao.ai/v1"
     },
-    "api_base": "http://localhost:58982/v1"
+    "api_base": "https://api.vilao.ai/v1"
   },
 
   // ------------------------------------------------------------------------------

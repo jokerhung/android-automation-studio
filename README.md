@@ -241,8 +241,10 @@ The form below was opened without saving or running a task.
 
 - **General:** English/Vietnamese language, light/dark themes, and Start with Windows on supported installations.
 - **Models:** provider, default/fallback model, credentials and custom API URL; save/restart confirmation.
+- **OpenAI ACP:** choose this provider to use the locally installed Codex CLI and its existing login. Run `codex login` on the server computer first, then click **Fetch models**, choose default/fallback models and save/restart. Codex is detected automatically; an optional executable path supports installations outside PATH. No Artemis API key, HTTP proxy or ACP package installation is required. Artemis supplies an ACP stdio bridge to `codex app-server`; this requires a Codex version supporting `account/read`, `model/list`, `thread/start` and `turn/start` (verified with 0.166.0). Text, inline screenshots, tool calls and structured output are supported; responses arrive when complete. Native video/audio and remote image URLs are not supported by this provider. Codex runs hidden on Windows, and Artemis remains responsible for device actions.
 - **Email:** SMTP connection settings and explicit connection/test-email actions.
 - **Android:** local/remote ADB, device selection and installed emulator controls.
+- **Remote Phone:** open `/remote/` to view a connected Android device and send tap, swipe, text, and key input. Control requests are loopback-only by default; set `ARTEMIS_REMOTE_CONTROL_ALLOW_LAN=1` only on a trusted network. MJPEG capture and ADB input are intended for ordinary UI actions, not low-latency games.
 - **System & Environment:** dependency checks and readiness information.
 
 ![Settings showing language, theme and Windows startup preferences](docs/assets/screenshots/settings.png)

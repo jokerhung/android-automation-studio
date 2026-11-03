@@ -91,6 +91,10 @@ class LLM(BaseModel):
         if self.provider == "openai":
             if not settings.OPENAI_API_KEY:
                 raise Exception(f"{name} requires OPENAI_API_KEY in .env")
+        elif self.provider == "openai_acp":
+            from artemis.llm.openai_acp_bridge import resolve_codex
+
+            resolve_codex()
         elif self.provider == "google":
             if not settings.GOOGLE_API_KEY:
                 raise Exception(f"{name} requires GOOGLE_API_KEY in .env")

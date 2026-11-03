@@ -19,6 +19,7 @@ ROUTES = {
     "task-schedule": "task-schedule/index.html",
     "settings": "settings/index.html",
     "check": "check/index.html",
+    "remote": "remote/index.html",
 }
 PROTECTED = ("api/", "images/", "videos/", "local_file", "docs", "openapi.json", "redoc")
 VIDEO = b"\x00\x00\x00\x18ftypmp42ARTEMIS-acceptance-video"
@@ -104,6 +105,22 @@ async def controlled_mjpeg():
         media_type=f"multipart/x-mixed-replace; boundary={MJPEG_BOUNDARY}",
         headers={"X-Artemis-Acceptance": "controlled"},
     )
+
+@app.get("/api/remote/devices", include_in_schema=False)
+async def remote_devices():
+    return JSONResponse({"devices":[{"serial":"acceptance-device","model":"Acceptance Pixel","state":"device","is_busy":False,"busy_session_id":None,"screen_width":1080,"screen_height":1920,"controllable":True,"uncontrollable_reason":None}]})
+
+@app.get("/api/remote/state", include_in_schema=False)
+async def remote_state(device_serial: str):
+    return JSONResponse({"serial":device_serial,"state":"device","frame_sequence":1,"frame_age_ms":10,"screen_width":1080,"screen_height":1920,"rotation":0,"controllable":True,"reason":None,"stream_url":f"/api/remote/stream?device_serial={device_serial}"})
+
+@app.get("/api/remote/stream", include_in_schema=False)
+async def remote_stream(device_serial: str):
+    return await controlled_mjpeg()
+
+@app.post("/api/remote/input/{kind}", include_in_schema=False)
+async def remote_input(kind: str, request: Request):
+    return JSONResponse({"ok":True,"sequence":1,"mode":"ascii","kind":kind})
 
 
 @app.api_route(

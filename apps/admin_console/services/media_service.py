@@ -27,6 +27,7 @@ import urllib.parse
 from fastapi import HTTPException
 
 from artemis.config import IMAGES_DIR, TRACES_PATH, WORKSPACE_ROOT
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,7 @@ class MediaService:
             ],
             capture_output=True,
             timeout=15,
+            **hidden_process_kwargs(),
         )
         if mp4_cand.exists() and mp4_cand.stat().st_size > 0:
             return mp4_cand
@@ -143,6 +145,7 @@ class MediaService:
             ],
             capture_output=True,
             timeout=30,
+            **hidden_process_kwargs(),
         )
         if mp4_cand.exists() and mp4_cand.stat().st_size > 0:
             return mp4_cand

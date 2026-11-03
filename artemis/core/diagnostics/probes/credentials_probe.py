@@ -51,6 +51,35 @@ class LLMCredentialsProbe(BaseProbe):
 
         from artemis.config.settings import is_placeholder_key
 
+        from artemis.config.paths import get_config_path
+        from artemis.utils.file import load_jsonc
+
+        try:
+            with get_config_path("artemis.jsonc").open(encoding="utf-8") as stream:
+                selected_provider = load_jsonc(stream).get("default", {}).get("provider")
+        except (OSError, ValueError):
+            selected_provider = None
+        if selected_provider == "openai_acp":
+            from artemis.llm.openai_acp import available_codex_models
+
+            try:
+                models = await available_codex_models()
+                if not models:
+                    raise ValueError("Codex returned no models.")
+            except (OSError, ValueError, RuntimeError, TimeoutError):
+                return ProbeResult(
+                    id=self.probe_id, category=self.category, title="OpenAI ACP (Codex)",
+                    status=ProbeStatus.FAIL, is_blocker=True, summary="Codex unavailable",
+                    description="Check the Codex executable in Settings → Models and run codex login on the server computer.",
+                    metadata={"provider": "openai_acp"}, actions=[],
+                )
+            return ProbeResult(
+                id=self.probe_id, category=self.category, title="OpenAI ACP (Codex)",
+                status=ProbeStatus.PASS, is_blocker=True, summary="Codex ready",
+                description="Installed Codex is signed in and available through ACP.",
+                metadata={"provider": "openai_acp", "model_count": len(models)}, actions=[],
+            )
+
         gemini_key = settings.get_api_key("google")
         openai_key = settings.get_api_key("openai")
         claude_key = settings.get_api_key("anthropic")

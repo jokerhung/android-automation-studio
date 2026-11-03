@@ -22,6 +22,7 @@ import sys
 import tempfile
 
 from artemis.platform.base import IPlatform, IPlatformPaths, IPlatformProcess, OSType
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 
 class WindowsPlatformPaths(IPlatformPaths):
@@ -104,6 +105,7 @@ class WindowsPlatformProcess(IPlatformProcess):
                 stderr=subprocess.DEVNULL,
                 check=False,
                 timeout=timeout_seconds,
+                **hidden_process_kwargs(),
             )
             if res.returncode == 0:
                 return True

@@ -62,6 +62,7 @@ from artemis.runtime.helper_manager import (
     helper_manager,
 )
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -337,6 +338,7 @@ class AccessibilityClient:
                 capture_output=True,
                 timeout=10,
                 check=True,
+                **hidden_process_kwargs(),
             )
             return Image.open(BytesIO(result.stdout))
         except (OSError, subprocess.SubprocessError) as exc:
@@ -418,6 +420,7 @@ class AccessibilityClient:
             text=True,
             timeout=15,
             check=False,
+            **hidden_process_kwargs(),
         )
         return result.returncode == 0
 

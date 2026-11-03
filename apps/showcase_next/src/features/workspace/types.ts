@@ -54,6 +54,7 @@ export interface WorkspaceState {
   streamAttempt: number;
   error: string | null;
   streamEvents: readonly WorkspaceStreamEvent[];
+  latestAuxiliaryEvent?: WorkspaceStreamEvent | null;
   player: WorkspacePlayerState;
 }
 export type WorkspaceAction =

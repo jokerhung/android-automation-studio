@@ -1,8 +1,10 @@
 import { apiRequest, READINESS_REQUEST_TIMEOUT_MS } from '@/lib/api/client';
 
-export type ModelProvider = 'openai'|'google'|'anthropic'|'openrouter'|'xai'|'custom'|'ollama'|'vllm';
-export interface ModelSettings { provider: ModelProvider; default_model: string; fallback_model: string; fallback_provider: string; base_url: string; fallback_url: string; version: string; keys_configured: Record<string,boolean>; config_path?: string; env_path?: string; node_overrides: string[] }
-export interface ModelSettingsUpdate { provider: ModelProvider; default_model: string; fallback_model: string; base_url: string; fallback_url: string; api_key: string|null; expected_version: string; confirm_restart: true }
+export type ModelProvider = 'openai'|'openai_acp'|'google'|'anthropic'|'openrouter'|'xai'|'custom'|'ollama'|'vllm';
+export interface ModelSettings { codex_path?: string; provider: ModelProvider; default_model: string; fallback_model: string; fallback_provider: string; base_url: string; fallback_url: string; version: string; keys_configured: Record<string,boolean>; config_path?: string; env_path?: string; node_overrides: string[] }
+export interface ModelSettingsUpdate { codex_path?: string; provider: ModelProvider; default_model: string; fallback_model: string; base_url: string; fallback_url: string; api_key: string|null; expected_version: string; confirm_restart: true }
+export interface AvailableModels { default_models: string[]; fallback_models: string[] }
+export type ModelListRequest = Pick<ModelSettingsUpdate, 'provider'|'base_url'|'fallback_url'|'api_key'|'codex_path'>;
 export interface RestartResponse { status: 'restarting'|'saved_restart_failed'|string; previous_pid?: number; message?: string }
 export interface ServerStatus { current_pid?: number }
 export interface StartupStatus { supported: boolean; enabled: boolean; port: number|null }
@@ -23,6 +25,7 @@ export interface EmulatorState { avd_name:string|null; status:'idle'|'starting'|
 
 export const settingsApi={
  model:(signal?:AbortSignal)=>apiRequest<ModelSettings>('/api/settings/model',signal?{signal}:{}),
+ availableModels:(body:ModelListRequest,signal?:AbortSignal)=>apiRequest<AvailableModels,ModelListRequest>('/api/settings/model/available',{method:'POST',body,timeoutMs:30_000,...(signal?{signal}:{})}),
  saveModel:(body:ModelSettingsUpdate,signal?:AbortSignal)=>apiRequest<RestartResponse,ModelSettingsUpdate>('/api/settings/model',{method:'PUT',body,...(signal?{signal}:{})}),
  serverStatus:(signal?:AbortSignal)=>apiRequest<ServerStatus>('/api/system/server-status',signal?{signal}:{}),
  startup:(signal?:AbortSignal)=>apiRequest<StartupStatus>('/api/system/windows-startup',signal?{signal}:{}),

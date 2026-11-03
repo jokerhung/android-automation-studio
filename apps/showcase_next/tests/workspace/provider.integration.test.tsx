@@ -157,7 +157,7 @@ describe('WorkspaceProvider integration lifecycle', () => {
     expect(requestCount('/api/sessions/selected/steps')).toBe(0);
   });
 
-  it('batches SSE bursts and does not reload selected details for foreign or global events', async () => {
+  it('batches SSE bursts without fetching logs, including selected-session completion', async () => {
     render(<AppProviders><Probe /></AppProviders>);
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
     fireEvent.click(screen.getByText('select'));
@@ -179,7 +179,7 @@ describe('WorkspaceProvider integration lifecycle', () => {
       await vi.advanceTimersByTimeAsync(100);
     });
     expect(requestCount('/api/status')).toBe(initialStatus + 2);
-    expect(requestCount('/api/sessions/selected/steps')).toBe(initialDetails + 1);
+    expect(requestCount('/api/sessions/selected/steps')).toBe(initialDetails);
   });
 
   it('keeps root workspace state when a route child remounts', async () => {

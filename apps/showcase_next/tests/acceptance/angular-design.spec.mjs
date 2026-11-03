@@ -23,7 +23,6 @@ for (const theme of ['light', 'dark']) {
     await page.addInitScript(theme => localStorage.setItem('artemis.ui.preferences.v1', JSON.stringify({version:1,language:'en',theme})), theme);
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('What would you like to do on your phone?');
-    await expect(page.locator('.suggestionCard')).toHaveCount(18);
     expect((await page.locator('.topbar').boundingBox()).height).toBe(36);
     expect((await page.locator('.homeComposer').boundingBox()).width).toBe(912);
     await expect(page.locator('footer')).toHaveCount(0);

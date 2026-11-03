@@ -36,6 +36,7 @@ import cv2
 from pydantic import BaseModel, ConfigDict
 
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -295,6 +296,7 @@ async def normalize_recording_to_mp4(
             str(output_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **hidden_process_kwargs(),
         )
         _stdout, stderr = await process.communicate()
         if process.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
@@ -340,6 +342,7 @@ async def remux_recording_to_mp4(source_path: Path, output_path: Path) -> bool:
             str(temporary_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **hidden_process_kwargs(),
         )
         _stdout, stderr = await process.communicate()
         valid = (
@@ -374,6 +377,7 @@ async def remux_recording_to_mp4(source_path: Path, output_path: Path) -> bool:
             str(temporary_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **hidden_process_kwargs(),
         )
         _fout, _ferr = await fallback_proc.communicate()
         if (
@@ -408,6 +412,7 @@ async def probe_video_segment(video_path: Path) -> dict[str, float | int]:
         str(video_path),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        **hidden_process_kwargs(),
     )
     stdout, _stderr = await process.communicate()
     if process.returncode != 0:
@@ -447,6 +452,7 @@ async def get_android_display_state(device_id: str) -> tuple[int, int, int] | No
             "displays",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
+            **hidden_process_kwargs(),
         )
         stdout, _stderr = await asyncio.wait_for(process.communicate(), timeout=3.0)
         text = stdout.decode(errors="replace")
@@ -646,6 +652,7 @@ async def render_timeline_clip(
             *command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **hidden_process_kwargs(),
         )
         _stdout, stderr = await process.communicate()
         if process.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
@@ -735,6 +742,7 @@ async def concatenate_videos(segments: list[Path], output_path: Path) -> bool:
             str(output_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **hidden_process_kwargs(),
         )
         await process.wait()
         return output_path.exists()
@@ -760,6 +768,7 @@ def is_ffmpeg_drawtext_supported() -> bool:
             capture_output=True,
             text=True,
             timeout=3,
+            **hidden_process_kwargs(),
         )
         _drawtext_supported = " drawtext " in res.stdout
     except Exception:
@@ -810,6 +819,7 @@ async def trim_video(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **hidden_process_kwargs(),
         )
         _, stderr = await process.communicate()
         if process.returncode == 0 and output_path.exists():
@@ -942,6 +952,7 @@ async def compress_video_for_api(
             *compress_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **hidden_process_kwargs(),
         )
         _, stderr = await proc.communicate()
 
@@ -992,6 +1003,7 @@ async def extract_audio_from_video(input_path: Path) -> Path:
         *probe_cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        **hidden_process_kwargs(),
     )
     probe_stdout, _ = await probe.communicate()
     if probe.returncode != 0 or not probe_stdout.strip():
@@ -1018,6 +1030,7 @@ async def extract_audio_from_video(input_path: Path) -> Path:
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **hidden_process_kwargs(),
         )
         _, stderr = await proc.communicate()
 

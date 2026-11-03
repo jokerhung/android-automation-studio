@@ -1508,7 +1508,9 @@ class ReplayManager:
             f" offset={start_offset:.3f}s, duration={duration:.3f}s"
         )
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True)
+            from artemis.utils.subprocess_utils import hidden_process_kwargs
+
+            res = subprocess.run(cmd, capture_output=True, text=True, **hidden_process_kwargs())
             if res.returncode != 0:
                 print(
                     f"Warning: ffmpeg failed with exit code {res.returncode}. stderr: {res.stderr}"

@@ -2,6 +2,7 @@
 import { useAppPreferences } from '@/app/providers';
 import { ExecutionLog } from './execution-log';
 import { Button } from '@/components/ui/button';
+import { LoaderCircle } from 'lucide-react';
 /* eslint-disable @next/next/no-img-element -- device MJPEG and trace frames are runtime media */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useWorkspace } from '../provider';
@@ -25,19 +26,15 @@ function PlainTextPanel({label,value,placeholder}:{label:string;value:unknown;pl
 function NotesPanel({notes,planOnly}:{notes:unknown;planOnly:boolean}) { const wrapper=record(notes); const files=record(wrapper.notes); const entries=Object.entries(files).filter(([name])=>planOnly?/plan/i.test(name):!/plan/i.test(name)); return <section className="ws-detail-card"><h3>{planOnly?'Plan':'Notes'}</h3>{entries.length?<div className="ws-note-files">{entries.map(([name,value])=><article key={name}><h4>{name}</h4><pre>{pretty(value)}</pre></article>)}</div>:<p className="ws-muted">{planOnly?'No plan was recorded for this run.':'No session notes yet.'}</p>}</section>; }
 function UsagePanel({usage}:{usage:unknown}) { const data=record(usage); const rows:[string,number|undefined][]=[['LLM calls',number(data.llm_calls)],['Prompt tokens',number(data.prompt_tokens)],['Completion tokens',number(data.completion_tokens)],['Total tokens',number(data.total_tokens)],['Cached tokens',number(data.cached_tokens)]]; const context=number(data.operator_context_tokens),windowSize=number(data.operator_context_window_tokens); return <section className="ws-detail-card ws-usage"><h3>Usage</h3><dl>{rows.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value?.toLocaleString()??'—'}</dd></div>)}</dl>{context!==undefined&&windowSize!==undefined?<div className="ws-context"><span><b>{context.toLocaleString()}</b> / {windowSize.toLocaleString()} context</span><progress value={context} max={Math.max(windowSize,1)}/></div>:null}</section>; }
 
-export function SessionDetailsPanel({details,followLogs=false}:{details:SessionDetails|null;followLogs?:boolean}) { const [tab,setTab]=useState<'notes'|'plan'|'startup'|'logs'|'usage'>('logs'); const tabs=['notes','plan','startup','logs','usage'] as const;
+export function SessionDetailsPanel({details,followLogs=false,isRunning=false,sessionId}:{details:SessionDetails|null;followLogs?:boolean;isRunning?:boolean;sessionId?:string}) { const {t}=useAppPreferences(); const [tab,setTab]=useState<'notes'|'plan'|'startup'|'running'|'logs'|'usage'>(isRunning?'running':'logs'); const tabs=['notes','plan','startup','running','logs','usage'] as const;
+ const {state,loadSessionDetails}=useWorkspace();
+ const auxiliaryEvent=state.selectedSessionId===sessionId?state.latestAuxiliaryEvent:null;
+ const showAuxiliary=tab==='running'&&state.sessions.some(session=>session.session_id===sessionId&&session.status==='running')&&auxiliaryEvent;
+ useEffect(()=>{setTab(isRunning?'running':'logs');},[isRunning]);
+ useEffect(()=>{if(tab==='logs'&&!isRunning&&sessionId)void loadSessionDetails(sessionId);},[tab,isRunning,sessionId,loadSessionDetails]);
  const viewport=useRef<HTMLDivElement>(null); const content=useRef<HTMLDivElement>(null);
- useEffect(()=>{
-   const scroll=viewport.current,body=content.current;
-   if(!scroll||!body||!followLogs||tab!=='logs')return;
-   const bottom=()=>{scroll.scrollTop=scroll.scrollHeight;};
-   bottom();
-   const observer=typeof ResizeObserver==='undefined'?null:new ResizeObserver(bottom);
-   observer?.observe(body);
-   return()=>observer?.disconnect();
- },[followLogs,tab,details?.steps]);
- return <div className="ws-details"><div className="ws-tabs" role="tablist" aria-label="Session details">{tabs.map(item=><Button variant="outline" key={item} type="button" role="tab" aria-selected={tab===item} className={tab===item?'active':''} onClick={()=>setTab(item)}>{item}</Button>)}</div><div role="tabpanel" className="ws-log-viewport" ref={viewport}><div ref={content} className="ws-log-content">{!details?<section className="ws-detail-card"><p className="ws-muted">Loading session details…</p></section>:<>{tab==='notes'&&<NotesPanel notes={details.notes} planOnly={false}/>} {tab==='plan'&&<NotesPanel notes={details.notes} planOnly/>} {tab==='startup'&&<PlainTextPanel label="Startup" value={details.startup} placeholder="Startup progress is unavailable."/>} {tab==='logs'&&<ExecutionLog steps={details.steps}/>} {tab==='usage'&&<UsagePanel usage={details.usage}/>}</>}</div></div></div>; }
-
+ useEffect(()=>{ const scroll=viewport.current,body=content.current; if(!scroll||!body||!followLogs||(tab!=='logs'&&tab!=='running'))return; const bottom=()=>{scroll.scrollTop=scroll.scrollHeight;}; bottom(); const observer=typeof ResizeObserver==='undefined'?null:new ResizeObserver(bottom); observer?.observe(body); return()=>observer?.disconnect(); },[followLogs,tab,details?.steps]);
+ return <div className="ws-details"><div className="ws-tabs" role="tablist" aria-label="Session details">{tabs.map(item=><Button variant="outline" key={item} disabled={item==='logs'&&isRunning} type="button" role="tab" aria-selected={tab===item} className={tab===item?'active':''} onClick={()=>setTab(item)}>{item==='running'?t('workspace.running'):item}</Button>)}</div><div role="tabpanel" className="ws-log-viewport" ref={viewport}><div ref={content} className="ws-log-content">{!details?<section className="ws-detail-card"><p className="ws-muted">Loading session details…</p></section>:<>{tab==='notes'&&<NotesPanel notes={details.notes} planOnly={false}/>} {tab==='plan'&&<NotesPanel notes={details.notes} planOnly/>} {tab==='startup'&&<PlainTextPanel label="Startup" value={details.startup} placeholder="Startup progress is unavailable."/>} {tab==='running'&&<ExecutionLog steps={details.steps.filter(step=>step.block_type!=='checker')}/>} {tab==='logs'&&<ExecutionLog steps={details.steps}/>} {tab==='usage'&&<UsagePanel usage={details.usage}/>}</>}</div></div>{showAuxiliary?<div className="ws-running-status" role="status" aria-live="polite"><LoaderCircle size={15} className="ws-event-spinner" aria-hidden/><span>{auxiliaryEvent.type}</span></div>:null}</div>; }
 export function DeviceViewer({session,details,isActive}:{session:SessionSummary;details:SessionDetails|null;isActive:boolean}) {
  const {preferences}=useAppPreferences(); const vi=preferences.language==='vi';
  const [mediaDuration,setMediaDuration]=useState<{url:string;seconds:number}|null>(null);

@@ -31,6 +31,7 @@ from artemis.toolchain import find_ffmpeg, find_scrcpy
 from artemis.utils.video import build_scrcpy_record_command
 from artemis.utils.ui_filter import filter_ui_hierarchy
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -454,6 +455,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **hidden_process_kwargs(),
             )
             await asyncio.sleep(0.5)
         except Exception as e:
@@ -488,6 +490,7 @@ class AndroidAdbDriver(BaseDeviceDriver):
                     str(mp4),
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    **hidden_process_kwargs(),
                 )
                 await proc.wait()
                 if mp4.exists() and mp4.stat().st_size > 0:

@@ -58,6 +58,7 @@ from artemis.drivers.base import BaseDeviceDriver
 from artemis.tools.base import ArtemisTool
 from artemis.tools.tool_wrapper import ToolWrapper
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -746,6 +747,7 @@ class RunAdbCommandTool(ArtemisTool):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 stdin=asyncio.subprocess.PIPE if interactive else asyncio.subprocess.DEVNULL,
+                **hidden_process_kwargs(),
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Failed to spawn adb shell process for command '{cmd_line}': {e}")
@@ -1112,6 +1114,7 @@ class RunShortAdbCommandTool(ArtemisTool):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 stdin=asyncio.subprocess.DEVNULL,
+                **hidden_process_kwargs(),
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Failed to spawn adb shell process for command '{cmd_line}': {e}")

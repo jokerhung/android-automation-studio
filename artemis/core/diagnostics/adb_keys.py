@@ -32,6 +32,7 @@ from typing import Any
 
 from artemis.toolchain import toolchain
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -219,6 +220,7 @@ def heal_adb_keys(adb_path: str | None = None, force: bool = False) -> dict[str,
             stderr=subprocess.DEVNULL,
             timeout=5,
             env=clean_env,
+            **hidden_process_kwargs(),
         )
         subprocess.run(
             [resolved_adb, "start-server"],
@@ -226,6 +228,7 @@ def heal_adb_keys(adb_path: str | None = None, force: bool = False) -> dict[str,
             stderr=subprocess.DEVNULL,
             timeout=5,
             env=clean_env,
+            **hidden_process_kwargs(),
         )
         # Execute adb devices to trigger initial handshake & key material generation if needed
         subprocess.run(
@@ -234,6 +237,7 @@ def heal_adb_keys(adb_path: str | None = None, force: bool = False) -> dict[str,
             stderr=subprocess.DEVNULL,
             timeout=5,
             env=clean_env,
+            **hidden_process_kwargs(),
         )
     except Exception as e:
         logger.error(f"Error restarting ADB server during key healing: {e}")

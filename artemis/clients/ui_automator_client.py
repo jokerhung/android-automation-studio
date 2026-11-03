@@ -37,6 +37,7 @@ import uiautomator2 as u2
 from artemis.runtime.adb_endpoint import adb_command
 from artemis.runtime.awake_service import ensure_device_awake
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 if TYPE_CHECKING:
     from uiautomator2 import Device
@@ -182,6 +183,7 @@ def _is_package_installed(device_id: str, pkg: str) -> bool:
             capture_output=True,
             text=True,
             timeout=10,
+            **hidden_process_kwargs(),
         )
         if result.returncode != 0:
             logger.warning(f"Failed to list packages: {result.stderr}")
@@ -218,6 +220,7 @@ def _uninstall_package(device_id: str, pkg: str) -> bool:
             capture_output=True,
             text=True,
             timeout=30,
+            **hidden_process_kwargs(),
         )
         if result.returncode == 0:
             logger.info(f"Successfully uninstalled {pkg}")
@@ -401,6 +404,7 @@ class UIAutomatorClient:
                 capture_output=True,
                 timeout=10,
                 check=True,
+                **hidden_process_kwargs(),
             )
             return Image.open(BytesIO(result.stdout))
         except (OSError, subprocess.SubprocessError) as e:

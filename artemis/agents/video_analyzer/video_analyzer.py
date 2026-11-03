@@ -76,6 +76,7 @@ from artemis.llm.google import (
 from artemis.llm.reliability import retry_policy_for
 from artemis.services.llm import _record_llm_event, _record_llm_retry, get_llm
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 from artemis.utils.video import (
     compress_video_for_api,
     extract_audio_from_video,
@@ -550,6 +551,7 @@ class VideoAnalyzer:
                         *duration_cmd,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
+                        **hidden_process_kwargs(),
                     )
                     stdout, _ = await proc.communicate()
                     duration = float(stdout.decode().strip())

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import io
 import json
@@ -14,11 +15,13 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from dotenv import dotenv_values
+import httpx
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from artemis.config.paths import get_config_path, get_env_file
 from artemis.utils.file import load_jsonc
 
 PROVIDER_KEYS = {
+    "openai_acp": [],
     "openai": ["OPENAI_API_KEY"],
     "google": ["GOOGLE_API_KEY", "GEMINI_API_KEY", "GCP_API_KEY"],
     "anthropic": ["ANTHROPIC_API_KEY"],
@@ -30,17 +33,41 @@ PROVIDER_KEYS = {
 }
 
 
+class ModelListRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    provider: Literal[
+        "openai", "openai_acp", "google", "anthropic", "openrouter", "xai", "custom", "ollama", "vllm"
+    ]
+    base_url: str = ""
+    fallback_url: str = ""
+    api_key: SecretStr | None = None
+    codex_path: str = Field(default="", max_length=2048)
+
+    @field_validator("base_url", "fallback_url")
+    @classmethod
+    def clean_url(cls, value):
+        return ModelSettingsUpdate.clean_url(value)
+
+    @field_validator("api_key")
+    @classmethod
+    def clean_key(cls, value):
+        if value and any(ord(c) < 32 for c in value.get_secret_value()):
+            raise ValueError("Invalid API key")
+        return value
+
+
 class ModelSettingsUpdate(BaseModel):
     model_config = {"extra": "forbid"}
     expected_version: str
     provider: Literal[
-        "openai", "google", "anthropic", "openrouter", "xai", "custom", "ollama", "vllm"
+        "openai", "openai_acp", "google", "anthropic", "openrouter", "xai", "custom", "ollama", "vllm"
     ]
     default_model: str = Field(min_length=1, max_length=200)
     fallback_model: str = Field(min_length=1, max_length=200)
     base_url: str = ""
     fallback_url: str = ""
     api_key: SecretStr | None = None
+    codex_path: str = Field(default="", max_length=2048)
     confirm_restart: Literal[True]
 
     @field_validator("default_model", "fallback_model")
@@ -71,6 +98,12 @@ class ModelSettingsUpdate(BaseModel):
 
     @model_validator(mode="after")
     def validate_provider_url(self):
+        if self.provider == "openai_acp":
+            if self.base_url or self.fallback_url or (self.api_key and self.api_key.get_secret_value().strip()):
+                raise ValueError("OpenAI ACP uses the installed Codex CLI login, not API keys or URLs")
+            from artemis.llm.openai_acp_bridge import resolve_codex
+
+            resolve_codex(self.codex_path.strip())
         if self.provider == "google" and (self.base_url or self.fallback_url):
             raise ValueError("Custom URL is not supported for Google in this editor")
         if self.api_key and any(c in self.api_key.get_secret_value() for c in "\r\n\x00"):
@@ -152,6 +185,87 @@ class ModelSettingsService:
         version = hashlib.sha256((config + "\0" + env).encode()).hexdigest()
         return config, env, version
 
+    async def list_models(self, request: ModelListRequest):
+        if request.provider == "openai_acp":
+            from artemis.llm.openai_acp import available_codex_models
+
+            models = await available_codex_models(request.codex_path.strip())
+            return {"default_models": models, "fallback_models": models}
+        # Use the draft credential without persisting it or returning it to the UI.
+        with self.lock:
+            env = dotenv_values(self.env_path)
+        key = request.api_key.get_secret_value().strip() if request.api_key else ""
+        if not key:
+            key = next(
+                (env.get(k) or os.environ.get(k) for k in PROVIDER_KEYS[request.provider]
+                 if env.get(k) or os.environ.get(k)),
+                "",
+            )
+        defaults = {
+            "openai": "https://api.openai.com/v1",
+            "google": "https://generativelanguage.googleapis.com/v1beta",
+            "anthropic": "https://api.anthropic.com/v1",
+            "openrouter": "https://openrouter.ai/api/v1",
+            "xai": "https://api.x.ai/v1",
+            "ollama": "http://localhost:11434/v1",
+            "vllm": "http://localhost:8000/v1",
+        }
+        base = request.base_url or defaults.get(request.provider)
+        if not base:
+            raise ValueError("Enter a base URL before fetching models.")
+        fallback = request.fallback_url or base
+        headers = {"Authorization": f"Bearer {key}"} if key else {}
+        if request.provider == "google":
+            base = fallback = defaults["google"]
+            headers = {"x-goog-api-key": key}
+        elif request.provider == "anthropic":
+            headers = {"x-api-key": key, "anthropic-version": "2023-06-01"}
+
+        async def fetch(client, url):
+            models, seen = set(), set()
+            params = {"pageSize": 1000} if request.provider == "google" else {}
+            if request.provider == "anthropic":
+                params = {"limit": 1000}
+            for _ in range(100):
+                response = await client.get(f"{url.rstrip('/')}/models", headers=headers, params=params)
+                if not response.is_success:
+                    raise ValueError(f"Unable to fetch models (HTTP {response.status_code}). Check the API key and endpoint.")
+                data = response.json()
+                items = data.get("models" if request.provider == "google" else "data")
+                if not isinstance(items, list):
+                    raise ValueError("The endpoint returned an invalid model list.")
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    if request.provider == "google":
+                        if "generateContent" not in item.get("supportedGenerationMethods", []):
+                            continue
+                        name = item.get("name", "").removeprefix("models/")
+                    else:
+                        name = item.get("id")
+                    if isinstance(name, str) and name.strip() and len(name) <= 200:
+                        models.add(name)
+                token = data.get("nextPageToken") if request.provider == "google" else (
+                    data.get("last_id") if request.provider == "anthropic" and data.get("has_more") else None
+                )
+                if not token:
+                    return sorted(models)
+                if token in seen:
+                    break
+                seen.add(token)
+                params["pageToken" if request.provider == "google" else "after_id"] = token
+            raise ValueError("Unable to finish loading the model list. Try again.")
+
+        try:
+            async with asyncio.timeout(25), httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+                primary = await fetch(client, base)
+                secondary = primary if fallback == base else await fetch(client, fallback)
+                return {"default_models": primary, "fallback_models": secondary}
+        except (httpx.HTTPError, TimeoutError):
+            raise ValueError("Unable to reach the model endpoint. Check the URL and connection.") from None
+        except (TypeError, AttributeError):
+            raise ValueError("The endpoint returned an invalid model list.") from None
+
     def get(self):
         with self.lock:
             source, env, version = self._read()
@@ -173,6 +287,7 @@ class ModelSettingsService:
                 )
                 or "",
                 "fallback_url": fallback.get("api_base") or fallback.get("base_url") or "",
+                "codex_path": values.get("ARTEMIS_CODEX_PATH") or os.environ.get("ARTEMIS_CODEX_PATH", ""),
                 "keys_configured": {
                     p: any(bool(values.get(k) or os.environ.get(k)) for k in keys)
                     for p, keys in PROVIDER_KEYS.items()
@@ -213,6 +328,8 @@ class ModelSettingsService:
 
             LLMWithFallback.model_validate(load_jsonc(io.StringIO(updated))["default"])
             updates = {}
+            if request.provider == "openai_acp":
+                updates["ARTEMIS_CODEX_PATH"] = request.codex_path.strip()
             if request.api_key and request.api_key.get_secret_value().strip():
                 for key in PROVIDER_KEYS[request.provider]:
                     updates[key] = request.api_key.get_secret_value().strip()

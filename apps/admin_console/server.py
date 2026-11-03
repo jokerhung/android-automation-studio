@@ -81,6 +81,7 @@ try:
         email_settings,
         media,
         replay,
+        remote,
         schedules,
         sessions,
         steps,
@@ -103,6 +104,7 @@ except ImportError:
         email_settings,
         media,
         replay,
+        remote,
         schedules,
         sessions,
         steps,
@@ -257,6 +259,7 @@ app.include_router(tasks.router)
 app.include_router(schedules.router)
 app.include_router(email_settings.router)
 app.include_router(replay.router)
+app.include_router(remote.router)
 app.include_router(system.router)
 try:
     from admin_console.routers import model_settings
@@ -286,6 +289,7 @@ _NEXT_ROUTES = {
     "workspace": "workspace/index.html",
     "task-schedule": "task-schedule/index.html",
     "settings": "settings/index.html",
+    "remote": "remote/index.html",
     "check": "check/index.html",
 }
 _PROTECTED_UI_PREFIXES = (

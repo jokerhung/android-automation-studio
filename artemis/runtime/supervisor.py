@@ -21,6 +21,7 @@ from pathlib import Path
 
 from artemis.platform import platform
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -58,6 +59,7 @@ class ProcessSupervisor:
             stderr=stderr_dest,
             cwd=cwd_str,
             env=prepared_env,
+            **hidden_process_kwargs(),
         )
 
     @staticmethod

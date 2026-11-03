@@ -29,7 +29,7 @@ export function WorkspaceProvider({children}:{children:ReactNode}){
  const refreshSessions=useCallback(async(signal?:AbortSignal)=>{const id=nextRequest();try{const sessions=await workspaceApi.sessions(signal);const at=Date.now();if(!signal?.aborted){dispatch({type:'sessionsReceived',sessions,requestId:id,receivedAt:at});if(typeof window!=='undefined')writeSessionsCache(sessions,window.localStorage,at);}}catch(error){if(!signal?.aborted)dispatch({type:'error',error:errorMessage(error)});}},[]);
  const refreshStatus=useCallback(async(signal?:AbortSignal)=>{const id=nextRequest();try{const status=await workspaceApi.status(signal);if(!signal?.aborted)dispatch({type:'statusReceived',status,requestId:id,receivedAt:Date.now()});}catch(error){if(!signal?.aborted)dispatch({type:'error',error:errorMessage(error)});}},[]);
  const refresh=useCallback(async()=>{await Promise.all([refreshStatus(),refreshSessions()]);},[refreshSessions,refreshStatus]);
- const loadSessionDetails=useCallback(async(id:string)=>{const idRequest=nextRequest();const generation=stateRef.current.selectionGeneration;dispatch({type:'detailsRequested',sessionId:id,requestId:idRequest,generation});try{const details=await workspaceApi.details(id);if(mounted.current)dispatch({type:'detailsReceived',sessionId:id,requestId:idRequest,generation,details});if(details.video?.status==='processing')videoRetryRef.current?.start(id,generation,details.video);else videoRetryRef.current?.cancel();return details;}catch(error){if(mounted.current)dispatch({type:'detailsFailed',sessionId:id,requestId:idRequest,generation,error:errorMessage(error)});return null;}},[]);
+ const loadSessionDetails=useCallback(async(id:string)=>{const summary=stateRef.current.sessions.find(session=>session.session_id===id);if(!summary||!['completed','failed','stopped','cancelled'].includes(summary.status))return null;const idRequest=nextRequest();const generation=stateRef.current.selectionGeneration;dispatch({type:'detailsRequested',sessionId:id,requestId:idRequest,generation});try{const details=await workspaceApi.details(id);if(mounted.current)dispatch({type:'detailsReceived',sessionId:id,requestId:idRequest,generation,details});if(details.video?.status==='processing')videoRetryRef.current?.start(id,generation,details.video);else videoRetryRef.current?.cancel();return details;}catch(error){if(mounted.current)dispatch({type:'detailsFailed',sessionId:id,requestId:idRequest,generation,error:errorMessage(error)});return null;}},[]);
  const mutate=useCallback(async<T,>(operation:()=>Promise<T>,after:()=>void|Promise<void>)=>{try{const result=await operation();await after();return result;}catch(error){dispatch({type:'error',error:errorMessage(error)});throw error;}},[]);
  const run=useCallback((input:RunTaskInput)=>mutate(()=>workspaceApi.run(input),refresh),[mutate,refresh]);
  const stop=useCallback((input:StopTaskInput={})=>mutate(()=>workspaceApi.stop(input),refresh),[mutate,refresh]);
@@ -53,20 +53,16 @@ export function WorkspaceProvider({children}:{children:ReactNode}){
   const dispatchSelectedEvents=(events:readonly ReturnType<typeof toWorkspaceStreamEvent>[])=>{const current=stateRef.current;const selected=eventsForSelectedSession(events,current.selectedSessionId);if(current.selectedSessionId&&selected.length)dispatch({type:'streamEventsReceived',sessionId:current.selectedSessionId,generation:current.selectionGeneration,events:selected});};
   const accumulator=new StreamChunkAccumulator(dispatchSelectedEvents);
   let reconcileTimer:number|undefined;
-  const detailSessions=new Set<string>();
-  const reconcile=(sessionId?:string)=>{
+  const reconcile=()=>{
    attempt=0;if(document.hidden)return;
-   if(sessionId)detailSessions.add(sessionId);
    if(reconcileTimer!==undefined)return;
    reconcileTimer=window.setTimeout(()=>{
     reconcileTimer=undefined;
-    if(disposed||document.hidden){detailSessions.clear();return;}
-    void refresh();const selected=stateRef.current.selectedSessionId;
-    if(selected&&detailSessions.has(selected))void loadSessionDetails(selected);
-    detailSessions.clear();
+    if(disposed||document.hidden)return;
+    void refresh();
    },RECONCILE_DELAY_MS);
   };
-  const onEvent=(event:Event)=>{if(disposed)return;lastActivity=Date.now();const message=event as MessageEvent<string>;const type=message.type||'message';if(type==='keep-alive'||type==='info')return;let data:Record<string,unknown>;try{const parsed=JSON.parse(message.data);data=typeof parsed==='object'&&parsed!==null?parsed as Record<string,unknown>:{raw:message.data};}catch{data={raw:message.data};}if(type==='llm_stream'){accumulator.push(data);return;}accumulator.beforeNonStream(type,data);dispatchSelectedEvents([toWorkspaceStreamEvent(type,data)]);reconcile(typeof data.session_id==='string'?data.session_id:undefined);};
+  const onEvent=(event:Event)=>{if(disposed)return;lastActivity=Date.now();const message=event as MessageEvent<string>;const type=message.type||'message';if(type==='keep-alive'||type==='info')return;let data:Record<string,unknown>;try{const parsed=JSON.parse(message.data);data=typeof parsed==='object'&&parsed!==null?parsed as Record<string,unknown>:{raw:message.data};}catch{data={raw:message.data};}if(type==='llm_stream'){accumulator.push(data);return;}accumulator.beforeNonStream(type,data);dispatchSelectedEvents([toWorkspaceStreamEvent(type,data)]);reconcile();};
   const closeSource=()=>{if(source){source.onopen=null;source.onerror=null;source.onmessage=null;source.close();source=null;}};
   const reconnect=()=>{
    streamOpen=false;closeSource();
@@ -81,7 +77,7 @@ export function WorkspaceProvider({children}:{children:ReactNode}){
    if(typeof EventSource==='undefined'){dispatch({type:'connectionChanged',connection:'unsupported'});return;}
    dispatch({type:'connectionChanged',connection:'connecting',attempt});
    const current=new EventSource('/api/stream');source=current;lastActivity=Date.now();
-   current.onopen=()=>{if(disposed||source!==current)return;lastActivity=Date.now();streamOpen=true;attempt=0;void refresh();const currentState=stateRef.current;const selected=currentState.selectedSessionId;const summary=currentState.sessions.find(session=>session.session_id===selected);const terminal=summary&&['completed','failed','stopped','cancelled'].includes(summary.status);if(selected&&!document.hidden&&(!terminal||!currentState.details[selected]?.data))void loadSessionDetails(selected);dispatch({type:'connectionChanged',connection:'open',attempt:0});};
+   current.onopen=()=>{if(disposed||source!==current)return;lastActivity=Date.now();streamOpen=true;attempt=0;void refresh();dispatch({type:'connectionChanged',connection:'open',attempt:0});};
    current.onerror=()=>{if(source===current)reconnect();};
    const receive=(event:Event)=>{if(source===current)onEvent(event);};
    current.onmessage=receive;for(const event of STREAM_EVENTS)current.addEventListener(event,receive);
@@ -92,7 +88,7 @@ export function WorkspaceProvider({children}:{children:ReactNode}){
   document.addEventListener('visibilitychange',onActive);
   window.addEventListener('focus',onActive);window.addEventListener('online',onActive);
   const watchdog=window.setInterval(checkStream,5_000);
-  connect();return()=>{disposed=true;mounted.current=false;coordinator.stop();accumulator.dispose();if(reconcileTimer!==undefined)window.clearTimeout(reconcileTimer);detailSessions.clear();document.removeEventListener('visibilitychange',onActive);window.removeEventListener('focus',onActive);window.removeEventListener('online',onActive);window.clearInterval(watchdog);if(reconnectTimer!==undefined)window.clearTimeout(reconnectTimer);closeSource();videoRetryRef.current?.cancel();};
+  connect();return()=>{disposed=true;mounted.current=false;coordinator.stop();accumulator.dispose();if(reconcileTimer!==undefined)window.clearTimeout(reconcileTimer);document.removeEventListener('visibilitychange',onActive);window.removeEventListener('focus',onActive);window.removeEventListener('online',onActive);window.clearInterval(watchdog);if(reconnectTimer!==undefined)window.clearTimeout(reconnectTimer);closeSource();videoRetryRef.current?.cancel();};
  },[loadSessionDetails,refresh,refreshSessions,refreshStatus]);
  const value=useMemo<WorkspaceContextValue>(()=>({state,refresh,selectSession:id=>{videoRetryRef.current?.cancel();dispatch({type:'selectSession',sessionId:id});},loadSessionDetails,setPlayerSession:(id,mode)=>dispatch({type:'playerSessionChanged',sessionId:id,mode}),patchPlayer:patch=>dispatch({type:'playerPatched',patch}),run,stop,resume,deleteSession,cleanup}),[state,refresh,loadSessionDetails,run,stop,resume,deleteSession,cleanup]);
  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

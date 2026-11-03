@@ -1,0 +1,2 @@
+export type DeviceInfo = { serial:string; model?:string|null; state:string; is_busy:boolean; busy_session_id?:string|null; screen_width?:number|null; screen_height?:number|null; controllable:boolean; uncontrollable_reason?:string|null };
+export type RemoteState = { serial:string; state:string; frame_sequence:number; frame_age_ms?:number|null; screen_width?:number|null; screen_height?:number|null; rotation:number; controllable:boolean; reason?:string|null; stream_url:string };

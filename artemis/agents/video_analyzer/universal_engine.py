@@ -42,6 +42,7 @@ from artemis.agents.video_analyzer.reliability import (
 )
 from artemis.data_engine.trace import CURRENT_TRACE_ID, TraceSpan
 from artemis.utils.logger import get_logger
+from artemis.utils.subprocess_utils import hidden_process_kwargs
 
 logger = get_logger(__name__)
 
@@ -321,6 +322,7 @@ async def _persist_universal_events(
                 *ffmpeg_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **hidden_process_kwargs(),
             )
             await proc.communicate()
             if shot_path.exists():

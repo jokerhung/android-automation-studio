@@ -1,0 +1,32 @@
+﻿'use client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type React from 'react';
+import { remoteApi } from './api';
+import type { DeviceInfo, RemoteState } from './types';
+import { imagePoint, KEYMAP } from './input-mapping';
+
+export function RemotePage(){
+ const [devices,setDevices]=useState<DeviceInfo[]>([]),[serial,setSerial]=useState(()=>{try{return localStorage.getItem('aas.remote.device')||''}catch{return ''}}),[state,setState]=useState<RemoteState|null>(null),[capture,setCapture]=useState(false),[error,setError]=useState('');
+ const [down,setDown]=useState<{x:number;y:number;t:number}|null>(null); const img=useRef<HTMLImageElement>(null); const generation=useRef(0); const seq=useRef(0); const timer=useRef<number|undefined>(undefined); const textBuffer=useRef(''); const textTimer=useRef<number|undefined>(undefined);
+ const refresh=useCallback(async()=>{try{const r=await remoteApi.devices();setDevices(r.devices);if(serial&&!r.devices.some(d=>d.serial===serial)){setSerial('');localStorage.removeItem('aas.remote.device')}}catch(e){setError(e instanceof Error?e.message:'Unable to load devices')}},[serial]);
+ useEffect(()=>{void refresh(); const id=window.setInterval(()=>{if(!document.hidden)void refresh()},5000);return()=>clearInterval(id)},[refresh]);
+ useEffect(()=>{generation.current++;setState(null);setCapture(false);textBuffer.current='';if(textTimer.current)clearTimeout(textTimer.current);if(!serial)return;try{localStorage.setItem('aas.remote.device',serial)}catch{} const ac=new AbortController(); const poll=async()=>{try{setState(await remoteApi.state(serial,ac.signal))}catch{} };void poll();timer.current=window.setInterval(poll,1000);return()=>{ac.abort();if(timer.current)clearInterval(timer.current)}},[serial]);
+ const send=async(fn:()=>Promise<unknown>)=>{const g=generation.current,s=++seq.current;try{await fn();if(g!==generation.current||s!==seq.current)return}catch(e){setError(e instanceof Error?e.message:'Input failed')}};
+ // The MJPEG endpoint may downscale each JPEG (currently to 960 px on its
+ // longest edge), so `naturalWidth`/`naturalHeight` are the encoded frame
+ // dimensions, not the Android input coordinate space. Always map against
+ // the device dimensions reported by /state when they are available.
+ const point=(e:{clientX:number;clientY:number})=>{if(!img.current)return null;const width=state?.screen_width||img.current.naturalWidth||1080;const height=state?.screen_height||img.current.naturalHeight||2520;return imagePoint(e,img.current.getBoundingClientRect(),width,height)};
+ const downAt=(e:React.PointerEvent)=>{const p=point(e);if(p){e.currentTarget.setPointerCapture(e.pointerId);setDown({...p,t:Date.now()});setCapture(true)}};
+ const upAt=(e:React.PointerEvent)=>{if(!down||!serial)return;const p=point(e);setDown(null);if(!p)return;const dt=Date.now()-down.t, dist=Math.hypot(p.x-down.x,p.y-down.y);if(dist>=8)void send(()=>remoteApi.swipe({device_serial:serial,x1:down.x,y1:down.y,x2:p.x,y2:p.y,duration_ms:Math.max(100,Math.min(2000,dt))}));else if(dt>=500)void send(()=>remoteApi.tap({device_serial:serial,x:down.x,y:down.y,duration_ms:1000}));};
+ const clickAt=(e:React.MouseEvent)=>{if(!serial||selected?.is_busy)return;const p=point(e);if(p)void send(()=>remoteApi.tap({device_serial:serial,x:p.x,y:p.y,duration_ms:100}))};
+ const flushText=()=>{if(!serial||!textBuffer.current)return;const value=textBuffer.current;textBuffer.current='';if(textTimer.current)clearTimeout(textTimer.current);void send(()=>remoteApi.text({device_serial:serial,text:value,clear_existing:false}))};
+ const key=(e:React.KeyboardEvent)=>{if(!capture||!serial)return;if(['F5','F11','F12'].includes(e.key)||(e.ctrlKey&&e.key.toLowerCase()==='r'))return;if(KEYMAP[e.key]){e.preventDefault();flushText();void send(()=>remoteApi.key({device_serial:serial,key:KEYMAP[e.key]}));}else if(e.key.length===1&&!e.ctrlKey&&!e.metaKey){e.preventDefault();textBuffer.current+=e.key;if(textTimer.current)clearTimeout(textTimer.current);textTimer.current=window.setTimeout(flushText,300)}};
+ const paste=(e:React.ClipboardEvent)=>{if(!capture||!serial)return;e.preventDefault();textBuffer.current+=e.clipboardData.getData('text');flushText()};
+ const wheel=(e:React.WheelEvent)=>{if(!serial||!img.current)return;const p=point(e);if(!p)return;const height=state?.screen_height||img.current.naturalHeight;const distance=Math.max(80,Math.round(height*.4));void send(()=>remoteApi.swipe({device_serial:serial,x1:p.x,y1:p.y,x2:p.x,y2:Math.max(0,Math.min(height-1,p.y+(e.deltaY>0?distance:-distance))),duration_ms:300}))};
+ const selected=devices.find(d=>d.serial===serial);
+ return <main className="remotePage"><header className="remoteHeader"><div className="remoteTitle"><span className="eyebrow">REMOTE PHONE</span><div className="remoteTitleRow"><h1>Remote Phone</h1><select aria-label="Device" value={serial} onChange={e=>setSerial(e.target.value)}><option value="">Select device</option>{devices.map(d=><option key={d.serial} value={d.serial} disabled={d.state!=='device'||d.is_busy}>{d.model||d.serial} · {d.serial} · {d.is_busy?'busy':d.state}</option>)}</select></div></div></header>{error&&<div role="alert" className="remoteError">{error}</div>}{selected?.is_busy&&<div className="remoteBusy">Device is busy with ARTEMIS task {selected.busy_session_id||''} — view only.</div>}<section className="remoteLayout"><div className="remoteStage" role="application" tabIndex={0} aria-label="Remote phone screen" onKeyDown={key} onPaste={paste} onBlur={()=>{textBuffer.current='';if(textTimer.current)clearTimeout(textTimer.current)}} onClick={clickAt} onWheel={selected?.is_busy?undefined:wheel} onPointerDown={selected?.is_busy?undefined:downAt} onPointerUp={selected?.is_busy?undefined:upAt}><>{serial?<img ref={img} src={`/api/remote/stream?device_serial=${encodeURIComponent(serial)}`} alt="Live Android device screen" className={!state?.controllable?'stale':''}/>:<p>Select a device to view its screen.</p>}</></div><aside className="remoteStatus"><h2>Status</h2><p>{selected?.model||selected?.serial||'No device selected'}</p><p>{state?.state||selected?.state||'disconnected'} · {state?.frame_age_ms??'—'} ms</p><button type="button" onClick={()=>setCapture(v=>!v)} disabled={!serial||selected?.is_busy}>{capture?'Keyboard capture on':'Enable keyboard capture'}</button></aside></section><p className="remoteHint">Click = tap · Hold 500 ms = long press · Drag = swipe</p></main>;
+}
+
+
+
