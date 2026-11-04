@@ -168,6 +168,30 @@ describe('Task schedule page', () => {
     expect(api.preview.mock.calls[2]?.[0]).toMatchObject({ count: 5, goal: 'Check app changed' });
   });
 
+  it('saves an edited schedule without requiring a preview', async () => {
+    api.update.mockResolvedValue({ ...schedule, version: 5, goal: 'Check app edited' });
+    const dialog = await openEditor(); const user = userEvent.setup();
+    await user.type(within(dialog).getByLabelText('Task instructions'), ' edited');
+    await user.click(within(dialog).getByRole('button', { name: 'Save schedule' }));
+    await waitFor(() => expect(api.update).toHaveBeenCalledWith(schedule, expect.objectContaining({ goal: 'Check app edited' })));
+    expect(api.preview).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('still requires a preview before creating a new schedule', async () => {
+    render(<TaskSchedulePage />);
+    await screen.findByText('Daily check');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /New schedule/ }));
+    const dialog = screen.getByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Schedule name'), 'Brand new');
+    await user.type(within(dialog).getByLabelText('Task instructions'), 'Do something');
+    await user.selectOptions(within(dialog).getByLabelText('Device'), 'device-1');
+    await user.click(within(dialog).getByRole('button', { name: 'Save schedule' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Preview the next five runs before saving.');
+    expect(api.create).not.toHaveBeenCalled();
+  });
+
   it('keeps the draft on 409 and reloads only the version before an explicit retry', async () => {
     api.preview.mockResolvedValue(occurrences);
     api.update.mockRejectedValueOnce(new ApiError(409, 'Version conflict', { detail: 'Version conflict' }, '/api/schedules/schedule-1'))
