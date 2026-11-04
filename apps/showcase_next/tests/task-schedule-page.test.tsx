@@ -178,7 +178,8 @@ describe('Task schedule page', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('still requires a preview before creating a new schedule', async () => {
+  it('creates a new schedule without requiring a preview', async () => {
+    api.create.mockResolvedValue({ ...schedule, id: 'schedule-2', version: 1, name: 'Brand new', goal: 'Do something' });
     render(<TaskSchedulePage />);
     await screen.findByText('Daily check');
     const user = userEvent.setup();
@@ -188,8 +189,9 @@ describe('Task schedule page', () => {
     await user.type(within(dialog).getByLabelText('Task instructions'), 'Do something');
     await user.selectOptions(within(dialog).getByLabelText('Device'), 'device-1');
     await user.click(within(dialog).getByRole('button', { name: 'Save schedule' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Preview the next five runs before saving.');
-    expect(api.create).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.create).toHaveBeenCalledWith(expect.objectContaining({ name: 'Brand new', goal: 'Do something', device_serial: 'device-1' })));
+    expect(api.preview).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('keeps the draft on 409 and reloads only the version before an explicit retry', async () => {
