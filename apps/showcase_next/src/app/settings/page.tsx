@@ -1,18 +1,19 @@
 'use client';
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { SlidersHorizontal, Sparkles, Mail, Smartphone, Monitor } from 'lucide-react';
+import { SlidersHorizontal, Sparkles, Mail, Smartphone, Monitor, History as HistoryIcon } from 'lucide-react';
 import { PageShell } from '@/components/page-shell';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAppPreferences } from '@/app/providers';
 import { GeneralSettings, ModelSettingsPanel } from '@/features/settings/general-model-panels';
 import { EmailSettingsPanel } from '@/features/settings/email-panel';
+import { HistorySettingsPanel } from '@/features/settings/history-panel';
 import { AndroidSettingsPanel, SystemSettingsPanel } from '@/features/settings/android-system-panels';
 import { SETTINGS_TABS, resolveSettingsTab, settingsTabHref, type SettingsTab } from '@/features/settings/tabs';
-const icons={general:SlidersHorizontal,models:Sparkles,email:Mail,android:Smartphone,system:Monitor};
+const icons={general:SlidersHorizontal,models:Sparkles,email:Mail,android:Smartphone,history:HistoryIcon,system:Monitor};
 function SettingsContent(){
  const params=useSearchParams(); const active=resolveSettingsTab(params.get('tab')); const {t}=useAppPreferences();
- const panels={general:<GeneralSettings/>,models:<ModelSettingsPanel/>,email:<EmailSettingsPanel/>,android:<AndroidSettingsPanel/>,system:<SystemSettingsPanel/>};
+ const panels={general:<GeneralSettings/>,models:<ModelSettingsPanel/>,email:<EmailSettingsPanel/>,android:<AndroidSettingsPanel/>,history:<HistorySettingsPanel/>,system:<SystemSettingsPanel/>};
  return <Tabs orientation="vertical" value={active} onValueChange={value=>window.history.replaceState(null,'',settingsTabHref(value as SettingsTab))} className="settingsLayout">
    <TabsList className="settingsTabs" aria-label={t('settings.title')}>{SETTINGS_TABS.map(([tab,label])=>{const Icon=icons[tab];return <TabsTrigger key={tab} value={tab}><Icon size={18}/>{t(label)}</TabsTrigger>})}</TabsList>
    <div className="settingsDetail">{SETTINGS_TABS.map(([tab])=><TabsContent forceMount hidden={active!==tab} key={tab} value={tab} className="settingsPanel">{panels[tab]}</TabsContent>)}</div>

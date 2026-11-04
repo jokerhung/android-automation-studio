@@ -1215,8 +1215,11 @@ class StorageManager:
         except ValueError:
             return False
 
-    def delete_session(self, session_id: UUID):
-        """Delete all data associated with a session, including files on disk."""
+    def delete_session(self, session_id: UUID, *, vacuum: bool = True):
+        """Delete all data associated with a session, including files on disk.
+
+        Bulk callers pass ``vacuum=False`` and compact the database once at the end.
+        """
         session_id_str = str(session_id)
 
         # 1. Get video paths before deleting from DB
@@ -1257,6 +1260,7 @@ class StorageManager:
                 "failed_outputs",
                 "traces",
                 "background_tasks",
+                "history_chunks",
                 "video_recordings",
                 "steps",
                 "sessions",
@@ -1270,8 +1274,9 @@ class StorageManager:
                 except sqlite3.OperationalError as e:
                     logger.warning(f"Failed to delete from table {table}: {e}")
             conn.commit()
-            conn.execute("VACUUM")
-            conn.commit()
+            if vacuum:
+                conn.execute("VACUUM")
+                conn.commit()
 
         logger.info(f"Database records for session {session_id} cleared.")
 

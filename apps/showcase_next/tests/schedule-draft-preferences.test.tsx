@@ -6,7 +6,7 @@ import { UI_PREFERENCES_STORAGE_KEY } from '@/lib/preferences/preferences';
 import type { TaskSchedule } from '@/features/schedules/types';
 
 const api=vi.hoisted(()=>({list:vi.fn(),devices:vi.fn(),status:vi.fn(),runs:vi.fn()}));
-const emailApi=vi.hoisted(()=>({email:vi.fn()}));
+const emailApi=vi.hoisted(()=>({email:vi.fn(),emailReadiness:vi.fn()}));
 vi.mock('@/features/schedules/api',()=>({schedulesApi:{...api,emailReportUrl:vi.fn()}}));
 vi.mock('@/features/settings/api',()=>({settingsApi:emailApi}));
 vi.mock('@/components/page-shell',()=>({PageShell:({children}:{children:React.ReactNode})=><main>{children}</main>}));
@@ -16,7 +16,7 @@ import { TaskSchedulePage } from '@/features/schedules/task-schedule-page';
 const schedule:TaskSchedule={id:'schedule-1',version:4,name:'Daily check',goal:'Check app',profile:'flash',device_serial:'device-1',enabled:true,schedule_type:'interval',interval_minutes:15,time_of_day:null,weekdays:[],timezone:'UTC',email_enabled:false};
 function Controls(){const {setLanguage,setTheme}=useAppPreferences();return <><button onClick={()=>setLanguage('vi')}>local-language</button><button onClick={()=>setTheme('dark')}>local-theme</button></>}
 
-beforeEach(()=>{vi.clearAllMocks();localStorage.clear();api.list.mockResolvedValue([schedule]);api.devices.mockResolvedValue([{serial:'device-1',name:'Pixel'}]);api.status.mockResolvedValue({healthy:true});api.runs.mockResolvedValue({runs:[]});emailApi.email.mockResolvedValue({enabled:true,smtp_host:'smtp.example.com',smtp_port:587,security:'starttls',sender_email:'sender@example.com',smtp_username:'sender@example.com',password_configured:true});});
+beforeEach(()=>{vi.clearAllMocks();localStorage.clear();api.list.mockResolvedValue([schedule]);api.devices.mockResolvedValue([{serial:'device-1',name:'Pixel'}]);api.status.mockResolvedValue({healthy:true});api.runs.mockResolvedValue({runs:[]});emailApi.emailReadiness.mockResolvedValue({ready:true});emailApi.email.mockResolvedValue({enabled:true,smtp_host:'smtp.example.com',smtp_port:587,security:'starttls',sender_email:'sender@example.com',smtp_username:'sender@example.com',password_configured:true});});
 describe('Schedule dirty drafts and UI preferences',()=>{
  it('keeps a dirty schedule draft across local and cross-tab language/theme changes',async()=>{
   render(<AppProviders><Controls/><TaskSchedulePage/></AppProviders>); await screen.findByText('Daily check'); const user=userEvent.setup();

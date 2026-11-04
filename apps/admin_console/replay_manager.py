@@ -36,6 +36,8 @@ except ImportError:
 DB_PATH = TRACES_PATH / "data_engine.db"
 IMAGES_DIR = TRACES_PATH / "images"
 
+from artemis.config.constants import MEDIA_PURGED_MARKER  # noqa: E402
+
 try:
     from artemis.context import ArtemisContext
     from artemis.graph.state import State
@@ -1251,6 +1253,11 @@ class ReplayManager:
     def _ensure_session_chunked(self, session_id: str) -> Path:
         """Ensures that the session traces are chunked and ready for replay."""
         session_chunked_dir = self.test_data_dir / f"{session_id}_chunked"
+
+        # Screenshots/videos were purged by the retention policy: there is nothing
+        # left to chunk, so don't recreate the replay data on every launch.
+        if (self.traces_path / session_id / MEDIA_PURGED_MARKER).exists():
+            return session_chunked_dir
 
         db_steps_count = 0
         if self.db_path.exists():

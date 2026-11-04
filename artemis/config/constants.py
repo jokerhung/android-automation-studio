@@ -96,6 +96,9 @@ TEST_DATA_DIRNAME = "data"
 TEST_OUTPUTS_DIRNAME = "outputs"
 IMAGES_DIRNAME = "images"
 DOTENV_FILENAME = ".env"
+# Dropped into ``traces/<session_id>/`` once a session's screenshots/videos were
+# purged by the retention policy, so replay never re-chunks it from missing media.
+MEDIA_PURGED_MARKER = ".media_purged"
 
 
 # ==============================================================================

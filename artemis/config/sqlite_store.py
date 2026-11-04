@@ -155,6 +155,13 @@ class SettingsStore:
 
         return self.get_or_import("android", migrate)
 
+    def history(self):
+        """Retention policy for old task history. ``0`` disables a rule."""
+        return self.get_or_import(
+            "history",
+            lambda: {"media_retention_days": 0, "history_retention_days": 0, "last_run": None},
+        )
+
 
 def get_settings_store():
     return SettingsStore()

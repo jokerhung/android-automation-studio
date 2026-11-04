@@ -25,12 +25,14 @@ try:
     from admin_console.core.state import state
     from admin_console.database.repositories.session_repository import session_repo
     from admin_console.database.repositories.trace_repository import trace_repo
+    from admin_console.services.history_retention_service import history_retention_service
     from admin_console.services.media_service import media_service
     from admin_console.services.model_service import model_service
 except ImportError:
     from apps.admin_console.core.state import state
     from apps.admin_console.database.repositories.session_repository import session_repo
     from apps.admin_console.database.repositories.trace_repository import trace_repo
+    from apps.admin_console.services.history_retention_service import history_retention_service
     from apps.admin_console.services.media_service import media_service
     from apps.admin_console.services.model_service import model_service
 
@@ -227,10 +229,9 @@ async def cleanup_history_endpoint():
 @router.post("/api/sessions/{session_id}/delete")
 async def delete_session_endpoint(session_id: str):
     try:
-        from artemis.data_engine.storage import StorageManager
-
-        storage = StorageManager(DB_PATH, TRACES_PATH)
-        storage.delete_session(UUID(session_id))
+        # Removes the database rows plus every file the task left behind
+        # (logs, videos, step screenshots and replay frames).
+        await asyncio.to_thread(history_retention_service.delete_session, session_id)
         return {
             "status": "success",
             "message": f"Session {session_id} deleted successfully",

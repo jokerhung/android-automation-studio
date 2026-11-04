@@ -12,6 +12,9 @@ export type EmailSecurity = 'starttls'|'ssl';
 export interface EmailSettings { enabled:boolean; smtp_host:string; smtp_port:number; security:EmailSecurity; sender_email:string; sender_name?:string|null; smtp_username:string; password_configured:boolean; test_recipient?:string|null; version?:number; last_tested_at?:string|null; last_test_success?:boolean|null; last_test_error?:string|null }
 export interface EmailSettingsUpdate { enabled:boolean; smtp_host:string; smtp_port:number; security:EmailSecurity; sender_email:string; sender_name:string; smtp_username:string; password?:string; expected_version?:number }
 export interface EmailActionResponse { success:boolean; message:string; tested_at?:string|null }
+export interface HistoryRunResult { status:'completed'|'disabled'|string; ran_at:number; media_sessions_purged?:number; history_sessions_deleted?:number; files_deleted?:number; bytes_freed?:number; errors?:string[] }
+export interface HistorySettings { media_retention_days:number; history_retention_days:number; last_run?:HistoryRunResult|null; version?:number }
+export type HistorySettingsUpdate = Pick<HistorySettings,'media_retention_days'|'history_retention_days'>;
 export type ProbeStatus='pass'|'warn'|'fail'|'skipped';
 export interface ProbeAction { action_type:'command'|'hint'|'link'; label:string; payload:string }
 export interface DeviceInfo { serial:string; state:string; model:string|null; product:string|null; android_version:string|null; screen_resolution:string|null; is_locked:boolean|null; is_emulator:boolean }
@@ -36,6 +39,9 @@ export const settingsApi={
  clearEmailPassword:(signal?:AbortSignal)=>apiRequest<EmailSettings>('/api/settings/email/password',{method:'DELETE',...(signal?{signal}:{})}),
  testEmail:(signal?:AbortSignal)=>apiRequest<EmailActionResponse,Record<string,never>>('/api/settings/email/test-connection',{method:'POST',body:{},...(signal?{signal}:{})}),
  sendTestEmail:(recipient_email:string,signal?:AbortSignal)=>apiRequest<EmailActionResponse,{recipient_email:string}>('/api/settings/email/send-test',{method:'POST',body:{recipient_email},...(signal?{signal}:{})}),
+ history:(signal?:AbortSignal)=>apiRequest<HistorySettings>('/api/settings/history',signal?{signal}:{}),
+ saveHistory:(body:HistorySettingsUpdate,signal?:AbortSignal)=>apiRequest<HistorySettings,HistorySettingsUpdate>('/api/settings/history',{method:'PUT',body,...(signal?{signal}:{})}),
+ runHistoryCleanup:(signal?:AbortSignal)=>apiRequest<HistoryRunResult&{settings?:HistorySettings},Record<string,never>>('/api/settings/history/run',{method:'POST',body:{},timeoutMs:300_000,...(signal?{signal}:{})}),
  readiness:(force=false,signal?:AbortSignal)=>apiRequest<ReadinessReport>('/api/system/readiness',{timeoutMs:READINESS_REQUEST_TIMEOUT_MS,...(force?{query:{force:true}}:{}),...(signal?{signal}:{})}),
  adbStatus:(signal?:AbortSignal)=>apiRequest<{endpoint:AdbEndpoint}>('/api/system/adb/server',signal?{signal}:{}),
  probeAdb:(host:string,port:number,signal?:AbortSignal)=>apiRequest<AdbConnectionResponse,{host:string;port:number;persist:false}>('/api/system/adb/server/probe',{method:'POST',body:{host,port,persist:false},...(signal?{signal}:{})}),

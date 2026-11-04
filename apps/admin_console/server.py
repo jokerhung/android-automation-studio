@@ -91,6 +91,7 @@ try:
     )
     from admin_console.routers.replay import replay_manager
     from admin_console.services.email_notification_service import email_notification_service
+    from admin_console.services.history_retention_service import history_retention_service
     from admin_console.services.ipc_service import ipc_service
     from admin_console.services.media_service import media_service
     from admin_console.services.model_service import model_service
@@ -114,6 +115,7 @@ except ImportError:
     )
     from apps.admin_console.routers.replay import replay_manager
     from apps.admin_console.services.email_notification_service import email_notification_service
+    from apps.admin_console.services.history_retention_service import history_retention_service
     from apps.admin_console.services.ipc_service import ipc_service
     from apps.admin_console.services.model_service import model_service
     from apps.admin_console.services.task_queue_service import task_queue_service
@@ -188,10 +190,12 @@ async def on_startup():
     state.worker_task = asyncio.create_task(task_queue_service.queue_worker())
     await scheduler_service.start()
     await email_notification_service.start()
+    await history_retention_service.start()
 
 
 async def on_shutdown():
     """Stop services, preserving work that completed during an explicit drain."""
+    await history_retention_service.stop()
     await scheduler_service.stop()
     if state.is_draining:
         await task_queue_service.wait_drained()
@@ -262,10 +266,11 @@ app.include_router(replay.router)
 app.include_router(remote.router)
 app.include_router(system.router)
 try:
-    from admin_console.routers import model_settings
+    from admin_console.routers import history_settings, model_settings
 except ImportError:
-    from apps.admin_console.routers import model_settings
+    from apps.admin_console.routers import history_settings, model_settings
 app.include_router(model_settings.router)
+app.include_router(history_settings.router)
 
 # Mount cloud gateway router for Frappe / Cloud integration if present
 try:
