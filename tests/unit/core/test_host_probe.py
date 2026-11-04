@@ -17,6 +17,7 @@
 import os
 from pathlib import Path
 import sys
+from unittest.mock import Mock
 
 import pytest
 
@@ -57,6 +58,7 @@ def host_env(tmp_path, monkeypatch, clean_ide_env):
     venv_python.parent.mkdir(parents=True)
     venv_python.write_bytes(b"")
     traces = tmp_path / "traces"
+    monkeypatch.setattr("artemis.runtime.daemon_client.DEFAULT_DAEMON_PORT", 8000)
 
     monkeypatch.setattr("artemis.config.paths.ROOT_DIR", tmp_path)
     monkeypatch.setattr("artemis.config.paths.get_env_file", lambda: tmp_path / ".env")
@@ -106,7 +108,8 @@ async def test_consistent_host_passes(host_env):
     }
     labels = [a.label for a in result.actions]
     assert labels[0] == "Host OK"
-    assert "Env File Location" in labels  # informational even when passing
+    assert "Settings database" in labels
+    assert meta["settings_storage"] == "sqlite"
 
 
 @pytest.mark.asyncio
@@ -447,7 +450,7 @@ class _FakeResponse:
         (404, b"", False),
     ],
 )
-def test_is_artemis_daemon_requires_the_server_status_shape(monkeypatch, status, body, expected):
+def test_is_artemis_daemon_requires_authenticated_identity(monkeypatch, status, body, expected):
     from artemis.runtime import daemon_client
 
     seen: dict[str, str] = {}
@@ -456,9 +459,11 @@ def test_is_artemis_daemon_requires_the_server_status_shape(monkeypatch, status,
         seen["url"] = req.full_url
         return _FakeResponse(status, body)
 
-    monkeypatch.setattr(daemon_client.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(daemon_client, "read_server_info", lambda _: {"lifecycle_token": "test-token", "pid": 42})
+    monkeypatch.setattr(daemon_client, "find_server_pids", lambda _: [42])
+    monkeypatch.setattr(daemon_client.urllib.request, "build_opener", lambda *_: Mock(open=fake_urlopen))
     assert daemon_client.is_artemis_daemon("127.0.0.1", 8000) is expected
-    assert seen["url"] == "http://127.0.0.1:8000/api/system/server-status"
+    assert seen["url"] == "http://127.0.0.1:8000/api/system/lifecycle-identity"
 
 
 def test_is_artemis_daemon_is_false_when_nothing_listens(monkeypatch):

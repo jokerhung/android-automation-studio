@@ -143,7 +143,14 @@ export function ModelSettingsPanel() {
         api_key: apiKey || null,
         codex_path: draft.codex_path,
       }, controller.signal);
-      if (!controller.signal.aborted) setModelList(result);
+      if (!controller.signal.aborted) {
+        setModelList(result);
+        setDraft(current => ({
+          ...current,
+          default_model: result.default_models.includes(current.default_model) ? current.default_model : '',
+          fallback_model: result.fallback_models.includes(current.fallback_model) ? current.fallback_model : '',
+        }));
+      }
     } catch (reason) {
       if (!controller.signal.aborted) setModelListError(errorText(reason, t('settings.models.fetchError')));
     } finally {
@@ -191,11 +198,17 @@ export function ModelSettingsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function validModelSelection() {
+    return modelList
+      ? modelList.default_models.includes(draft.default_model) && modelList.fallback_models.includes(draft.fallback_model)
+      : Boolean((draft.default_model.trim() || saved?.default_model) && (draft.fallback_model.trim() || saved?.fallback_model));
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
     setMessage('');
-    if (!draft.default_model.trim() || !draft.fallback_model.trim()) {
+    if (!validModelSelection()) {
       setError(t('settings.models.required'));
       return;
     }
@@ -225,6 +238,11 @@ export function ModelSettingsPanel() {
 
   async function save() {
     if (!saved || busy) return;
+    if (!validModelSelection()) {
+      setConfirming(false);
+      setError(t('settings.models.required'));
+      return;
+    }
     restoreFocus.current = (document.activeElement as HTMLInputElement | null)?.name || 'defaultModel';
     setConfirming(false);
     setBusy(true);
@@ -234,6 +252,8 @@ export function ModelSettingsPanel() {
       const result = await settingsApi.saveModel(
         {
           ...draft,
+          default_model: draft.default_model.trim() || saved.default_model,
+          fallback_model: draft.fallback_model.trim() || saved.fallback_model,
           api_key: apiKey || null,
           expected_version: saved.version,
           confirm_restart: true,
@@ -302,33 +322,47 @@ export function ModelSettingsPanel() {
             <div className="fieldGrid">
               <label>
                 {t('settings.models.default')}
-                <input
-                  name="defaultModel"
-                  list="default-model-options"
-                  autoComplete="off"
-                  required
-                  maxLength={200}
-                  value={draft.default_model}
-                  onChange={(event) => setDraft({ ...draft, default_model: event.target.value })}
-                />
-                <datalist id="default-model-options">
-                  {modelList?.default_models.map(model=><option key={model} value={model}/>) }
-                </datalist>
+                {modelList ? (
+                  <select
+                    name="defaultModel"
+                    value={draft.default_model}
+                    required
+                    onChange={event => setDraft({ ...draft, default_model: event.target.value })}
+                  >
+                    <option value="" disabled>{t('settings.models.select')}</option>
+                    {modelList.default_models.map(model => <option key={model} value={model}>{model}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    name="defaultModel"
+                    autoComplete="off"
+                    maxLength={200}
+                    value={draft.default_model}
+                    onChange={event => setDraft({ ...draft, default_model: event.target.value })}
+                  />
+                )}
               </label>
               <label>
                 {t('settings.models.fallback')}
-                <input
-                  name="fallbackModel"
-                  list="fallback-model-options"
-                  autoComplete="off"
-                  required
-                  maxLength={200}
-                  value={draft.fallback_model}
-                  onChange={(event) => setDraft({ ...draft, fallback_model: event.target.value })}
-                />
-                <datalist id="fallback-model-options">
-                  {modelList?.fallback_models.map(model=><option key={model} value={model}/>) }
-                </datalist>
+                {modelList ? (
+                  <select
+                    name="fallbackModel"
+                    value={draft.fallback_model}
+                    required
+                    onChange={event => setDraft({ ...draft, fallback_model: event.target.value })}
+                  >
+                    <option value="" disabled>{t('settings.models.select')}</option>
+                    {modelList.fallback_models.map(model => <option key={model} value={model}>{model}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    name="fallbackModel"
+                    autoComplete="off"
+                    maxLength={200}
+                    value={draft.fallback_model}
+                    onChange={event => setDraft({ ...draft, fallback_model: event.target.value })}
+                  />
+                )}
               </label>
             </div>
             {draft.provider !== 'openai_acp' && <label>

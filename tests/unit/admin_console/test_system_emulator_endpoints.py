@@ -88,8 +88,9 @@ async def test_adb_endpoint_mutation_rejects_cross_origin_browser_requests():
 
 
 @pytest.mark.asyncio
-async def test_adb_endpoint_mutation_is_local_only_by_default(monkeypatch):
-    monkeypatch.delenv("ARTEMIS_ALLOW_REMOTE_ADB_CONFIGURATION", raising=False)
+async def test_adb_endpoint_mutation_respects_loopback_bind(monkeypatch):
+    from admin_console.routers.system import state
+    monkeypatch.setattr(state, "host", "127.0.0.1")
     transport = ASGITransport(app=app, client=("192.168.1.20", 42000))
     async with AsyncClient(transport=transport, base_url="http://localhost") as ac:
         res = await ac.post(
@@ -98,4 +99,4 @@ async def test_adb_endpoint_mutation_is_local_only_by_default(monkeypatch):
         )
 
     assert res.status_code == 403
-    assert "local-only" in res.json()["detail"]
+    assert "server console" in res.json()["detail"]

@@ -128,35 +128,97 @@ def test_noninteractive_conflict_never_prompts_or_stops(isolated_install, monkey
     adapter.stop.assert_not_called()
 
 
-def test_configuration_is_exclusively_created_and_preserved(isolated_install, monkeypatch):
+@pytest.fixture
+def settings_install(isolated_install, monkeypatch):
     import artemis.config.paths as paths
+    from artemis.config.sqlite_store import MODEL_ENV_KEYS, SettingsStore
 
     env, config = isolated_install / ".env", isolated_install / "artemis.jsonc"
-    config.write_text('{"agent": {}}')
-    (isolated_install / ".env.example").write_text("OPENAI_API_KEY=\n")
+    config.write_text('{"default":{"provider":"openai","model":"install-default"}}')
     monkeypatch.setattr(paths, "get_env_file", lambda: env)
     monkeypatch.setattr(paths, "get_config_path", lambda _: config)
+    monkeypatch.setenv("DATA_ENGINE_DB_PATH", str(isolated_install / "data" / "settings.db"))
+    monkeypatch.setenv("APPDATA", str(isolated_install / "appdata"))
+    monkeypatch.delenv("ARTEMIS_ARTEMIS_JSONC", raising=False)
+    for key in MODEL_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+    return env, config, SettingsStore()
+
+
+@pytest.mark.parametrize("platform_name", ["win32", "linux", "darwin"])
+def test_fresh_install_creates_sqlite_defaults_without_dotenv(
+    settings_install, monkeypatch, platform_name
+):
+    import apps.admin_console.services.email_settings_service as email
+
+    env, _, store = settings_install
+    # Fresh Ubuntu/macOS installs must not require Windows DPAPI.
+    monkeypatch.setattr(email.sys, "platform", platform_name)
+    secret_store = MagicMock()
+    secret_store.get.return_value = None
+    factory = MagicMock(return_value=secret_store)
+    monkeypatch.setattr(email, "create_secret_store", factory)
     installer.initialize_config()
-    env.write_text("OPENAI_API_KEY=preserved-secret\n")
+    assert store.path.is_file()
+    assert not env.exists()
+    model, version = store.model()
+    assert version == 1
+    assert model["config"]["default"]["model"] == "install-default"
+    assert not any(model["credentials"].values())
+    document, version = store.get_or_import("email", lambda: pytest.fail("missing email"))
+    assert version == 1
+    assert document["password"] is None
+    assert document["settings"] == {
+        "smtp_host": "",
+        "smtp_port": 587,
+        "security": "starttls",
+        "smtp_username": "",
+        "sender_email": "",
+        "sender_name": "Artemis",
+        "enabled": False,
+        "version": 0,
+    }
+    assert factory.call_count == (1 if platform_name == "win32" else 0)
+
+
+def test_install_preserves_sqlite_and_imports_legacy_once(settings_install):
+    env, config, store = settings_install
+    env.write_text("OPENAI_API_KEY=legacy-test-key\n")
     installer.initialize_config()
-    assert env.read_text() == "OPENAI_API_KEY=preserved-secret\n"
+    assert store.model()[0]["credentials"]["OPENAI_API_KEY"] == "legacy-test-key"
+    store.update("model", lambda doc: {**doc, "credentials": {"OPENAI_API_KEY": "db-test-key"}})
+    store.update("email", lambda doc: {**doc, "password": "preserved-encrypted-password"})
+    before_model = store.model()
+    before_email = store.get_or_import("email", lambda: None)
+    env.write_text("OPENAI_API_KEY=changed-test-key\n")
+    config.write_text('{"default":{"provider":"google","model":"changed"}}')
+    installer.initialize_config()
+    assert store.model() == before_model
+    assert store.get_or_import("email", lambda: None) == before_email
+    assert env.read_text() == "OPENAI_API_KEY=changed-test-key\n"
     config.write_text("{invalid-json-with-secret")
     with pytest.raises(installer.InstallError) as failure:
         installer.initialize_config()
     assert failure.value.code == 6
     assert "secret" not in str(failure.value)
-    assert env.read_text() == "OPENAI_API_KEY=preserved-secret\n"
+    assert store.model() == before_model
 
 
 def test_cached_rerun_skips_sync_build_and_preserves_port(isolated_install, monkeypatch):
     create_export(isolated_install)
     state = {
+        "schema": 1,
+        "source": "jokerhung/android-automation-studio",
         "dependencies": "deps",
         "frontend": "web",
         "port": 8123,
-        "runtime_env": {"ARTEMIS_APP_DIR": str(isolated_install / "user-data")},
+        "runtime_env": {
+            "ARTEMIS_APP_DIR": str(isolated_install / "user-data"),
+            "DATA_ENGINE_DB_PATH": str(isolated_install / "custom.db"),
+        },
     }
     monkeypatch.delenv("ARTEMIS_APP_DIR", raising=False)
+    monkeypatch.delenv("DATA_ENGINE_DB_PATH", raising=False)
     monkeypatch.setattr(installer, "fingerprint", lambda _: "deps")
     monkeypatch.setattr(installer, "frontend_fingerprint", lambda: "web")
     monkeypatch.setattr(installer, "dependencies_current", lambda *_: True)
@@ -168,12 +230,17 @@ def test_cached_rerun_skips_sync_build_and_preserves_port(isolated_install, monk
         uv="uv", port=None, local_only=False, non_interactive=True, open=False
     )
     assert installer.prepare(args, state) == 0
-    run.assert_not_called()
+    run.assert_called_once()
+    assert "_configure" in run.call_args.args[0]
+    assert "--non-interactive" in run.call_args.args[0]
     assert json.loads(installer.STATE.read_text())["port"] == 8123
     assert json.loads(installer.STATE.read_text())["runtime_env"]["ARTEMIS_APP_DIR"] == str(
         isolated_install / "user-data"
     )
     assert "_finish" in call.call_args.args[0]
+    assert installer.read_state()["runtime_env"]["DATA_ENGINE_DB_PATH"] == str(
+        isolated_install / "custom.db"
+    )
 
 
 def test_native_failure_and_timeout_stop_pipeline(isolated_install):

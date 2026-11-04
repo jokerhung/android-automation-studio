@@ -92,7 +92,7 @@ try {
         $source = @(Get-ChildItem -LiteralPath "$stage/source" -Directory)
         if ($source.Count -ne 1) { throw 'Invalid source archive.' }
         $sourceRoot = $source[0].FullName
-        foreach ($required in @('install.sh', 'install.ps1', '.env.example', 'pyproject.toml', 'uv.lock', 'artemis', 'apps/admin_console', 'apps/showcase_next/package.json', 'apps/showcase_next/package-lock.json', 'apps/showcase_next/next.config.ts', 'apps/showcase_next/src', 'packages/artemis-client/pyproject.toml', 'config/artemis.jsonc', 'scripts/install_runtime.py', 'scripts/bootstrap_common.ps1')) {
+        foreach ($required in @('install.sh', 'install.ps1', 'artemis/config/sqlite_store.py', 'pyproject.toml', 'uv.lock', 'artemis', 'apps/admin_console', 'apps/showcase_next/package.json', 'apps/showcase_next/package-lock.json', 'apps/showcase_next/next.config.ts', 'apps/showcase_next/src', 'packages/artemis-client/pyproject.toml', 'config/artemis.jsonc', 'scripts/install_runtime.py', 'scripts/bootstrap_common.ps1')) {
             if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot $required))) { throw "Incomplete archive: $required" }
         }
         if (-not (Select-String -LiteralPath "$sourceRoot/scripts/install_runtime.py" -Pattern '^BOOTSTRAP_VERSION = 1$' -Quiet)) { throw 'Incompatible snapshot bootstrap contract.' }

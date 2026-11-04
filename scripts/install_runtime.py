@@ -64,6 +64,7 @@ def read_state() -> dict:
                 "ARTEMIS_USE_USER_DIR",
                 "ARTEMIS_TRACES_DIR",
                 "ARTEMIS_ARTEMIS_JSONC",
+                "DATA_ENGINE_DB_PATH",
             }
             or not isinstance(value, str)
             for key, value in runtime_env.items()
@@ -306,6 +307,7 @@ def prepare(args, state: dict) -> int:
                 "ARTEMIS_USE_USER_DIR",
                 "ARTEMIS_TRACES_DIR",
                 "ARTEMIS_ARTEMIS_JSONC",
+                "DATA_ENGINE_DB_PATH",
             }
         }
     )
@@ -396,25 +398,17 @@ def prepare(args, state: dict) -> int:
 
 def initialize_config() -> None:
     from artemis.config.paths import get_config_path, get_env_file
+    from artemis.config.sqlite_store import get_settings_store
+    from apps.admin_console.services.email_settings_service import EmailSettingsService
     from artemis.utils.file import load_jsonc
     from dotenv.parser import parse_stream
 
     env = get_env_file()
-    env.parent.mkdir(parents=True, exist_ok=True)
-    if not env.exists():
-        template = ROOT / ".env.example"
-        # Exclusive creation also preserves a file created concurrently by Settings.
-        try:
-            with env.open("x", encoding="utf-8") as output:
-                if template.exists():
-                    output.write(template.read_text(encoding="utf-8"))
-            if os.name != "nt":
-                env.chmod(0o600)
-        except FileExistsError:
-            pass
-    with env.open(encoding="utf-8") as stream:
-        if any(binding.error for binding in parse_stream(stream)):
-            raise InstallError(6, f"Invalid dotenv syntax: {env}; fix the file and retry")
+    # Legacy files are import sources only; fresh installations need no .env.
+    if env.exists():
+        with env.open(encoding="utf-8") as stream:
+            if any(binding.error for binding in parse_stream(stream)):
+                raise InstallError(6, f"Invalid dotenv syntax: {env}; fix the file and retry")
     override = os.environ.get("ARTEMIS_ARTEMIS_JSONC")
     if override and not Path(override).is_file():
         raise InstallError(
@@ -429,7 +423,15 @@ def initialize_config() -> None:
         raise InstallError(
             6, f"Invalid configuration: {config}; preserve the file and fix its syntax"
         ) from exc
-    print(f"[OK] 4/6 Configuration preserved/initialized: {env}", flush=True)
+    store = get_settings_store()
+    try:
+        store.model(config_path=config, env_path=env)
+        EmailSettingsService(None, store=store).initialize()
+    except Exception as exc:
+        raise InstallError(
+            6, f"Unable to initialize settings database: {store.path}; existing data preserved"
+        ) from exc
+    print(f"[OK] 4/6 SQLite model/email settings preserved/initialized: {store.path}", flush=True)
 
 
 def lifecycle(host: str, port: int):
@@ -636,7 +638,10 @@ def manage(args, state: dict) -> int:
             if not adapter.stop(timeout=30):
                 raise InstallError(8, "Verified daemon did not stop; bind address was not changed")
             status = adapter.status()
-    if status.presence is not DaemonPresence.STOPPED and status.presence is not DaemonPresence.ARTEMIS:
+    if (
+        status.presence is not DaemonPresence.STOPPED
+        and status.presence is not DaemonPresence.ARTEMIS
+    ):
         raise InstallError(8, f"Port {port} is occupied by an unverified process")
     if status.presence is DaemonPresence.STOPPED:
         print("[DANG] 6/6 Starting background ARTEMIS", flush=True)
@@ -716,6 +721,7 @@ def main() -> int:
                     "ARTEMIS_USE_USER_DIR",
                     "ARTEMIS_TRACES_DIR",
                     "ARTEMIS_ARTEMIS_JSONC",
+                    "DATA_ENGINE_DB_PATH",
                 }:
                     os.environ.setdefault(key, value)
         if args.action == "_active":

@@ -43,217 +43,128 @@ class LLMCredentialsProbe(BaseProbe):
     def _mask_key(self, key_str: str) -> str:
         """Helper to safely mask an API credential for display."""
         if len(key_str) > 10:
-            return f"{key_str[:6]}...{key_str[-4:]}"
+            return f"****{key_str[-4:]}"
         return "***"
 
     async def probe(self) -> ProbeResult:
-        import os
-
         from artemis.config.settings import is_placeholder_key
+        from artemis.config.sqlite_store import PROVIDER_KEYS, get_settings_store
 
-        from artemis.config.paths import get_config_path
-        from artemis.utils.file import load_jsonc
+        store = get_settings_store()
+        document, version = store.model()
+        default = document["config"].get("default", {})
+        selected_provider = default.get("provider", "google")
+        values = document["credentials"]
 
-        try:
-            with get_config_path("artemis.jsonc").open(encoding="utf-8") as stream:
-                selected_provider = load_jsonc(stream).get("default", {}).get("provider")
-        except (OSError, ValueError):
-            selected_provider = None
+        def credential(provider):
+            return next(
+                (
+                    str(values[key]).strip()
+                    for key in PROVIDER_KEYS.get(provider, [])
+                    if values.get(key) and not is_placeholder_key(values[key])
+                ),
+                "",
+            )
+
+        labels = {
+            "google": "Gemini",
+            "openai": "OpenAI",
+            "anthropic": "Claude",
+            "openrouter": "OpenRouter",
+            "xai": "xAI (Grok)",
+        }
+        providers: list[dict[str, Any]] = []
+        api_keys = {}
+        for provider, label in labels.items():
+            key = credential(provider)
+            if key:
+                providers.append(
+                    {
+                        "provider": provider,
+                        "label": label,
+                        "masked": self._mask_key(key),
+                        "raw_key": key,
+                        "key": key,
+                    }
+                )
+                api_keys[provider] = key
+        if api_keys.get("google"):
+            api_keys["gemini"] = api_keys["google"]
+        ocr_key = next(
+            (
+                str(values[key]).strip()
+                for key in ("OCR_API_KEY", "VISION_API_KEY")
+                if values.get(key) and not is_placeholder_key(values[key])
+            ),
+            "",
+        )
+        if ocr_key:
+            api_keys["ocr"] = ocr_key
+        base_url = (
+            default.get("api_base") or default.get("base_url") or values.get("OPENAI_BASE_URL")
+        )
+        if base_url and selected_provider in {"openai", "custom", "ollama", "vllm"}:
+            endpoint_provider = (
+                selected_provider if selected_provider in {"ollama", "vllm"} else "custom"
+            )
+            providers.append(
+                {
+                    "provider": endpoint_provider,
+                    "label": "Configured model endpoint",
+                    "masked": "Configured",
+                    "raw_key": base_url,
+                    "key": base_url,
+                }
+            )
+        metadata = {
+            "storage": "sqlite",
+            "database_path": str(store.path),
+            "version": version,
+            "provider": selected_provider,
+            "model": default.get("model", ""),
+            "configured_count": len(providers),
+            "providers": providers,
+            "has_ocr_key": bool(ocr_key),
+            "api_keys": api_keys,
+            "current_key": credential(selected_provider),
+            "current_gemini_key": api_keys.get("google", ""),
+        }
+        ready = bool(credential(selected_provider))
+        if selected_provider in {"ollama", "vllm"}:
+            ready = bool(base_url)
         if selected_provider == "openai_acp":
             from artemis.llm.openai_acp import available_codex_models
 
+            settings.refresh_model_settings()
             try:
                 models = await available_codex_models()
-                if not models:
-                    raise ValueError("Codex returned no models.")
+                ready = bool(models)
+                metadata["model_count"] = len(models)
             except (OSError, ValueError, RuntimeError, TimeoutError):
-                return ProbeResult(
-                    id=self.probe_id, category=self.category, title="OpenAI ACP (Codex)",
-                    status=ProbeStatus.FAIL, is_blocker=True, summary="Codex unavailable",
-                    description="Check the Codex executable in Settings → Models and run codex login on the server computer.",
-                    metadata={"provider": "openai_acp"}, actions=[],
-                )
-            return ProbeResult(
-                id=self.probe_id, category=self.category, title="OpenAI ACP (Codex)",
-                status=ProbeStatus.PASS, is_blocker=True, summary="Codex ready",
-                description="Installed Codex is signed in and available through ACP.",
-                metadata={"provider": "openai_acp", "model_count": len(models)}, actions=[],
-            )
-
-        gemini_key = settings.get_api_key("google")
-        openai_key = settings.get_api_key("openai")
-        claude_key = settings.get_api_key("anthropic")
-        openrouter_key = settings.get_api_key("openrouter")
-        xai_key = settings.get_api_key("xai")
-        ocr_key = settings.get_api_key("ocr")
-
-        configured_providers: list[dict[str, Any]] = []
-        api_keys_map: dict[str, str] = {}
-        if gemini_key and not is_placeholder_key(gemini_key):
-            g_val = gemini_key.get_secret_value()
-            configured_providers.append(
-                {
-                    "provider": "google",
-                    "label": "Gemini",
-                    "masked": self._mask_key(g_val),
-                    "raw_key": g_val,
-                    "key": g_val,
-                }
-            )
-            api_keys_map["google"] = g_val
-            api_keys_map["gemini"] = g_val
-        if openai_key and not is_placeholder_key(openai_key):
-            o_val = openai_key.get_secret_value()
-            configured_providers.append(
-                {
-                    "provider": "openai",
-                    "label": "ChatGPT",
-                    "masked": self._mask_key(o_val),
-                    "raw_key": o_val,
-                    "key": o_val,
-                }
-            )
-            api_keys_map["openai"] = o_val
-        if claude_key and not is_placeholder_key(claude_key):
-            c_val = claude_key.get_secret_value()
-            configured_providers.append(
-                {
-                    "provider": "anthropic",
-                    "label": "Claude",
-                    "masked": self._mask_key(c_val),
-                    "raw_key": c_val,
-                    "key": c_val,
-                }
-            )
-            api_keys_map["anthropic"] = c_val
-        if openrouter_key and not is_placeholder_key(openrouter_key):
-            or_val = openrouter_key.get_secret_value()
-            configured_providers.append(
-                {
-                    "provider": "openrouter",
-                    "label": "OpenRouter",
-                    "masked": self._mask_key(or_val),
-                    "raw_key": or_val,
-                    "key": or_val,
-                }
-            )
-            api_keys_map["openrouter"] = or_val
-        if xai_key and not is_placeholder_key(xai_key):
-            x_val = xai_key.get_secret_value()
-            configured_providers.append(
-                {
-                    "provider": "xai",
-                    "label": "xAI (Grok)",
-                    "masked": self._mask_key(x_val),
-                    "raw_key": x_val,
-                    "key": x_val,
-                }
-            )
-            api_keys_map["xai"] = x_val
-
-        # Detect any custom model endpoints or environment variables defined in files
-        for env_var, label, prov_id in [
-            ("DEEPSEEK_API_KEY", "DeepSeek", "deepseek"),
-            ("GROQ_API_KEY", "Groq", "groq"),
-            ("OPENAI_BASE_URL", "Custom OpenAI Endpoint", "custom"),
-            ("OLLAMA_BASE_URL", "Local Ollama", "ollama"),
-            ("VLLM_BASE_URL", "vLLM Endpoint", "vllm"),
-            ("VERTEX_AI_PROJECT", "Google Cloud Vertex AI", "vertexai"),
-        ]:
-            val = os.environ.get(env_var)
-            if val and val.strip() and not is_placeholder_key(val.strip()):
-                configured_providers.append(
-                    {
-                        "provider": prov_id,
-                        "label": label,
-                        "masked": self._mask_key(val.strip()),
-                        "raw_key": val.strip(),
-                        "key": val.strip(),
-                    }
-                )
-                api_keys_map[prov_id] = val.strip()
-
-        if ocr_key and not is_placeholder_key(ocr_key):
-            api_keys_map["ocr"] = ocr_key.get_secret_value()
-
-        current_active_key = (
-            gemini_key.get_secret_value()
-            if gemini_key
-            else (configured_providers[0]["key"] if configured_providers else "")
-        )
-
-        metadata = {
-            "configured_count": len(configured_providers),
-            "providers": configured_providers,
-            "has_ocr_key": ocr_key is not None,
-            "current_key": current_active_key,
-            "current_gemini_key": gemini_key.get_secret_value() if gemini_key else "",
-            "api_keys": api_keys_map,
-        }
-
-        # Case 1: Gemini API Key configured (Standard / Recommended)
-        if gemini_key:
-            masked = self._mask_key(gemini_key.get_secret_value())
-            return ProbeResult(
-                id=self.probe_id,
-                category=self.category,
-                title="Multimodal LLM API Key",
-                status=ProbeStatus.PASS,
-                is_blocker=self.is_blocker,
-                summary="Active (Gemini)",
-                description=f"Gemini multimodal API credential is active ({masked}) and ready for vision and reasoning.",
-                metadata=metadata,
-                actions=[
-                    ProbeAction(
-                        action_type="hint",
-                        label="Provider Active",
-                        payload="Gemini 2.5 Flash / Pro Multimodal Engine is enabled.",
-                    )
-                ],
-            )
-
-        # Case 2: Other LLM provider configured
-        if configured_providers:
-            first_p = configured_providers[0]
-            return ProbeResult(
-                id=self.probe_id,
-                category=self.category,
-                title="Multimodal LLM API Key",
-                status=ProbeStatus.PASS,
-                is_blocker=self.is_blocker,
-                summary=f"Active ({first_p['label']})",
-                description=f"{first_p['label']} multimodal API credential is active ({first_p['masked']}).",
-                metadata=metadata,
-                actions=[
-                    ProbeAction(
-                        action_type="hint",
-                        label="Provider Active",
-                        payload=f"{first_p['label']} multimodal vision endpoint is active.",
-                    )
-                ],
-            )
-
-        # Case 3: No LLM key configured
+                ready = False
+        label = labels.get(selected_provider, selected_provider)
         return ProbeResult(
             id=self.probe_id,
             category=self.category,
-            title="Multimodal LLM API Key",
-            status=ProbeStatus.FAIL,
-            is_blocker=self.is_blocker,
-            summary="Key Missing",
-            description="No Multimodal LLM credential (e.g. GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY) found in environment or .env file.",
+            title="Model credentials (SQLite)",
+            status=ProbeStatus.PASS if ready else ProbeStatus.FAIL,
+            is_blocker=True,
+            summary=f"Configured ({label})" if ready else f"Configuration missing ({label})",
+            description=(
+                f"The selected {label} model uses credentials stored in SQLite. "
+                "Configuration checked; API connectivity is checked when a task runs."
+                if ready and selected_provider != "openai_acp"
+                else "Installed Codex is signed in and available through ACP; selection comes from SQLite."
+                if ready
+                else f"Configure the selected {label} provider in Settings > Models (SQLite)."
+            ),
             metadata=metadata,
-            actions=[
+            actions=[]
+            if ready
+            else [
                 ProbeAction(
-                    action_type="command",
-                    label="Run Artemis Init",
-                    payload="artemis init",
-                ),
-                ProbeAction(
-                    action_type="link",
-                    label="Get Google AI Studio Key",
-                    payload="https://aistudio.google.com/app/apikey",
-                ),
+                    action_type="link", label="Model settings", payload="/settings/?tab=models"
+                )
             ],
         )
 
@@ -276,7 +187,7 @@ class VisionOCRProbe(BaseProbe):
     def _mask_key(self, key_str: str) -> str:
         """Helper to safely mask an API credential for display."""
         if len(key_str) > 10:
-            return f"{key_str[:6]}...{key_str[-4:]}"
+            return f"****{key_str[-4:]}"
         return "***"
 
     async def probe(self) -> ProbeResult:
@@ -296,7 +207,13 @@ class VisionOCRProbe(BaseProbe):
                 is_blocker=False,
                 summary="Active & Configured",
                 description=f"Google Cloud Vision OCR ({masked}) is active for image text recognition.",
-                metadata={"configured": True, "masked_key": masked, "key": val, "raw_key": val},
+                metadata={
+                    "configured": True,
+                    "storage": "sqlite",
+                    "masked_key": masked,
+                    "key": val,
+                    "raw_key": val,
+                },
                 actions=[
                     ProbeAction(
                         action_type="hint",
@@ -313,8 +230,8 @@ class VisionOCRProbe(BaseProbe):
             status=ProbeStatus.PASS,
             is_blocker=False,
             summary="Not Configured (Optional)",
-            description="OCR_API_KEY is not set. Perception uses the UI XML hierarchy without OCR.",
-            metadata={"configured": False},
+            description="No OCR credential is configured in SQLite. Perception uses the UI XML hierarchy without OCR.",
+            metadata={"configured": False, "storage": "sqlite"},
             actions=[
                 ProbeAction(
                     action_type="hint",

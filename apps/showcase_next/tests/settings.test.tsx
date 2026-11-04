@@ -101,15 +101,15 @@ describe('P2 Settings migration', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     await user.clear(screen.getByLabelText('Default model'));
     await user.click(screen.getByRole('button', { name: 'Save and restart' }));
-    expect(screen.getByRole('alert')).toHaveTextContent(/required/i);
-    await user.type(screen.getByLabelText('Default model'), 'new-model');
-    await user.click(screen.getByRole('button', { name: 'Save and restart' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Save and restart now' }));
     await waitFor(() => {
       expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(1);
     });
+    const mutation = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT');
+    expect(JSON.parse(String(mutation?.[1]?.body)).default_model).toBe('primary');
     await vi.advanceTimersByTimeAsync(2500);
     await waitFor(() => expect(screen.getByText(/restarted and reconnected/i)).toBeInTheDocument());
     expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(1);
@@ -152,10 +152,15 @@ describe('P2 Settings migration', () => {
 
     render(<AppProviders><EmailSettingsPanel /></AppProviders>);
     expect(await screen.findByLabelText('Password')).toHaveValue('');
+    for (const label of ['SMTP host', 'Sender email', 'Sender name', 'SMTP username']) {
+      await userEvent.clear(screen.getByLabelText(label));
+    }
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(screen.getByText('Email settings saved.')).toBeInTheDocument());
     const save = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT');
-    expect(JSON.parse(String(save?.[1]?.body))).not.toHaveProperty('password');
+    const body = JSON.parse(String(save?.[1]?.body));
+    expect(body).not.toHaveProperty('password');
+    expect(body).toMatchObject({smtp_host: 'smtp.example.com', sender_email: 'a@example.com', sender_name: 'ARTEMIS', smtp_username: 'a@example.com'});
     await userEvent.click(screen.getByRole('button', { name: 'Test connection' }));
     expect(await screen.findByText('SMTP connection succeeded.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Send test email' }));

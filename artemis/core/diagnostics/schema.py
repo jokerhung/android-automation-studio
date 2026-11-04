@@ -16,7 +16,7 @@
 
 from enum import Enum
 from typing import Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 
 class ProbeStatus(str, Enum):
@@ -96,6 +96,20 @@ class ProbeResult(BaseModel):
     actions: list[ProbeAction] = Field(
         default_factory=list, description="List of actionable remediation steps"
     )
+
+    @field_serializer("metadata")
+    def public_metadata(self, value):
+        # Internal credential verification can use the keys; reports cannot expose them.
+        private = {"raw_key", "key", "api_keys", "current_key", "current_gemini_key"}
+
+        def clean(item):
+            if isinstance(item, dict):
+                return {key: clean(val) for key, val in item.items() if key not in private}
+            if isinstance(item, list):
+                return [clean(val) for val in item]
+            return item
+
+        return clean(value)
 
 
 class SystemReadinessReport(BaseModel):

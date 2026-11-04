@@ -26,16 +26,7 @@ from artemis.config.constants import (
     DEFAULT_ADB_PORT,
     DEFAULT_MODEL,
     DEFAULT_PROFILE,
-    ENV_ANTHROPIC_API_KEY,
     ENV_DATA_ENGINE_DB_PATH,
-    ENV_GCP_API_KEY,
-    ENV_GEMINI_API_KEY,
-    ENV_GOOGLE_API_KEY,
-    ENV_OCR_API_KEY,
-    ENV_OPEN_ROUTER_API_KEY,
-    ENV_OPENAI_API_KEY,
-    ENV_VISION_API_KEY,
-    ENV_XAI_API_KEY,
 )
 from artemis.config.paths import (
     GLOBAL_APP_DIR,
@@ -189,7 +180,9 @@ class Settings(BaseSettings):
         Keep the caller's path (including any /v1 prefix) intact. Empty values
         must not reach the SDK, where an empty environment variable is a URL.
         """
-        for value in (base_url, self.OPENAI_BASE_URL, os.environ.get("OPENAI_BASE_URL")):
+        if globals().get("settings") is self:
+            self.refresh_model_settings()
+        for value in (base_url, self.OPENAI_BASE_URL):
             if value and value.strip():
                 return value.strip().rstrip("/")
         return "https://api.openai.com/v1"
@@ -203,6 +196,8 @@ class Settings(BaseSettings):
         Returns:
             SecretStr containing the API key or None if not configured.
         """
+        if globals().get("settings") is self:
+            self.refresh_model_settings()
         from artemis.llm.google.provider import is_google_family_provider
 
         provider_lower = provider.lower()
@@ -224,102 +219,62 @@ class Settings(BaseSettings):
             return key
         return None
 
-    def set_api_key(self, provider: str, key: str, persist_to_env: bool = False) -> None:
-        """Dynamically set an API key at runtime, optionally persisting to .env in the app dir.
+    def refresh_model_settings(self) -> None:
+        """Read authoritative credentials from SQLite, replacing inherited values."""
+        from artemis.config.sqlite_store import get_settings_store, MODEL_ENV_KEYS
 
-        Args:
-            provider: Target provider name.
-            key: Secret API key string.
-            persist_to_env: Whether to save the key to the app directory's .env file.
-        """
-        secret = SecretStr(key)
+        document, _ = get_settings_store().model()
+        values = document["credentials"]
+        for name in MODEL_ENV_KEYS:
+            value = values.get(name) or ""
+            if name.endswith("API_KEY") and is_placeholder_key(value):
+                value = ""
+            if name in type(self).model_fields:
+                setattr(
+                    self,
+                    name,
+                    SecretStr(value) if name.endswith("API_KEY") and value else value or None,
+                )
+            # Some provider SDKs read environment variables internally. Mirror the
+            # database, never use the worker's inherited credential as fallback.
+            if value:
+                os.environ[name] = value
+            else:
+                os.environ.pop(name, None)
+        self.fallback_api_keys()
+
+    def set_api_key(self, provider: str, key: str, persist_to_env: bool = False) -> None:
+        """Persist provider credentials in SQLite; retained argument is API compatibility."""
+        from artemis.config.sqlite_store import PROVIDER_KEYS, get_settings_store
         from artemis.llm.google.provider import is_google_family_provider
 
-        provider_lower = provider.lower()
-        env_key_name = None
+        provider = provider.lower()
+        if is_google_family_provider(provider):
+            names = PROVIDER_KEYS["google"]
+        elif provider in ("ocr", "vision", "google_vision"):
+            names = ["OCR_API_KEY", "VISION_API_KEY"]
+        else:
+            names = PROVIDER_KEYS.get(
+                {"claude": "anthropic", "grok": "xai"}.get(provider, provider), []
+            )
+        if not names:
+            raise ValueError("Unsupported credential provider")
+        if globals().get("settings") is self or persist_to_env:
+            store = get_settings_store()
+            store.model()
 
-        if is_google_family_provider(provider_lower):
-            self.GOOGLE_API_KEY = secret
-            self.GEMINI_API_KEY = secret
-            self.GCP_API_KEY = secret
-            env_key_name = ENV_GEMINI_API_KEY
-            os.environ[ENV_GOOGLE_API_KEY] = key
-            os.environ[ENV_GEMINI_API_KEY] = key
-            os.environ[ENV_GCP_API_KEY] = key
-        elif provider_lower == "openai":
-            self.OPENAI_API_KEY = secret
-            env_key_name = ENV_OPENAI_API_KEY
-            os.environ[ENV_OPENAI_API_KEY] = key
-        elif provider_lower in ("anthropic", "claude"):
-            self.ANTHROPIC_API_KEY = secret
-            env_key_name = ENV_ANTHROPIC_API_KEY
-            os.environ[ENV_ANTHROPIC_API_KEY] = key
-        elif provider_lower == "openrouter":
-            self.OPEN_ROUTER_API_KEY = secret
-            env_key_name = ENV_OPEN_ROUTER_API_KEY
-            os.environ[ENV_OPEN_ROUTER_API_KEY] = key
-        elif provider_lower == "xai":
-            self.XAI_API_KEY = secret
-            env_key_name = ENV_XAI_API_KEY
-            os.environ[ENV_XAI_API_KEY] = key
-        elif provider_lower in ("ocr", "vision", "google_vision"):
-            self.OCR_API_KEY = secret
-            self.VISION_API_KEY = secret
-            env_key_name = ENV_OCR_API_KEY
-            os.environ[ENV_OCR_API_KEY] = key
-            os.environ[ENV_VISION_API_KEY] = key
+            def change(document):
+                document["credentials"].update({name: key for name in names})
+                return document
 
-        if persist_to_env and env_key_name:
-            target_env_files = [get_env_file()]
-            seen_paths = set()
-            for env_file in target_env_files:
-                try:
-                    env_file.parent.mkdir(parents=True, exist_ok=True)
-                    resolved = env_file.resolve()
-                    if resolved in seen_paths:
-                        continue
-                    seen_paths.add(resolved)
-
-                    lines = []
-                    if env_file.exists():
-                        lines = env_file.read_text(encoding="utf-8").splitlines()
-
-                    # Determine keys to update
-                    keys_to_update = [env_key_name]
-                    if is_google_family_provider(provider_lower):
-                        keys_to_update = [ENV_GEMINI_API_KEY, ENV_GOOGLE_API_KEY, ENV_GCP_API_KEY]
-                    elif provider_lower in ("ocr", "vision", "google_vision"):
-                        keys_to_update = [ENV_OCR_API_KEY, ENV_VISION_API_KEY]
-
-                    new_lines = []
-                    updated_set = set()
-                    for line in lines:
-                        replaced = False
-                        for k in keys_to_update:
-                            if (
-                                line.startswith(f"{k}=")
-                                or line.startswith(f"#{k}=")
-                                or line.startswith(f"# {k}=")
-                            ):
-                                new_lines.append(f"{k}={key}")
-                                updated_set.add(k)
-                                replaced = True
-                                break
-                        if not replaced:
-                            new_lines.append(line)
-
-                    # Ensure the primary key is present if not replaced
-                    primary_key = keys_to_update[0]
-                    if primary_key not in updated_set:
-                        new_lines.append(f"{primary_key}={key}")
-
-                    env_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-                except Exception as e:
-                    logger.warning(f"Could not persist {env_key_name} to {env_file}: {e}")
+            store.update("model", change)
+        for name in names:
+            setattr(self, name, SecretStr(key))
 
 
 # Singleton instance
 settings = Settings()
+settings.refresh_model_settings()
 
 # Synchronize DATA_ENGINE_DB_PATH in environment for external sub-processes/tools
 if settings.DATA_ENGINE_DB_PATH:

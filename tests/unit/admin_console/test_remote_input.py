@@ -7,9 +7,11 @@ def test_remote_key_allowlist_does_not_accept_raw_codes():
 
 @pytest.mark.parametrize("host,allowed", [("127.0.0.1", True), ("::1", True), ("192.168.1.20", False)])
 def test_remote_control_is_loopback_only_by_default(monkeypatch, host, allowed):
-    monkeypatch.delenv("ARTEMIS_REMOTE_CONTROL_ALLOW_LAN", raising=False)
+    from admin_console.core.state import state
+    monkeypatch.setattr(state, "host", "127.0.0.1")
     assert control_allowed(host) is allowed
 
 def test_remote_control_can_be_enabled_for_lan(monkeypatch):
-    monkeypatch.setenv("ARTEMIS_REMOTE_CONTROL_ALLOW_LAN", "1")
+    from admin_console.core.state import state
+    monkeypatch.setattr(state, "host", "0.0.0.0")
     assert control_allowed("192.168.1.20")

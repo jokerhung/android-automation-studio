@@ -3,8 +3,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from artemis.runtime import device_pool
-from ..services.device_stream_service import device_stream_service
-from ..services import device_input_service as inputs
+try:
+    from admin_console.routers.system import _require_server_bound_request
+    from admin_console.services.device_stream_service import device_stream_service
+    from admin_console.services import device_input_service as inputs
+except ImportError:
+    from apps.admin_console.routers.system import _require_server_bound_request
+    from apps.admin_console.services.device_stream_service import device_stream_service
+    from apps.admin_console.services import device_input_service as inputs
 
 router = APIRouter(tags=["remote"])
 HEADERS = {"Cache-Control": "no-store"}
@@ -15,8 +21,7 @@ def error(exc: inputs.InputError):
 async def guarded(request: Request, operation, payload: dict):
     if request.headers.get("content-type", "").split(";", 1)[0].lower() != "application/json":
         return JSONResponse({"code":"invalid_content_type","detail":"Content-Type must be application/json"}, status_code=415, headers=HEADERS)
-    if not inputs.control_allowed(request.client.host if request.client else None):
-        return JSONResponse({"code":"control_disabled","detail":"Remote control is disabled outside loopback"}, status_code=409, headers=HEADERS)
+    _require_server_bound_request(request, "Remote control requires access through the server console.")
     try: return JSONResponse(await operation(payload), headers=HEADERS)
     except inputs.InputError as exc: return error(exc)
 

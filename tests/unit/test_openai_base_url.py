@@ -20,7 +20,7 @@ from artemis.utils.credentials_validator import validate_api_key
 
 
 @pytest.fixture(autouse=True)
-def isolate_openai(monkeypatch):
+def isolate_openai(monkeypatch, sqlite_model_store):
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.delenv("ARTEMIS_FAKE_LLM", raising=False)
     monkeypatch.setattr(settings, "OPENAI_BASE_URL", None)
@@ -66,12 +66,12 @@ def test_config_preserves_primary_and_fallback_urls(field, fallback):
             "https://env.example/v1",
             "https://settings.example/v1",
         ),
-        (None, None, "https://env.example/v1", "https://env.example/v1"),
+        (None, None, "https://env.example/v1", "https://api.openai.com/v1"),
         (" ", "", "", "https://api.openai.com/v1"),
     ],
 )
-def test_base_url_precedence(monkeypatch, explicit, configured, environment, expected):
-    monkeypatch.setattr(settings, "OPENAI_BASE_URL", configured)
+def test_base_url_precedence(monkeypatch, sqlite_model_store, explicit, configured, environment, expected):
+    set_database_url(sqlite_model_store, configured)
     monkeypatch.setenv("OPENAI_BASE_URL", environment)
     model = ModelFactory.create_model(
         ModelEndpoint(provider="openai", model_name="test-model", base_url=explicit)
@@ -85,12 +85,12 @@ def test_base_url_loads_from_dotenv(tmp_path):
     assert Settings(_env_file=env_file).get_openai_base_url() == "https://dotenv.example/v1"
 
 
-def test_cache_tracks_effective_destination(monkeypatch):
+def test_cache_tracks_effective_destination(monkeypatch, sqlite_model_store):
     endpoint = ModelEndpoint(provider="openai", model_name="test-model")
-    monkeypatch.setattr(settings, "OPENAI_BASE_URL", "https://first.example/v1")
+    set_database_url(sqlite_model_store, "https://first.example/v1")
     first = ModelFactory.get_model(endpoint)
     assert ModelFactory.get_model(endpoint) is first
-    monkeypatch.setattr(settings, "OPENAI_BASE_URL", "https://second.example/v1")
+    set_database_url(sqlite_model_store, "https://second.example/v1")
     second = ModelFactory.get_model(endpoint)
     assert second is not first
     assert second.openai_api_base == "https://second.example/v1"
@@ -148,8 +148,8 @@ async def test_diagnostics_authenticate_custom_endpoint_and_redact_key():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("explicit", [None, "https://override.example/api/v1/"])
-async def test_credential_check_uses_custom_url(monkeypatch, explicit):
-    monkeypatch.setattr(settings, "OPENAI_BASE_URL", "https://configured.example/v1/")
+async def test_credential_check_uses_custom_url(monkeypatch, sqlite_model_store, explicit):
+    set_database_url(sqlite_model_store, "https://configured.example/v1/")
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as get:
         get.return_value = httpx.Response(200, json={"data": []})
         valid, _ = await validate_api_key("openai", "test-key", base_url=explicit)
@@ -198,3 +198,10 @@ def test_chat_request_reaches_custom_path_with_endpoint_key():
     assert len(requests) == 1
     assert str(requests[0].url) == "https://proxy.example/api/v1/chat/completions"
     assert requests[0].headers["Authorization"] == "Bearer test-endpoint-key"
+
+
+def set_database_url(store, url):
+    def change(document):
+        document["credentials"]["OPENAI_BASE_URL"] = url or ""
+        return document
+    store.update("model", change)

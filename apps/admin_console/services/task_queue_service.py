@@ -522,6 +522,11 @@ class TaskQueueService:
 
         test_name = f"web_{int(time.time())}_{run_key[:8]}"
         env = os.environ.copy()
+        from artemis.config.sqlite_store import get_settings_store, MODEL_ENV_KEYS
+        # Pin the child to the same settings DB; inherited model keys are stale.
+        env["DATA_ENGINE_DB_PATH"] = str(get_settings_store().path.resolve())
+        for credential_name in MODEL_ENV_KEYS:
+            env.pop(credential_name, None)
         pythonpath_parts = [
             str(WORKSPACE_ROOT),
             str(WORKSPACE_ROOT / "apps" / "admin_console"),

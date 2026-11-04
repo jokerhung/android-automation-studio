@@ -20,7 +20,8 @@ import pytest
 from apps.admin_console.services.model_service import ModelService
 
 
-def test_get_active_model_info_pro_architecture():
+def test_get_active_model_info_pro_architecture(sqlite_model_store, monkeypatch):
+    monkeypatch.setattr(ModelService, "_llm_info_cache", None)
     """Verify that pro profile returns Pro architecture while keeping real LLM model."""
     info = ModelService.get_active_model_info("pro")
     assert info["name"] == "Pro"
@@ -29,7 +30,8 @@ def test_get_active_model_info_pro_architecture():
     assert "id" in info
 
 
-def test_get_active_model_info_flash_architecture():
+def test_get_active_model_info_flash_architecture(sqlite_model_store, monkeypatch):
+    monkeypatch.setattr(ModelService, "_llm_info_cache", None)
     """Verify that flash profile returns Flash architecture."""
     info = ModelService.get_active_model_info("flash")
     assert info["name"] == "Flash"

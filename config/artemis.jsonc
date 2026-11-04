@@ -8,10 +8,10 @@
   // ------------------------------------------------------------------------------
   "default": {
     "provider": "openai",
-    "model": "combo_cheap",
+    "model": "deepseek-v4.1-flash",
     "fallback": {
       "provider": "openai",
-      "model": "deepseek-v4.1-flash",
+      "model": "gpt-6.1-sol",
       "api_base": "https://api.vilao.ai/v1"
     },
     "api_base": "https://api.vilao.ai/v1"

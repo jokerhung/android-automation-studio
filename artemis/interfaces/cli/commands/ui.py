@@ -383,25 +383,6 @@ def ui_command(
         )
     )
     console.print(Panel(msg, title="🚀 Web Server Active", border_style="cyan", expand=False))
-    # Ensure the canonical writable .env exists. Installed wheels must never
-    # attempt to mutate their site-packages directory.
-    from artemis.config.paths import ROOT_DIR, get_env_file, is_source_checkout
-
-    env_file = get_env_file()
-    env_example = ROOT_DIR / ".env.example"
-    if not env_file.exists():
-        env_file.parent.mkdir(parents=True, exist_ok=True)
-        if is_source_checkout() and env_example.exists():
-            try:
-                env_file.write_text(env_example.read_text(encoding="utf-8"), encoding="utf-8")
-            except (OSError, UnicodeError):
-                pass
-        else:
-            try:
-                env_file.touch()
-            except OSError:
-                pass
-
     ensure_showcase_built(console)
     warn_if_console_script_shim(console)
 

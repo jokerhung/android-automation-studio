@@ -26,6 +26,12 @@ class SecretStore(ABC):
     @abstractmethod
     def delete(self, key: str) -> bool: ...
 
+    def protect(self, value: str) -> bytes:
+        raise SecretStoreUnsupported("Secret encryption is unavailable.")
+
+    def unprotect(self, value: bytes) -> str:
+        raise SecretStoreUnsupported("Secret decryption is unavailable.")
+
 
 class _DataBlob(ctypes.Structure):
     _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_byte))]
@@ -63,7 +69,7 @@ class WindowsDPAPISecretStore(SecretStore):
         except AttributeError as exc:
             raise SecretStoreUnsupported("Windows DPAPI is unavailable.") from exc
 
-    def set(self, key: str, value: str) -> None:
+    def protect(self, value: str) -> bytes:
         if not value:
             raise SecretStoreError("Refusing to store an empty secret.")
         crypt32, kernel32 = self._crypt32()
@@ -85,6 +91,10 @@ class WindowsDPAPISecretStore(SecretStore):
         finally:
             kernel32.LocalFree(output.pbData)
             del plain_buffer, entropy_buffer
+        return encrypted
+
+    def set(self, key: str, value: str) -> None:
+        encrypted = self.protect(value)
         path = self._path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")
@@ -98,7 +108,9 @@ class WindowsDPAPISecretStore(SecretStore):
         path = self._path(key)
         if not path.exists():
             return None
-        encrypted = path.read_bytes()
+        return self.unprotect(path.read_bytes())
+
+    def unprotect(self, encrypted: bytes) -> str:
         crypt32, kernel32 = self._crypt32()
         protected, protected_buffer = _blob(encrypted)
         entropy, entropy_buffer = _blob(self._ENTROPY)

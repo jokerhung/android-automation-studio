@@ -23,7 +23,7 @@ hit mostly through MCP, rarely from the CLI or the web console:
 
 * the MCP client started the server with a different interpreter than the
   project virtualenv, so the spawned runner imports a different package set;
-* the ``.env`` file the settings loader reads is not where the user put the key;
+* the model settings database is in a different location than expected;
 * the traces directory is not writable from the client's sandbox;
 * the daemon port is held by another process (a very common collision with
   dev servers that also default to port 8000).
@@ -358,17 +358,15 @@ class IntegrationHostProbe(BaseProbe):
                 )
             )
 
-        if not env_file.is_file():
-            actions.append(
-                ProbeAction(
-                    action_type="hint",
-                    label="Env File Location",
-                    payload=(
-                        f"No .env file at {env_file}. API keys are read from that file or from the MCP"
-                        " server's env block; the file is created by `artemis init`."
-                    ),
-                )
-            )
+        from artemis.config.sqlite_store import get_settings_store
+
+        store = get_settings_store()
+        metadata["settings_storage"] = "sqlite"
+        metadata["settings_database"] = str(store.path)
+        actions.append(ProbeAction(
+            action_type="hint", label="Settings database",
+            payload=f"Model credentials are stored in SQLite at {store.path}. Configure them in Settings > Models.",
+        ))
 
         if not daemon_reachable and not port_hijacked:
             actions.append(

@@ -14,7 +14,6 @@
 
 """System Readiness & Diagnostics Router for Artemis Admin Console."""
 
-import ipaddress
 import os
 import secrets
 from urllib.parse import urlsplit
@@ -51,7 +50,7 @@ def get_windows_startup(request: Request):
     # endpoint aligned with the server bind: a loopback server remains local
     # only, while a LAN-bound server can be managed from its same-origin LAN
     # URL just like the other settings pages.
-    _require_server_bound_request(request, "Windows startup settings are local-only.")
+    _require_server_bound_request(request, "Windows startup settings require access through the server console.")
     try:
         return get_startup_status()
     except OSError:
@@ -67,7 +66,7 @@ def update_windows_startup(payload: WindowsStartupRequest, request: Request):
     except ImportError:
         from apps.admin_console.core.state import state
 
-    _require_server_bound_request(request, "Windows startup settings are local-only.")
+    _require_server_bound_request(request, "Windows startup settings require access through the server console.")
     origin = request.headers.get("origin")
     if origin and urlsplit(origin).netloc.lower() != request.headers.get("host", "").lower():
         raise HTTPException(403, "Change startup settings from the same-origin Artemis console.")
@@ -82,73 +81,29 @@ def update_windows_startup(payload: WindowsStartupRequest, request: Request):
         ) from None
 
 
-def _require_local_admin_request(request: Request) -> None:
-    """Keep endpoint probing and mutation on the local administration boundary."""
-    client_host = request.client.host if request.client else None
-    allow_remote = os.getenv("ARTEMIS_ALLOW_REMOTE_ADB_CONFIGURATION", "").lower() in {
-        "1",
-        "true",
-        "yes",
-    }
-    if client_host and not allow_remote:
-        try:
-            is_loopback = ipaddress.ip_address(client_host).is_loopback
-        except ValueError:
-            is_loopback = client_host.lower() == "localhost"
-        if not is_loopback:
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "ADB server settings are local-only. Set "
-                    "ARTEMIS_ALLOW_REMOTE_ADB_CONFIGURATION=true to manage them from another "
-                    "computer."
-                ),
-            )
-
-    origin = request.headers.get("origin")
-    host = request.headers.get("host")
-    if not origin or not host:
-        return
-    origin_host = urlsplit(origin).netloc.lower()
-    if origin_host != host.lower():
-        raise HTTPException(
-            status_code=403,
-            detail="ADB server settings can only be changed from the Artemis console.",
-        )
-
-
-def _require_loopback_request(request: Request, detail: str) -> None:
-    """Reject requests whose TCP peer is not the local machine."""
-    client_host = request.client.host if request.client else None
-    try:
-        is_loopback = bool(client_host and ipaddress.ip_address(client_host).is_loopback)
-    except ValueError:
-        is_loopback = bool(client_host and client_host.lower() == "localhost")
-    if not is_loopback:
-        raise HTTPException(status_code=403, detail=detail)
+def _require_admin_request(request: Request) -> None:
+    """Manage ADB from the same console addresses as the other settings."""
+    _require_server_bound_request(request, "ADB settings require access through the server console.")
 
 
 def _require_server_bound_request(request: Request, detail: str) -> None:
-    """Allow requests when the console is intentionally exposed beyond localhost.
-
-    The installer binds the normal (non ``--local-only``) server to ``0.0.0.0``
-    so the web console is reachable from the LAN.  Endpoints which configure
-    the server itself should follow that binding: a loopback bind remains
-    local-only, while a wildcard or LAN bind permits an authenticated
-    same-origin browser request from the network.
-    """
-    bound_host = getattr(state, "host", "127.0.0.1")
+    """Follow the server listen address and enforce the browser origin."""
     try:
-        bound_is_loopback = ipaddress.ip_address(bound_host).is_loopback
-    except ValueError:
-        bound_is_loopback = bound_host.lower() == "localhost"
-    if bound_is_loopback:
-        _require_loopback_request(request, detail)
+        from admin_console.core.security import server_access_allowed
+    except ImportError:
+        from apps.admin_console.core.security import server_access_allowed
+
+    peer = request.client.host if request.client else None
+    if not server_access_allowed(peer, getattr(state, "host", "127.0.0.1")):
+        raise HTTPException(status_code=403, detail=detail)
+    origin = request.headers.get("origin")
+    if origin and urlsplit(origin).netloc.lower() != request.headers.get("host", "").lower():
+        raise HTTPException(status_code=403, detail="Use the same-origin Artemis console.")
 
 
-def _require_local_lifecycle_request(request: Request) -> None:
-    """Authorize a process-lifecycle request from the local CLI only."""
-    _require_loopback_request(request, "Server lifecycle controls are local-only.")
+def _require_lifecycle_request(request: Request) -> None:
+    """Authorize lifecycle clients on the console network using their token."""
+    _require_server_bound_request(request, "Server lifecycle requires access through the server console.")
 
     expected = getattr(request.app.state, "lifecycle_token", None)
     supplied = request.headers.get("x-artemis-lifecycle-token")
@@ -169,7 +124,15 @@ class SelectDeviceRequest(BaseModel):
 @router.get("/readiness", response_model=SystemReadinessReport)
 async def get_system_readiness(force: bool = False) -> SystemReadinessReport:
     """Execute all diagnostic probes and return a comprehensive system readiness report."""
-    return await readiness_engine.run_all(force_refresh=force)
+    from starlette.concurrency import run_in_threadpool
+    try:
+        from admin_console.services.settings_diagnostics_service import email_settings_probe
+    except ImportError:
+        from apps.admin_console.services.settings_diagnostics_service import email_settings_probe
+
+    report = (await readiness_engine.run_all(force_refresh=force)).model_copy(deep=True)
+    report.probes.append(await run_in_threadpool(email_settings_probe))
+    return report
 
 
 @router.post("/devices/select")
@@ -248,7 +211,7 @@ async def get_adb_server_status():
 @router.post("/adb/server/connect")
 async def connect_adb_server(payload: ConnectAdbServerRequest, request: Request):
     """Validate and activate an ADB server endpoint."""
-    _require_local_admin_request(request)
+    _require_admin_request(request)
     try:
         connection_result = await adb_server_connection.connect(
             payload.host,
@@ -269,7 +232,7 @@ async def connect_adb_server(payload: ConnectAdbServerRequest, request: Request)
 @router.post("/adb/server/probe")
 async def probe_adb_server(payload: ConnectAdbServerRequest, request: Request):
     """Test an ADB server endpoint without changing the active endpoint."""
-    _require_local_admin_request(request)
+    _require_admin_request(request)
     try:
         connection_result = await adb_server_connection.probe(payload.host, payload.port)
     except InvalidAdbServerEndpoint as exc:
@@ -280,7 +243,7 @@ async def probe_adb_server(payload: ConnectAdbServerRequest, request: Request):
 @router.post("/adb/server/local")
 async def use_local_adb_server(request: Request, persist: bool = True):
     """Restore the standard local ADB server without touching a remote daemon."""
-    _require_local_admin_request(request)
+    _require_admin_request(request)
     connection_result = await adb_server_connection.use_local_server(persist=persist)
     readiness_engine.set_probe_target_serial(None)
     readiness_engine.invalidate_cache()
@@ -337,7 +300,7 @@ class UpdateCredentialsRequest(BaseModel):
     )
     api_key: str = Field(description="The secret API key string to configure")
     persist_to_env: bool = Field(
-        default=True, description="Whether to persist the key to .env file"
+        default=True, description="Legacy option; credentials are always persisted to SQLite"
     )
 
 
@@ -440,39 +403,20 @@ async def update_credentials(request: UpdateCredentialsRequest):
 
 @router.get("/model-config-env")
 async def get_model_config_and_env():
-    """Retrieve the current active artemis.jsonc configuration and .env status for custom setup."""
-    import os
-    from artemis.config.paths import get_config_path, get_env_file
-    from artemis.config import settings
-    from artemis.utils.file import load_jsonc
-
+    """Return the authoritative SQLite model configuration and credential status."""
+    import json
+    from artemis.config.sqlite_store import PROVIDER_KEYS, get_settings_store
     from artemis.config.settings import is_placeholder_key
 
-    # 1. Config file resolution
-    config_path = None
-    config_content = ""
-    parsed_config = {}
-    try:
-        config_path_obj = get_config_path("artemis.jsonc")
-        config_path = str(config_path_obj)
-        config_content = config_path_obj.read_text(encoding="utf-8")
-        with open(config_path_obj, encoding="utf-8") as f:
-            parsed_config = load_jsonc(f)
-    except Exception as e:
-        config_content = f"// Error reading config: {e}"
+    store = get_settings_store()
+    document, version = store.model()
+    parsed_config = document["config"]
+    values = document["credentials"]
 
-    # 2. Env file resolution
-    env_path = get_env_file()
-
-    # 3. Relevant Env Variables status
     def get_real_env_value(key_name: str, provider: str) -> str | None:
-        k = settings.get_api_key(provider)
-        if k and not is_placeholder_key(k):
-            return k.get_secret_value()
-        val = os.environ.get(key_name)
-        if val and val.strip() and not is_placeholder_key(val):
-            return val.strip()
-        return None
+        keys = PROVIDER_KEYS.get(provider, [key_name])
+        return next((str(values[key]).strip() for key in keys
+                     if values.get(key) and not is_placeholder_key(values[key])), None)
 
     def mask_key(k: str | None) -> str | None:
         # Expose only enough to recognize which key is active, never a usable
@@ -490,7 +434,8 @@ async def get_model_config_and_env():
     anthropic_real = get_real_env_value("ANTHROPIC_API_KEY", "anthropic")
     openrouter_real = get_real_env_value("OPEN_ROUTER_API_KEY", "openrouter")
     xai_real = get_real_env_value("XAI_API_KEY", "xai")
-    base_url_val = settings.OPENAI_BASE_URL or os.environ.get("OPENAI_BASE_URL")
+    default = parsed_config.get("default", {})
+    base_url_val = default.get("api_base") or default.get("base_url") or values.get("OPENAI_BASE_URL")
     if base_url_val and is_placeholder_key(base_url_val):
         base_url_val = None
     ocr_real = get_real_env_value("OCR_API_KEY", "ocr") or get_real_env_value(
@@ -550,13 +495,16 @@ async def get_model_config_and_env():
     ]
 
     return {
-        "config_path": config_path or "config/artemis.jsonc",
-        "config_filename": "artemis.jsonc",
-        "config_content": config_content,
+        "storage": "sqlite",
+        "database_path": str(store.path),
+        "version": version,
+        "config_path": str(store.path),
+        "config_filename": store.path.name,
+        "config_content": json.dumps(parsed_config, ensure_ascii=False, indent=2),
         "default_model": parsed_config.get("default", {}),
         "presets": parsed_config.get("presets", {}),
-        "env_path": str(env_path),
-        "env_filename": ".env",
+        "env_path": str(store.path),
+        "env_filename": "application_settings.model",
         "env_vars": env_vars,
     }
 
@@ -590,22 +538,21 @@ async def get_server_runtime_status():
 
 @router.get("/lifecycle-identity")
 async def get_lifecycle_identity(request: Request):
-    """Return process identity only to a token-authenticated local lifecycle client."""
+    """Return process identity to a token-authenticated lifecycle client."""
     import os
 
-    _require_local_lifecycle_request(request)
+    _require_lifecycle_request(request)
     return {"current_pid": os.getpid(), "port": state.port}
 
 
 @router.post("/restart")
 async def restart_server_endpoint(request: Request):
     """Request a graceful restart of the Artemis server from thin clients/UI."""
-    import asyncio
     import os
     import sys
     import threading
 
-    _require_loopback_request(request, "Server lifecycle controls are local-only.")
+    _require_server_bound_request(request, "Server lifecycle requires access through the server console.")
 
     try:
         from apps.admin_console.core.state import state
@@ -706,7 +653,7 @@ async def shutdown_server_endpoint(request: Request):
     except ImportError:
         from admin_console.core.state import state
 
-    _require_local_lifecycle_request(request)
+    _require_lifecycle_request(request)
     server = getattr(request.app.state, "uvicorn_server", None)
     if server is None:
         raise HTTPException(status_code=503, detail="Server lifecycle controller is unavailable.")

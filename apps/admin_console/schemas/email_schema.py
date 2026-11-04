@@ -96,7 +96,7 @@ class EmailSettingsUpdate(BaseModel):
     @field_validator("smtp_host")
     @classmethod
     def valid_host(cls, value: str) -> str:
-        return validate_smtp_host(value)
+        return validate_smtp_host(value) if value.strip() else ""
 
     @field_validator("smtp_username")
     @classmethod
@@ -109,17 +109,17 @@ class EmailSettingsUpdate(BaseModel):
     @field_validator("sender_email")
     @classmethod
     def valid_sender_email(cls, value: str) -> str:
-        return validate_email_address(value)
+        return validate_email_address(value) if value.strip() else ""
 
     @field_validator("sender_name")
     @classmethod
     def valid_sender_name(cls, value: str) -> str:
-        return _clean_header(value, "sender name", max_length=128)
+        return _clean_header(value, "sender name", max_length=128) if value.strip() else ""
 
     @field_validator("password")
     @classmethod
     def blank_password_means_unchanged(cls, value: SecretStr | None) -> SecretStr | None:
-        return None if value is not None and not value.get_secret_value() else value
+        return None if value is not None and not value.get_secret_value().strip() else value
 
 
 class EmailSettingsResponse(BaseModel):

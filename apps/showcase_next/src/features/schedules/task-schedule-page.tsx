@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { PageShell } from '@/components/page-shell';
 import { useAppPreferences } from '@/app/providers';
 import { ApiError } from '@/lib/api/client';
-import { settingsApi,type EmailSettings } from '@/features/settings/api';
+import { settingsApi } from '@/features/settings/api';
 import { schedulesApi } from './api';
 import type { ScheduleDevice, ScheduleDraft, ScheduleRun, ScheduleStatus, ScheduleType, TaskSchedule } from './types';
 import s from './schedule.module.css';
@@ -20,7 +20,6 @@ function displayDate(value?: string|null){ if(!value)return '—'; try{return ne
 function errorText(error:unknown,fallback:string){ if(error instanceof ApiError){ const p=error.payload as {detail?:unknown;message?:unknown}|undefined; const d=p?.detail??p?.message; if(typeof d==='string')return d; if(Array.isArray(d)){const x=d.map(v=>typeof v==='string'?v:(v as {msg?:string}).msg).filter(Boolean).join('; ');if(x)return x;} return error.message;} return fallback; }
 function idempotencyKey(){ return typeof crypto!=='undefined'&&'randomUUID'in crypto?crypto.randomUUID():`manual-${Date.now()}-${Math.random()}`; }
 type SmtpReadiness='loading'|'ready'|'not-configured'|'error';
-function smtpConfigured(settings:EmailSettings){return Boolean(settings.enabled&&settings.smtp_host&&settings.sender_email&&settings.smtp_username&&settings.password_configured);}
 
 export function TaskSchedulePage(){
   const {t}=useAppPreferences(); const c=Object.fromEntries(Object.entries(labelKeys).map(([name,key])=>[name,t(key)])) as {[K in keyof typeof labelKeys]:string};
@@ -32,7 +31,7 @@ export function TaskSchedulePage(){
   const [historyFor,setHistoryFor]=useState<TaskSchedule|null>(null); const [history,setHistory]=useState<ScheduleRun[]>([]); const [historyBusy,setHistoryBusy]=useState(false); const [emailBusy,setEmailBusy]=useState('');
   const load=useCallback(async()=>{setLoading(true);setError('');try{const [a,b,h]=await Promise.all([schedulesApi.list(),schedulesApi.devices(),schedulesApi.status()]);setItems(a);setDevices(b);setHealth(h);}catch(e){setError(errorText(e,t('schedule.unavailable')));}finally{setLoading(false);}},[t]);
   useEffect(()=>{void load();},[load]);
-  useEffect(()=>{const controller=new AbortController();settingsApi.email(controller.signal).then(value=>setSmtpReadiness(smtpConfigured(value)?'ready':'not-configured')).catch(()=>{if(!controller.signal.aborted)setSmtpReadiness('error')});return()=>controller.abort();},[]);
+  useEffect(()=>{if(!open)return;const controller=new AbortController();setSmtpReadiness('loading');settingsApi.emailReadiness(controller.signal).then(value=>{if(!controller.signal.aborted)setSmtpReadiness(value.ready?'ready':'not-configured');}).catch(()=>{if(!controller.signal.aborted)setSmtpReadiness('error')});return()=>controller.abort();},[open]);
   const active=useMemo(()=>items.filter(x=>x.enabled),[items]); const paused=useMemo(()=>items.filter(x=>!x.enabled),[items]);
   const invalidatePreview=()=>{previewGeneration.current+=1;setPreviewBusy(false);setPreview([]);setPreviewFingerprint('');setPreviewError('');};
   const change=<K extends keyof ScheduleDraft>(key:K,value:ScheduleDraft[K])=>{setDraft(d=>({...d,[key]:value}) as ScheduleDraft);invalidatePreview();setFormError('');setConflict('');};

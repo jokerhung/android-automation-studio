@@ -104,7 +104,7 @@ class PythonRuntimeProbe(BaseProbe):
 
 
 class SystemConfigProbe(BaseProbe):
-    """Probe verifying config/artemis.jsonc and settings integrity."""
+    """Probe verifying the SQLite model configuration used by task runners."""
 
     @property
     def probe_id(self) -> str:
@@ -119,12 +119,16 @@ class SystemConfigProbe(BaseProbe):
         return True
 
     async def probe(self) -> ProbeResult:
+        from artemis.config.sqlite_store import get_settings_store
+
+        store = get_settings_store()
         try:
             cfg = parse_llm_config()
-            planner_model = getattr(getattr(cfg, "planner", None), "model", "Gemini 2.5 Flash")
+            planner_model = getattr(getattr(cfg, "planner", None), "model", "Unknown")
             metadata = {
                 "valid": True,
-                "config_file": "config/artemis.jsonc",
+                "storage": "sqlite",
+                "database_path": str(store.path),
                 "planner_model": planner_model,
             }
             return ProbeResult(
@@ -134,21 +138,22 @@ class SystemConfigProbe(BaseProbe):
                 status=ProbeStatus.PASS,
                 is_blocker=self.is_blocker,
                 summary="Config Valid",
-                description=f"System configuration loaded and validated (Planner model: {planner_model}).",
+                description=f"SQLite model configuration loaded and validated (Planner model: {planner_model}).",
                 metadata=metadata,
                 actions=[
                     ProbeAction(
                         action_type="hint",
                         label="Config Healthy",
-                        payload="config/artemis.jsonc is loaded and valid.",
+                        payload="The model configuration in SQLite is valid.",
                     )
                 ],
             )
-        except Exception as e:
+        except Exception:
             metadata = {
                 "valid": False,
-                "config_file": "config/artemis.jsonc",
-                "error": str(e),
+                "storage": "sqlite",
+                "database_path": str(store.path),
+                "error": "Unable to read or validate SQLite model settings",
             }
             return ProbeResult(
                 id=self.probe_id,
@@ -157,13 +162,13 @@ class SystemConfigProbe(BaseProbe):
                 status=ProbeStatus.FAIL,
                 is_blocker=self.is_blocker,
                 summary="Config Error",
-                description=f"Failed to parse config/artemis.jsonc: {e}",
+                description="Unable to read or validate model settings in SQLite. Check Settings > Models and database access.",
                 metadata=metadata,
                 actions=[
                     ProbeAction(
-                        action_type="command",
-                        label="Run Artemis Init",
-                        payload="artemis init",
+                        action_type="link",
+                        label="Model settings",
+                        payload="/settings/?tab=models",
                     )
                 ],
             )

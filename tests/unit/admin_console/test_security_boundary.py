@@ -19,7 +19,7 @@ Covers the invariants the no-auth security model depends on:
 - media endpoints cannot read files outside the media allowlist,
 - cross-origin browser traffic and DNS-rebinding Hosts are rejected,
 - no CORS grants exist,
-- lifecycle controls stay loopback-only.
+- lifecycle controls follow the server's listen address.
 """
 
 import secrets as py_secrets
@@ -196,7 +196,9 @@ async def test_security_headers_present_and_api_responses_uncacheable():
 
 
 @pytest.mark.asyncio
-async def test_restart_is_loopback_only():
+async def test_restart_rejects_remote_clients_on_loopback_bind(monkeypatch):
+    from admin_console.routers.system import state
+    monkeypatch.setattr(state, "host", "127.0.0.1")
     with patch("threading.Thread") as mock_thread:
         mock_thread.return_value = MagicMock()
         async with AsyncClient(

@@ -68,6 +68,17 @@ def _is_ip_literal(host: str) -> bool:
         return False
 
 
+def server_access_allowed(client_host: str | None, bound_host: str) -> bool:
+    """Use the server's listen address as the access boundary for every API."""
+    def loopback(host):
+        try:
+            return ipaddress.ip_address(host or "").is_loopback
+        except ValueError:
+            return bool(host and host.lower() == "localhost")
+
+    return not loopback(bound_host) or loopback(client_host)
+
+
 def allowed_hostnames() -> frozenset[str]:
     """Hostnames (not IP literals) accepted in Host and Origin headers."""
     names = {"localhost"}

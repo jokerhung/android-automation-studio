@@ -138,7 +138,9 @@ Default directories are `$HOME/.local/share/artemis` on Linux/macOS and
 the initial bind is **0.0.0.0**, enabling access from reachable LAN devices.
 ARTEMIS has no user login: machines that can reach that port can access the
 console. Choose local-only when LAN access is unnecessary. Firewall rules are
-not changed; Host/Origin checks and local-only lifecycle APIs remain enforced.
+not changed. All APIs follow the server listen address: a LAN bind supports both
+localhost and LAN clients. Host/Origin checks remain enforced, and lifecycle
+identity/shutdown clients must still provide the lifecycle token.
 
 ## Access and initial setup
 
@@ -150,12 +152,19 @@ network; check the host firewall and network isolation if it fails.
 
 Open `/settings/?tab=system`, configure the model under `?tab=models`, and
 connect Android under `?tab=android`. No key/device is needed just to browse.
-Some management actions must be performed from a browser on the server computer;
-Settings displays its local address when accessed over LAN.
+Settings and management APIs support both localhost and the server's LAN address
+when the server is network bound. Lifecycle identity/shutdown requests also
+require the lifecycle token.
 
 ## Rerun, start, status, stop and restart
 
-Rerunning the same install command preserves source, `.env`, configuration and
+Both installers create `traces/data_engine.db` (or `DATA_ENGINE_DB_PATH`) before
+starting the server. SQLite stores the model defaults from `config/artemis.jsonc`
+and initial email settings (disabled, port 587, STARTTLS, no password). A fresh
+installation does not create `.env`. Existing model/email settings are imported
+once and subsequent installs preserve the database values.
+
+Rerunning the same install command preserves source, legacy `.env`, configuration and
 data. It reuses the saved port and verified running server without restarting.
 It skips dependency synchronization and frontend build when fingerprints and
 artifacts are current. Broken dependencies/assets are repaired only after the

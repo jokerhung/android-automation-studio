@@ -1,7 +1,7 @@
 import { apiRequest, READINESS_REQUEST_TIMEOUT_MS } from '@/lib/api/client';
 
 export type ModelProvider = 'openai'|'openai_acp'|'google'|'anthropic'|'openrouter'|'xai'|'custom'|'ollama'|'vllm';
-export interface ModelSettings { codex_path?: string; provider: ModelProvider; default_model: string; fallback_model: string; fallback_provider: string; base_url: string; fallback_url: string; version: string; keys_configured: Record<string,boolean>; config_path?: string; env_path?: string; node_overrides: string[] }
+export interface ModelSettings { codex_path?: string; provider: ModelProvider; default_model: string; fallback_model: string; fallback_provider: string; base_url: string; fallback_url: string; version: string; keys_configured: Record<string,boolean>; storage?: 'sqlite'; database_path?: string; node_overrides: string[] }
 export interface ModelSettingsUpdate { codex_path?: string; provider: ModelProvider; default_model: string; fallback_model: string; base_url: string; fallback_url: string; api_key: string|null; expected_version: string; confirm_restart: true }
 export interface AvailableModels { default_models: string[]; fallback_models: string[] }
 export type ModelListRequest = Pick<ModelSettingsUpdate, 'provider'|'base_url'|'fallback_url'|'api_key'|'codex_path'>;
@@ -31,6 +31,7 @@ export const settingsApi={
  startup:(signal?:AbortSignal)=>apiRequest<StartupStatus>('/api/system/windows-startup',signal?{signal}:{}),
  setStartup:(enabled:boolean,signal?:AbortSignal)=>apiRequest<StartupStatus,{enabled:boolean}>('/api/system/windows-startup',{method:'PUT',body:{enabled},...(signal?{signal}:{})}),
  email:(signal?:AbortSignal)=>apiRequest<EmailSettings>('/api/settings/email',signal?{signal}:{}),
+ emailReadiness:(signal?:AbortSignal)=>apiRequest<{ready:boolean}>('/api/settings/email/readiness',signal?{signal}:{}),
  saveEmail:(body:EmailSettingsUpdate,signal?:AbortSignal)=>apiRequest<EmailSettings,EmailSettingsUpdate>('/api/settings/email',{method:'PUT',body,...(signal?{signal}:{})}),
  clearEmailPassword:(signal?:AbortSignal)=>apiRequest<EmailSettings>('/api/settings/email/password',{method:'DELETE',...(signal?{signal}:{})}),
  testEmail:(signal?:AbortSignal)=>apiRequest<EmailActionResponse,Record<string,never>>('/api/settings/email/test-connection',{method:'POST',body:{},...(signal?{signal}:{})}),

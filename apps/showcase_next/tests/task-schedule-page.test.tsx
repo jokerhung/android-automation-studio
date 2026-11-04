@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/lib/api/client';
 import type { TaskSchedule } from '@/features/schedules/types';
 
-const emailApi = vi.hoisted(() => ({ email: vi.fn() }));
+const emailApi = vi.hoisted(() => ({ emailReadiness: vi.fn() }));
 const api = vi.hoisted(() => ({
   list: vi.fn(), devices: vi.fn(), status: vi.fn(), preview: vi.fn(), get: vi.fn(),
   create: vi.fn(), update: vi.fn(), pause: vi.fn(), resume: vi.fn(), delete: vi.fn(),
@@ -32,7 +32,7 @@ beforeEach(() => {
   api.devices.mockResolvedValue([{ serial: 'device-1', name: 'Pixel' }]);
   api.status.mockResolvedValue({ healthy: true });
   api.runs.mockResolvedValue({ runs: [] });
-  emailApi.email.mockResolvedValue({ enabled: true, smtp_host: 'smtp.example.com', smtp_port: 587, security: 'starttls', sender_email: 'sender@example.com', sender_name: 'ARTEMIS', smtp_username: 'sender@example.com', password_configured: true, version: 2 });
+  emailApi.emailReadiness.mockResolvedValue({ ready: true });
 });
 async function openEditor() {
   render(<TaskSchedulePage />);
@@ -53,11 +53,11 @@ describe('Task schedule page', () => {
     await waitFor(() => expect(within(dialog).getAllByRole('listitem')).toHaveLength(5));
     await user.click(within(dialog).getByRole('button', { name: 'Save schedule' }));
     await waitFor(() => expect(api.update).toHaveBeenCalledWith(schedule, expect.objectContaining({ email_enabled: true, recipient_email: 'ops@example.com', email_subject: 'Daily result' })));
-    expect(emailApi.email).toHaveBeenCalledTimes(1); expect(api.create).not.toHaveBeenCalled();
+    expect(emailApi.emailReadiness).toHaveBeenCalledTimes(1); expect(api.create).not.toHaveBeenCalled();
   });
 
   it('shows not configured, preserves the draft, allows preview, and blocks save', async () => {
-    emailApi.email.mockResolvedValueOnce({ enabled: false, smtp_host: '', smtp_port: 587, security: 'starttls', sender_email: '', sender_name: 'ARTEMIS', smtp_username: '', password_configured: false, version: 0 });
+    emailApi.emailReadiness.mockResolvedValueOnce({ ready: false });
     api.preview.mockResolvedValue(occurrences);
     const dialog = await openEditor(); const user = userEvent.setup();
     const goal = within(dialog).getByLabelText('Task instructions'); await user.clear(goal); await user.type(goal, 'Unsaved email draft');
@@ -72,12 +72,23 @@ describe('Task schedule page', () => {
   });
 
   it('distinguishes a readiness request error and preserves the draft', async () => {
-    emailApi.email.mockRejectedValueOnce(new ApiError(500, 'Unable to read SMTP settings.', { detail: 'Unable to read SMTP settings.' }, '/api/settings/email'));
+    emailApi.emailReadiness.mockRejectedValueOnce(new ApiError(500, 'Unable to read SMTP settings.', { detail: 'Unable to read SMTP settings.' }, '/api/settings/email/readiness'));
     const dialog = await openEditor(); const user = userEvent.setup();
     const goal = within(dialog).getByLabelText('Task instructions'); await user.clear(goal); await user.type(goal, 'Keep this error draft');
     await user.click(within(dialog).getByRole('checkbox', { name: 'Send result email' }));
     expect(await within(dialog).findByText(/SMTP readiness could not be checked/)).toBeInTheDocument();
     expect(goal).toHaveValue('Keep this error draft'); expect(api.create).not.toHaveBeenCalled();
+  });
+
+  it('refreshes SMTP readiness when reopening an existing email schedule', async () => {
+    api.list.mockResolvedValue([{ ...schedule, email_enabled: true, recipient_email: 'ops@example.com' }]);
+    emailApi.emailReadiness.mockRejectedValueOnce(new Error('Temporary outage'));
+    const dialog = await openEditor(); const user = userEvent.setup();
+    expect(await within(dialog).findByText(/SMTP readiness could not be checked/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: '✎' }));
+    expect(await within(screen.getByRole('dialog')).findByText('Email delivery is enabled and SMTP credentials are configured.')).toBeInTheDocument();
+    expect(emailApi.emailReadiness).toHaveBeenCalledTimes(2);
   });
 
   it('previews interval, daily, and weekly rules with seconds, timezone, and ISO weekdays', async () => {

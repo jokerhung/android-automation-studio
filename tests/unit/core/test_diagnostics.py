@@ -37,6 +37,11 @@ from artemis.core.diagnostics.schema import (
 )
 
 
+@pytest.fixture(autouse=True)
+def isolated_settings(sqlite_model_store):
+    return sqlite_model_store
+
+
 @pytest.mark.asyncio
 async def test_readiness_engine_run_all():
     """Verify that ReadinessEngine aggregates probes and builds structured report."""

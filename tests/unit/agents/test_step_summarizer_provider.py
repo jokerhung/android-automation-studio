@@ -18,7 +18,11 @@ from artemis.sdk.builders.agent_config_builder import AgentConfigBuilder
 
 
 @pytest.fixture(autouse=True)
-def isolate_clients(monkeypatch):
+def isolate_clients(monkeypatch, sqlite_model_store):
+    def configure(document):
+        document["credentials"].update(OPENAI_API_KEY="test-openai-key", OPENAI_BASE_URL="https://proxy.example/api/v1")
+        return document
+    sqlite_model_store.update("model", configure)
     monkeypatch.setattr(ModelFactory, "_cache", {})
     monkeypatch.setattr(settings, "OPENAI_API_KEY", SecretStr("test-openai-key"))
     monkeypatch.setattr(settings, "OPENAI_BASE_URL", "https://proxy.example/api/v1")

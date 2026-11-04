@@ -3,11 +3,9 @@ import json
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from dotenv import dotenv_values
 from httpx import ASGITransport, AsyncClient
 import pytest
 
-from admin_console.services import model_settings_service as module
 from admin_console.services.model_settings_service import ModelSettingsService, ModelSettingsUpdate
 from admin_console.routers import model_settings as router
 from apps.admin_console.server import app
@@ -45,49 +43,55 @@ def payload(service, **kw):
     )
 
 
-def test_saves_only_default_and_selected_env_without_exposing_key(service):
+def test_saves_models_and_credentials_only_in_sqlite_without_exposing_key(service):
     value = service.get()
     assert "old-test-key" not in json.dumps(value)
-    request = payload(service, api_key="new#key'with\\quotes")
-    service.save(request)
-    config_text = service.config_path.read_text(encoding="utf-8")
-    config = load_jsonc(io.StringIO(config_text))
-    assert "// Keep my comment" in config_text
+    old_config = service.config_path.read_bytes()
+    old_env = service.env_path.read_bytes()
+    service.save(payload(service, api_key="new#key'with\\quotes"))
+    document, _ = service.store.model()
+    config, env = document["config"], document["credentials"]
     assert config["nodes"] == {"operator": {"temperature": 0.5}}
-    assert config["agent"] == {"flash": {"max_turns": 8}}
     assert config["default"]["provider"] == "openai"
     assert "thinking_level" not in config["default"]
     assert config["default"]["fallback"]["api_base"] == "https://proxy.example/api/v1"
-    env = dotenv_values(service.env_path)
     assert env["OPENAI_API_KEY"] == "new#key'with\\quotes"
-    assert env["UNRELATED"] == "unchanged"
     assert env["OPENAI_BASE_URL"] == "https://proxy.example/api/v1"
+    assert service.config_path.read_bytes() == old_config
+    assert service.env_path.read_bytes() == old_env
     assert "new#key" not in json.dumps(service.get())
+    assert service.get()["storage"] == "sqlite"
 
 
 def test_blank_key_keeps_key_and_stale_version_cannot_write(service):
     request = payload(service, api_key="")
     service.save(request)
-    assert dotenv_values(service.env_path)["OPENAI_API_KEY"] == "old-test-key"
+    assert service.store.model()[0]["credentials"]["OPENAI_API_KEY"] == "old-test-key"
     with pytest.raises(FileExistsError):
         service.save(request)
 
 
-def test_failed_config_write_restores_env(service, monkeypatch):
-    old_env = service.env_path.read_bytes()
-    old_config = service.config_path.read_bytes()
-    original = module._atomic_write
+def test_transaction_failure_does_not_change_config_or_credentials(service):
+    previous = service.store.model()
 
-    def write(path, text):
-        if path == service.config_path:
-            raise PermissionError()
-        original(path, text)
+    def fail(document):
+        document["credentials"]["OPENAI_API_KEY"] = "must-not-persist"
+        raise ValueError("failed before commit")
 
-    monkeypatch.setattr(module, "_atomic_write", write)
-    with pytest.raises(PermissionError):
-        service.save(payload(service, api_key="new-key"))
-    assert service.env_path.read_bytes() == old_env
-    assert service.config_path.read_bytes() == old_config
+    with pytest.raises(ValueError):
+        service.store.update("model", fail)
+    assert service.store.model() == previous
+
+
+def test_migration_is_once_and_database_survives_removed_legacy_files(service):
+    service.save(payload(service, api_key="database-key"))
+    service.env_path.write_text("OPENAI_API_KEY=stale-file-key", encoding="utf-8")
+    assert service.store.model()[0]["credentials"]["OPENAI_API_KEY"] == "database-key"
+    service.env_path.unlink()
+    service.config_path.unlink()
+    reopened = ModelSettingsService(service.config_path, service.env_path, store=service.store)
+    assert reopened.get()["default_model"] == "my-model"
+    assert reopened.get()["keys_configured"]["openai"] is True
 
 
 @pytest.mark.parametrize(
@@ -213,3 +217,27 @@ def test_jsonc_preserves_url_and_escaped_string():
     assert parsed["url"] == "https://proxy.example/v1"
     assert parsed["text"] == 'say "hello//world"'
     assert parsed["literal"] == "/* not comment */"
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_textboxes_preserve_saved_model_settings(service, blank):
+    service.save(payload(service, api_key="saved-test-key", fallback_url="https://backup.example/v1"))
+    service.store.update("model", lambda doc: {
+        **doc, "credentials": {**doc["credentials"], "ARTEMIS_CODEX_PATH": "C:/tools/codex.exe"}
+    })
+    before, _ = service.store.model()
+    service.save(ModelSettingsUpdate(
+        expected_version=service.get()["version"], provider="openai",
+        default_model=blank, fallback_model=blank, base_url=blank,
+        fallback_url=blank, api_key=blank, codex_path=blank, confirm_restart=True,
+    ))
+    after, _ = service.store.model()
+    assert after == before
+    service.save(ModelSettingsUpdate(
+        expected_version=service.get()["version"], provider="openai",
+        default_model="updated", fallback_model=blank, base_url=blank,
+        fallback_url=blank, api_key=blank, confirm_restart=True,
+    ))
+    assert service.get()["default_model"] == "updated"
+    assert service.get()["fallback_model"] == "my-fallback"
+    assert service.get()["base_url"] == "https://proxy.example/api/v1"

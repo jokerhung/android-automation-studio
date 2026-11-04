@@ -208,6 +208,15 @@ class ModelFactory:
 
     @classmethod
     def get_model(cls, endpoint: ModelEndpoint) -> BaseChatModel:
+        if endpoint.api_key is None:
+            provider = ModelProvider.from_string(endpoint.provider)
+            credential = settings.get_api_key(
+                "openai"
+                if provider in {ModelProvider.CUSTOM, ModelProvider.OLLAMA, ModelProvider.VLLM}
+                else provider.value
+            )
+            if credential:
+                endpoint = endpoint.model_copy(update={"api_key": credential.get_secret_value()})
         if endpoint.provider == ModelProvider.OPENAI:
             # Cache the effective destination, not just the optional override.
             endpoint = endpoint.model_copy(
@@ -249,12 +258,8 @@ class ModelFactory:
                 HarmCategory,
             )
 
-            api_key = (
-                endpoint.api_key
-                or (settings.GOOGLE_API_KEY.get_secret_value() if settings.GOOGLE_API_KEY else None)
-                or os.environ.get("GOOGLE_API_KEY")
-                or os.environ.get("GEMINI_API_KEY")
-            )
+            credential = settings.get_api_key(provider.value)
+            api_key = endpoint.api_key or (credential.get_secret_value() if credential else None)
             # Gemini 1.x/2.x only understand thinking_budget.
             thinking_level = (
                 endpoint.thinking_level if supports_thinking_level(endpoint.model_name) else None
@@ -303,11 +308,8 @@ class ModelFactory:
         elif provider == ModelProvider.OPENAI:
             from langchain_openai import ChatOpenAI
 
-            api_key = (
-                endpoint.api_key
-                or (settings.OPENAI_API_KEY.get_secret_value() if settings.OPENAI_API_KEY else None)
-                or os.environ.get("OPENAI_API_KEY", "EMPTY")
-            )
+            credential = settings.get_api_key(provider.value)
+            api_key = endpoint.api_key or (credential.get_secret_value() if credential else None)
             base_url = settings.get_openai_base_url(endpoint.api_base)
             kwargs = {
                 "model": endpoint.model_name,
@@ -324,15 +326,8 @@ class ModelFactory:
         elif provider == ModelProvider.ANTHROPIC:
             from langchain_anthropic import ChatAnthropic
 
-            api_key = (
-                endpoint.api_key
-                or (
-                    settings.ANTHROPIC_API_KEY.get_secret_value()
-                    if settings.ANTHROPIC_API_KEY
-                    else None
-                )
-                or os.environ.get("ANTHROPIC_API_KEY")
-            )
+            credential = settings.get_api_key(provider.value)
+            api_key = endpoint.api_key or (credential.get_secret_value() if credential else None)
             kwargs = {
                 "model": endpoint.model_name,
                 "temperature": endpoint.temperature,
@@ -352,15 +347,8 @@ class ModelFactory:
         elif provider == ModelProvider.OPENROUTER:
             from langchain_openai import ChatOpenAI
 
-            api_key = (
-                endpoint.api_key
-                or (
-                    settings.OPEN_ROUTER_API_KEY.get_secret_value()
-                    if settings.OPEN_ROUTER_API_KEY
-                    else None
-                )
-                or os.environ.get("OPEN_ROUTER_API_KEY")
-            )
+            credential = settings.get_api_key(provider.value)
+            api_key = endpoint.api_key or (credential.get_secret_value() if credential else None)
             return ChatOpenAI(
                 model=endpoint.model_name,
                 temperature=endpoint.temperature,
@@ -372,11 +360,8 @@ class ModelFactory:
         elif provider == ModelProvider.XAI:
             from langchain_openai import ChatOpenAI
 
-            api_key = (
-                endpoint.api_key
-                or (settings.XAI_API_KEY.get_secret_value() if settings.XAI_API_KEY else None)
-                or os.environ.get("XAI_API_KEY")
-            )
+            credential = settings.get_api_key(provider.value)
+            api_key = endpoint.api_key or (credential.get_secret_value() if credential else None)
             return ChatOpenAI(
                 model=endpoint.model_name,
                 temperature=endpoint.temperature,
@@ -388,10 +373,9 @@ class ModelFactory:
         elif provider in (ModelProvider.OLLAMA, ModelProvider.VLLM, ModelProvider.CUSTOM):
             from langchain_openai import ChatOpenAI
 
-            api_key = endpoint.api_key or os.environ.get("OPENAI_API_KEY", "EMPTY")
-            base_url = endpoint.api_base or os.environ.get(
-                "OPENAI_BASE_URL", "http://localhost:8000/v1"
-            )
+            credential = settings.get_api_key("openai")
+            api_key = endpoint.api_key or (credential.get_secret_value() if credential else "EMPTY")
+            base_url = endpoint.api_base or settings.OPENAI_BASE_URL or "http://localhost:8000/v1"
             kwargs = {
                 "model": endpoint.model_name,
                 "temperature": endpoint.temperature,

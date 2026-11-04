@@ -1,7 +1,9 @@
 """Validated, serial-bound Android input commands for Remote Phone."""
 from __future__ import annotations
-import asyncio, base64, os, re, subprocess
-from dataclasses import dataclass
+import asyncio
+import base64
+import re
+import subprocess
 from artemis.runtime import DeviceExecutionLock, device_pool
 from artemis.toolchain import find_adb
 from artemis.utils.subprocess_utils import hidden_process_kwargs
@@ -88,5 +90,11 @@ async def key(payload: dict) -> dict:
     await _run(serial, "keyevent", str(REMOTE_KEYCODES[name])); return {"ok": True}
 
 def control_allowed(client_host: str | None) -> bool:
-    if os.getenv("ARTEMIS_REMOTE_CONTROL_ALLOW_LAN", "").lower() in {"1","true","yes","on"}: return True
-    return client_host in {None, "127.0.0.1", "::1", "localhost"}
+    try:
+        from admin_console.core.security import server_access_allowed
+        from admin_console.core.state import state
+    except ImportError:
+        from apps.admin_console.core.security import server_access_allowed
+        from apps.admin_console.core.state import state
+
+    return server_access_allowed(client_host, state.host)

@@ -95,7 +95,7 @@ main() {
         else archive_sha="$(shasum -a 256 "$stage/source.tar.gz")"; fi
         archive_sha="${archive_sha%% *}"
         echo "Archive SHA-256: $archive_sha"
-        for arg in install.sh install.ps1 .env.example pyproject.toml uv.lock artemis apps/admin_console apps/showcase_next/package.json apps/showcase_next/package-lock.json apps/showcase_next/next.config.ts apps/showcase_next/src packages/artemis-client/pyproject.toml config/artemis.jsonc scripts/install_runtime.py scripts/bootstrap_common.sh; do
+        for arg in install.sh install.ps1 artemis/config/sqlite_store.py pyproject.toml uv.lock artemis apps/admin_console apps/showcase_next/package.json apps/showcase_next/package-lock.json apps/showcase_next/next.config.ts apps/showcase_next/src packages/artemis-client/pyproject.toml config/artemis.jsonc scripts/install_runtime.py scripts/bootstrap_common.sh; do
             [ -e "$stage/source/$arg" ] || { echo "[LOI] Incomplete archive: $arg" >&2; exit 4; }
         done
         grep -q '^BOOTSTRAP_VERSION = 1$' "$stage/source/scripts/install_runtime.py" || { echo '[LOI] Incompatible snapshot bootstrap contract' >&2; exit 4; }

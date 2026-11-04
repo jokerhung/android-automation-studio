@@ -32,6 +32,30 @@ def mock_driver():
     return MockDeviceDriver(device_id="fixture-mock-device", width=1080, height=2400)
 
 
+@pytest.fixture
+def sqlite_model_store(tmp_path, monkeypatch):
+    """Keep provider tests independent of the developer's saved credentials."""
+    import os
+    from artemis.config.settings import settings
+    from artemis.config.sqlite_store import MODEL_ENV_KEYS, SettingsStore
+
+    for name in MODEL_ENV_KEYS:
+        if name in os.environ:
+            monkeypatch.setenv(name, os.environ[name])
+        else:
+            monkeypatch.delenv(name, raising=False)
+        if name in type(settings).model_fields:
+            monkeypatch.setattr(settings, name, getattr(settings, name))
+    store = SettingsStore(tmp_path / "settings.db")
+    store.get_or_import("model", lambda: {
+        "config": {"default": {"provider": "google", "model": "test-model",
+            "fallback": {"provider": "google", "model": "test-backup"}}},
+        "credentials": {"OPENAI_API_KEY": "test-endpoint-key"},
+    })
+    monkeypatch.setenv("DATA_ENGINE_DB_PATH", str(store.path))
+    return store
+
+
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     """Attach test-layer markers according to the owning test directory."""
     for item in items:

@@ -383,12 +383,6 @@ export function AndroidSettingsPanel() {
 export function SystemSettingsPanel() {
   const { t } = useAppPreferences();
   const { report, loading, error, refresh } = useReadiness();
-  const [localSettingsUrl, setLocalSettingsUrl] = useState('');
-  useEffect(() => {
-    if (!['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)) {
-      setLocalSettingsUrl(`http://localhost${window.location.port ? `:${window.location.port}` : ''}/settings/?tab=system`);
-    }
-  }, []);
   return (
     <div className="settingsStack">
       <section className="card settingsSection" aria-live="polite">
@@ -398,7 +392,6 @@ export function SystemSettingsPanel() {
           <Link className="secondaryButton" href="/settings/?tab=models">{t('settings.setup.models')}</Link>
           <Link className="secondaryButton" href="/settings/?tab=android">{t('settings.setup.android')}</Link>
         </div>
-        {localSettingsUrl && <p>{t('settings.setup.localOnly')} <code>{localSettingsUrl}</code></p>}
         {error && report && <p role="status">{t('settings.setup.stale')} {new Date(report.timestamp * 1000).toLocaleString()}</p>}
       </section>
       <section className="card settingsSection">

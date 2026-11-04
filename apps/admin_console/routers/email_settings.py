@@ -1,10 +1,11 @@
 from __future__ import annotations
-import ipaddress
+import sqlite3
 from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
 try:
+    from admin_console.routers.system import _require_server_bound_request
     from admin_console.schemas.email_schema import (
         EmailOperationResponse,
         EmailSettingsResponse,
@@ -19,6 +20,7 @@ try:
     from admin_console.services.secret_store import SecretStoreError
     from admin_console.services.smtp_service import SMTPService, SMTPServiceError
 except ImportError:
+    from apps.admin_console.routers.system import _require_server_bound_request
     from apps.admin_console.schemas.email_schema import (
         EmailOperationResponse,
         EmailSettingsResponse,
@@ -49,14 +51,8 @@ def get_smtp_service():
     return _smtp_service
 
 
-def require_local_same_origin(request: Request):
-    client = request.client.host if request.client else None
-    try:
-        local = bool(client and ipaddress.ip_address(client).is_loopback)
-    except ValueError:
-        local = bool(client and client.lower() == "localhost")
-    if not local:
-        raise HTTPException(403, "SMTP settings are local-only.")
+def require_console_same_origin(request: Request):
+    _require_server_bound_request(request, "SMTP settings require the local console on this server.")
     origin = request.headers.get("origin")
     host = request.headers.get("host", "").lower()
     if origin and urlsplit(origin).netloc.lower() != host:
@@ -73,42 +69,55 @@ def _error(exc):
     return HTTPException(500, "Unable to process SMTP settings.")
 
 
+@router.get("/readiness")
+def get_readiness(service=Depends(get_email_settings_service)) -> dict[str, bool]:
+    """Expose configuration readiness to schedule clients without SMTP metadata."""
+    try:
+        settings = service.get()
+        return {"ready": bool(
+            settings.enabled and settings.smtp_host and settings.sender_email
+            and settings.smtp_username and settings.password_configured
+        )}
+    except (EmailSettingsError, SecretStoreError, sqlite3.Error):
+        raise HTTPException(503, "Unable to check SMTP readiness.") from None
+
+
 @router.get(
-    "", response_model=EmailSettingsResponse, dependencies=[Depends(require_local_same_origin)]
+    "", response_model=EmailSettingsResponse, dependencies=[Depends(require_console_same_origin)]
 )
 def get_settings(service=Depends(get_email_settings_service)):
     try:
         return service.get()
-    except (EmailSettingsError, SecretStoreError) as exc:
+    except (EmailSettingsError, SecretStoreError, sqlite3.Error) as exc:
         raise _error(exc) from None
 
 
 @router.put(
-    "", response_model=EmailSettingsResponse, dependencies=[Depends(require_local_same_origin)]
+    "", response_model=EmailSettingsResponse, dependencies=[Depends(require_console_same_origin)]
 )
 def put_settings(payload: EmailSettingsUpdate, service=Depends(get_email_settings_service)):
     try:
         return service.update(payload)
-    except (EmailSettingsError, SecretStoreError) as exc:
+    except (EmailSettingsError, SecretStoreError, sqlite3.Error) as exc:
         raise _error(exc) from None
 
 
 @router.delete(
     "/password",
     response_model=EmailSettingsResponse,
-    dependencies=[Depends(require_local_same_origin)],
+    dependencies=[Depends(require_console_same_origin)],
 )
 def clear_password(service=Depends(get_email_settings_service)):
     try:
         return service.clear_password()
-    except (EmailSettingsError, SecretStoreError) as exc:
+    except (EmailSettingsError, SecretStoreError, sqlite3.Error) as exc:
         raise _error(exc) from None
 
 
 @router.post(
     "/test-connection",
     response_model=EmailOperationResponse,
-    dependencies=[Depends(require_local_same_origin)],
+    dependencies=[Depends(require_console_same_origin)],
 )
 async def test_connection(
     service=Depends(get_email_settings_service), smtp=Depends(get_smtp_service)
@@ -124,7 +133,7 @@ async def test_connection(
 @router.post(
     "/send-test",
     response_model=EmailOperationResponse,
-    dependencies=[Depends(require_local_same_origin)],
+    dependencies=[Depends(require_console_same_origin)],
 )
 async def send_test(
     payload: SendTestEmailRequest,

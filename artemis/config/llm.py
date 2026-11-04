@@ -14,7 +14,6 @@
 
 """LLM provider, model hierarchy, fallback chaining, and configuration loaders."""
 
-import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -23,12 +22,11 @@ from google.auth.exceptions import DefaultCredentialsError
 from pydantic import AliasChoices, BaseModel, Field, ValidationError
 
 from artemis.config.constants import (
-    LLM_CONFIG_FILENAME,
     AgentNode,
     LLMProvider,
     LLMUtilsNode,
 )
-from artemis.config.paths import ROOT_DIR, get_config_path
+from artemis.config.paths import get_config_path
 from artemis.config.settings import settings
 from artemis.utils.file import load_jsonc
 from artemis.utils.logger import get_logger
@@ -89,26 +87,26 @@ class LLM(BaseModel):
     def validate_provider(self, name: str) -> None:
         """Ensure the required API key or credentials exist in settings for this provider."""
         if self.provider == "openai":
-            if not settings.OPENAI_API_KEY:
-                raise Exception(f"{name} requires OPENAI_API_KEY in .env")
+            if not settings.get_api_key("openai"):
+                raise Exception(f"{name} requires OPENAI_API_KEY in SQLite settings")
         elif self.provider == "openai_acp":
             from artemis.llm.openai_acp_bridge import resolve_codex
 
             resolve_codex()
         elif self.provider == "google":
-            if not settings.GOOGLE_API_KEY:
-                raise Exception(f"{name} requires GOOGLE_API_KEY in .env")
+            if not settings.get_api_key("google"):
+                raise Exception(f"{name} requires GOOGLE_API_KEY in SQLite settings")
         elif self.provider == "vertexai":
             validate_vertex_ai_credentials()
         elif self.provider == "anthropic":
-            if not (settings.ANTHROPIC_API_KEY or os.environ.get("ANTHROPIC_API_KEY")):
-                raise Exception(f"{name} requires ANTHROPIC_API_KEY in .env")
+            if not settings.get_api_key("anthropic"):
+                raise Exception(f"{name} requires ANTHROPIC_API_KEY in SQLite settings")
         elif self.provider == "openrouter":
-            if not settings.OPEN_ROUTER_API_KEY:
-                raise Exception(f"{name} requires OPEN_ROUTER_API_KEY in .env")
+            if not settings.get_api_key("openrouter"):
+                raise Exception(f"{name} requires OPEN_ROUTER_API_KEY in SQLite settings")
         elif self.provider == "xai":
-            if not settings.XAI_API_KEY:
-                raise Exception(f"{name} requires XAI_API_KEY in .env")
+            if not settings.get_api_key("xai"):
+                raise Exception(f"{name} requires XAI_API_KEY in SQLite settings")
 
     def __str__(self) -> str:
         return f"{self.provider}/{self.model}"
@@ -317,26 +315,13 @@ def _expand_default_into_nodes(config_dict: dict) -> dict:
 
 
 def parse_llm_config() -> LLMConfig:
-    """Parse and instantiate LLMConfig from artemis.jsonc or llm-config.json."""
-    config_path = None
-    for candidate in ("artemis.jsonc", "artemis.json", LLM_CONFIG_FILENAME):
-        try:
-            config_path = get_config_path(candidate)
-            break
-        except FileNotFoundError:
-            continue
+    """Parse LLM configuration from SQLite, importing legacy files once."""
+    from artemis.config.sqlite_store import get_settings_store
 
-    if not config_path:
-        config_path = get_config_path(LLM_CONFIG_FILENAME, ROOT_DIR / LLM_CONFIG_FILENAME)
-
-    try:
-        with open(config_path, encoding="utf-8") as f:
-            config_dict = load_jsonc(f)
-            expanded_dict = _expand_default_into_nodes(config_dict)
-            return LLMConfig.model_validate(expanded_dict)
-    except Exception as e:
-        logger.error(f"Failed to load or parse llm config: {config_path}. Error: {e}")
-        raise
+    document, _ = get_settings_store().model()
+    settings.refresh_model_settings()
+    expanded_dict = _expand_default_into_nodes(document["config"])
+    return LLMConfig.model_validate(expanded_dict)
 
 
 def initialize_llm_config() -> LLMConfig:

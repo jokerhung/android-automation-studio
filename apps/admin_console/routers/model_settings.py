@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import sqlite3
 from pathlib import Path
 import subprocess
 import sys
@@ -43,7 +44,7 @@ router = APIRouter(prefix="/api/settings/model", tags=["settings"])
 
 
 def authorize(request):
-    _require_server_bound_request(request, "Model settings are local-only.")
+    _require_server_bound_request(request, "Model settings require access through the server console.")
     origin = request.headers.get("origin")
     if origin and urlsplit(origin).netloc.lower() != request.headers.get("host", "").lower():
         raise HTTPException(403, "Use the same-origin Artemis console.")
@@ -54,7 +55,7 @@ def get_model_settings(request: Request):
     authorize(request)
     try:
         return ModelSettingsService().get()
-    except (ValueError, OSError):
+    except (ValueError, OSError, sqlite3.Error):
         raise HTTPException(500, "Unable to read model configuration files.") from None
 
 
@@ -72,12 +73,16 @@ async def list_available_models(request: Request):
         if isinstance(exc, json.JSONDecodeError):
             raise HTTPException(502, "The endpoint returned an invalid model list.") from None
         raise HTTPException(502, str(exc)) from None
-    except OSError:
+    except (OSError, sqlite3.Error):
         raise HTTPException(500, "Unable to read model credentials.") from None
     except TimeoutError:
-        raise HTTPException(504, "Codex ACP did not respond in time. Check Codex login and configuration.") from None
+        raise HTTPException(
+            504, "Codex ACP did not respond in time. Check Codex login and configuration."
+        ) from None
     except RuntimeError:
-        raise HTTPException(502, "Codex ACP connection failed. Check the installed Codex CLI.") from None
+        raise HTTPException(
+            502, "Codex ACP connection failed. Check the installed Codex CLI."
+        ) from None
 
 
 def launch_restart(port, host, drop_env):
@@ -132,7 +137,7 @@ async def save_model_settings(request: Request):
         ) from None
     server = getattr(request.app.state, "uvicorn_server", None)
     if server is None:
-        raise HTTPException(503, "Restart controller unavailable; no files were changed.")
+        raise HTTPException(503, "Restart controller unavailable; no settings were changed.")
     async with scheduler_service.claim_lock:
         async with state.admission_lock:
             state.prune_finished_runs()
@@ -153,7 +158,7 @@ async def save_model_settings(request: Request):
             email_notification_service.begin_drain()
             try:
                 dropped = ModelSettingsService().save(payload)
-            except (OSError, ValueError) as exc:
+            except (OSError, ValueError, sqlite3.Error) as exc:
                 state.is_draining = False
                 email_notification_service.accepting_deliveries = accepting
                 raise HTTPException(
@@ -167,7 +172,7 @@ async def save_model_settings(request: Request):
                 email_notification_service.accepting_deliveries = accepting
                 return {
                     "status": "saved_restart_failed",
-                    "message": "Files saved, but restart failed. Restart ARTEMIS manually to apply.",
+                    "message": "Settings saved in SQLite, but restart failed. Restart ARTEMIS manually to apply.",
                 }
 
     schedule_shutdown(server)
