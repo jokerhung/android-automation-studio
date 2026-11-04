@@ -271,10 +271,30 @@ class Settings(BaseSettings):
         for name in names:
             setattr(self, name, SecretStr(key))
 
+    def refresh_android_settings(self) -> None:
+        from artemis.config.sqlite_store import get_settings_store
+
+        document, _ = get_settings_store().android(host=self.ADB_HOST, port=self.ADB_PORT)
+        # Workers keep the immutable endpoint captured when their task was queued.
+        snapshot = os.environ.get("ARTEMIS_TASK_WORKER") == "1" and os.environ.get(
+            "ARTEMIS_ADB_ENDPOINT_ID"
+        )
+        self.ADB_HOST = (
+            os.environ.get("ADB_HOST", document["host"]) if snapshot else document["host"]
+        )
+        self.ADB_PORT = (
+            int(os.environ.get("ADB_PORT", document["port"])) if snapshot else document["port"]
+        )
+        os.environ["ADB_HOST"] = str(self.ADB_HOST)
+        os.environ["ADB_PORT"] = str(self.ADB_PORT)
+        host = f"[{self.ADB_HOST}]" if ":" in self.ADB_HOST else self.ADB_HOST
+        os.environ["ADB_SERVER_SOCKET"] = f"tcp:{host}:{self.ADB_PORT}"
+
 
 # Singleton instance
 settings = Settings()
 settings.refresh_model_settings()
+settings.refresh_android_settings()
 
 # Synchronize DATA_ENGINE_DB_PATH in environment for external sub-processes/tools
 if settings.DATA_ENGINE_DB_PATH:

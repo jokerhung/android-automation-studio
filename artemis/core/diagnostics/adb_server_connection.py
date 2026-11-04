@@ -23,10 +23,8 @@ import re
 import subprocess
 from typing import Any, Callable
 
-from dotenv import set_key
-
 from artemis.config import settings
-from artemis.config.paths import ROOT_DIR, get_app_dir
+from artemis.config.sqlite_store import get_settings_store
 from artemis.runtime.adb_endpoint import (
     AdbEndpoint,
     AdbSession,
@@ -51,10 +49,16 @@ class AdbServerConnectionManager:
         *,
         adb_resolver: Callable[[], str | None] | None = None,
         env_files: list[Path] | None = None,
+        store=None,
     ) -> None:
         self._adb_resolver = adb_resolver or (lambda: toolchain.resolve("adb"))
-        self._env_files = env_files
+        # Retain the legacy argument for callers; files are never written.
+        self._store = store
         self._activation_lock = asyncio.Lock()
+
+    @property
+    def store(self):
+        return self._store or get_settings_store()
 
     @staticmethod
     def validate_endpoint(host: str, port: int) -> AdbServerEndpoint:
@@ -64,16 +68,22 @@ class AdbServerConnectionManager:
         return current_adb_endpoint()
 
     def status(self) -> dict[str, Any]:
-        return {"endpoint": self.current_endpoint().to_dict()}
+        return {
+            "endpoint": self.current_endpoint().to_dict(),
+            "storage": "sqlite",
+            "database_path": str(self.store.path),
+        }
 
     def synchronize_environment(self) -> AdbServerEndpoint:
         """Align subprocess and Python ADB clients with the configured endpoint."""
-        socket_endpoint = self._endpoint_from_socket(os.environ.get("ADB_SERVER_SOCKET"))
-        has_explicit_host = bool(os.environ.get("ADB_HOST") or os.environ.get("ADB_PORT"))
+        document, _ = self.store.android(host=settings.ADB_HOST, port=settings.ADB_PORT)
+        snapshot = os.environ.get("ARTEMIS_TASK_WORKER") == "1" and os.environ.get(
+            "ARTEMIS_ADB_ENDPOINT_ID"
+        )
         endpoint = (
-            socket_endpoint
-            if socket_endpoint is not None and not has_explicit_host
-            else self.current_endpoint()
+            self.current_endpoint()
+            if snapshot
+            else self.validate_endpoint(document["host"], document["port"])
         )
         self._activate(endpoint)
         return endpoint
@@ -305,27 +315,16 @@ class AdbServerConnectionManager:
         )
 
     def _persist(self, endpoint: AdbServerEndpoint) -> None:
-        for env_file in self._environment_files():
-            env_file.parent.mkdir(parents=True, exist_ok=True)
-            if not env_file.exists():
-                env_file.touch()
-            set_key(str(env_file), "ADB_HOST", endpoint.host, quote_mode="never")
-            set_key(str(env_file), "ADB_PORT", str(endpoint.port), quote_mode="never")
-
-    def _environment_files(self) -> list[Path]:
-        if self._env_files is not None:
-            candidates = self._env_files
-        else:
-            candidates = [ROOT_DIR / ".env", get_app_dir() / ".env"]
-
-        unique_files: list[Path] = []
-        seen: set[Path] = set()
-        for candidate in candidates:
-            resolved = candidate.resolve()
-            if resolved not in seen:
-                seen.add(resolved)
-                unique_files.append(candidate)
-        return unique_files
+        store = self.store
+        store.android()
+        store.update(
+            "android",
+            lambda document: {
+                **document,
+                "host": endpoint.host,
+                "port": endpoint.port,
+            },
+        )
 
 
 adb_server_connection = AdbServerConnectionManager()

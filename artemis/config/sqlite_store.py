@@ -130,6 +130,31 @@ class SettingsStore:
 
         return self.get_or_import("model", migrate)
 
+    def android(self, *, host=None, port=None):
+        def migrate():
+            from urllib.parse import urlsplit
+            from artemis.config.constants import DEFAULT_ADB_HOST, DEFAULT_ADB_PORT
+
+            source = get_env_file()
+            legacy = dotenv_values(source) if source.exists() else {}
+            selected_host = host or os.environ.get("ADB_HOST") or legacy.get("ADB_HOST")
+            selected_port = port or os.environ.get("ADB_PORT") or legacy.get("ADB_PORT")
+            socket = os.environ.get("ADB_SERVER_SOCKET") or legacy.get("ADB_SERVER_SOCKET")
+            if socket and not (
+                os.environ.get("ADB_HOST")
+                or os.environ.get("ADB_PORT")
+                or legacy.get("ADB_HOST")
+                or legacy.get("ADB_PORT")
+            ):
+                parsed = urlsplit("//" + socket.removeprefix("tcp:"))
+                selected_host, selected_port = parsed.hostname, parsed.port
+            return {
+                "host": selected_host or DEFAULT_ADB_HOST,
+                "port": int(selected_port or DEFAULT_ADB_PORT),
+            }
+
+        return self.get_or_import("android", migrate)
+
 
 def get_settings_store():
     return SettingsStore()

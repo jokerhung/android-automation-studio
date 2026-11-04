@@ -426,6 +426,7 @@ def initialize_config() -> None:
     store = get_settings_store()
     try:
         store.model(config_path=config, env_path=env)
+        store.android()
         EmailSettingsService(None, store=store).initialize()
     except Exception as exc:
         raise InstallError(

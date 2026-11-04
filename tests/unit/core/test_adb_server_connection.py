@@ -30,6 +30,18 @@ from artemis.core.diagnostics.engine import ReadinessEngine
 from artemis.runtime.adb_endpoint import ADB_ENDPOINT_ID_ENV, AdbSession
 
 
+@pytest.fixture(autouse=True)
+def isolated_android_settings(sqlite_model_store, monkeypatch):
+    for name in ("ADB_HOST", "ADB_PORT", "ADB_SERVER_SOCKET", ADB_ENDPOINT_ID_ENV):
+        if name in os.environ:
+            monkeypatch.setenv(name, os.environ[name])
+        else:
+            monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(settings, "ADB_HOST", settings.ADB_HOST)
+    monkeypatch.setattr(settings, "ADB_PORT", settings.ADB_PORT)
+    return sqlite_model_store
+
+
 @pytest.mark.parametrize(
     ("host", "port"),
     [
@@ -191,7 +203,9 @@ async def test_default_resolver_uses_the_shared_toolchain(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_connect_persists_endpoint_without_replacing_other_settings(monkeypatch, tmp_path):
+async def test_connect_persists_endpoint_without_replacing_other_settings(
+    monkeypatch, tmp_path, isolated_android_settings
+):
     env_file = tmp_path / ".env"
     env_file.write_text("EXISTING_VALUE=keep-me\n", encoding="utf-8")
 
@@ -211,8 +225,8 @@ async def test_connect_persists_endpoint_without_replacing_other_settings(monkey
     content = env_file.read_text(encoding="utf-8")
     assert result["persisted"] is True
     assert "EXISTING_VALUE=keep-me" in content
-    assert "ADB_HOST=tunnel.local" in content
-    assert "ADB_PORT=5038" in content
+    assert content == "EXISTING_VALUE=keep-me\n"
+    assert isolated_android_settings.android()[0] == {"host": "tunnel.local", "port": 5038}
 
 
 @pytest.mark.asyncio
