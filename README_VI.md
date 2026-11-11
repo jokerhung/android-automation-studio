@@ -19,13 +19,13 @@ Chạy lệnh phù hợp với hệ điều hành của bạn:
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1 | iex
+irm https://raw.githubusercontent.com/jokerhung/android-automation-studio/main/install.ps1 | iex
 ```
 
 **Linux / macOS (Bash):**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/main/install.sh | bash
 ```
 
 Sau đó mở **[http://localhost:8009/](http://localhost:8009/)** hoặc URL mà trình cài đặt hiển thị.

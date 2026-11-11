@@ -19,13 +19,13 @@ Run the command for your operating system:
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1 | iex
+irm https://raw.githubusercontent.com/jokerhung/android-automation-studio/main/install.ps1 | iex
 ```
 
 **Linux / macOS (Bash):**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/main/install.sh | bash
 ```
 
 Then open **[http://localhost:8009/](http://localhost:8009/)** or the URL printed by the installer.
