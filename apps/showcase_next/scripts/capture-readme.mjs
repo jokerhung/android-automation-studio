@@ -15,7 +15,6 @@ try {
   ['home','/','.homeComposer'],
   ['workspace','/workspace/','.ws-main'],
   ['task-schedule','/task-schedule/','main'],
-  ['settings','/settings/','.settingsCard'],
  ]) {
   await page.goto('http://localhost:8009'+path,{waitUntil:'domcontentloaded'});
   await page.locator(ready).waitFor();
@@ -24,16 +23,16 @@ try {
     await page.locator('.ws-task').first().click();
     await page.locator('.execution-step').first().waitFor({timeout:10000}).catch(()=>{});
   }
-  // Redact real task/account/device data at capture time; never alter backend data.
-  const masks=name==='workspace'?[page.locator('.ws-task-copy'),page.locator('.ws-task-meta'),page.locator('.ws-session-header h2'),page.locator('.ws-session-header p'),page.locator('.execution-narrative p'),page.locator('.execution-action dd'),page.locator('.execution-error'),page.locator('.ws-device-card h2'),page.locator('.ws-device-stage'),page.locator('.ws-device-controls span')]
-   :name==='task-schedule'?[page.locator('article h3'),page.locator('article [role="region"]'),page.locator('article dd')]:[];
-  await page.screenshot({path:resolve(output,name+'.png'),fullPage:false,mask:masks,maskColor:'#354255'});
+  // Blur private content in this disposable browser only; never alter backend data.
+  const selectors = name === 'workspace'
+   ? ['.ws-task-copy', '.ws-task-meta', '.ws-session-header h2', '.ws-session-header p', '.execution-narrative p', '.execution-action dd', '.execution-action summary span', '.execution-error', '.ws-device-card h2', '.ws-device-stage', '.ws-device-controls span', '.ws-note', '.ws-plan', '.ws-result']
+   : name === 'task-schedule'
+    ? ['article h3', 'article [role="region"]', 'article dd']
+    : [];
+  if (selectors.length) await page.addStyleTag({content: selectors.join(',') + '{filter:blur(14px) !important; user-select:none !important;}'});
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({path:resolve(output,name+'.png'),fullPage:false,animations:'disabled'});
   console.log(`Captured ${name} from ${page.url()}`);
-  if(name==='task-schedule'){
-    await page.getByRole('button',{name:/New schedule/}).first().click();
-    await page.getByRole('dialog').waitFor();
-    await page.getByRole('dialog').screenshot({path:resolve(output,'new-schedule.png')});
-  }
  }
  await context.close();
 } finally {await browser.close();}

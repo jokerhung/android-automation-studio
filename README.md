@@ -1,14 +1,8 @@
 # Android Automation Studio
 
-**AI-powered Android automation with a local web workspace.**
+Android Automation Studio uses AI to automate tasks on Android phones and emulators. Describe what you want to do in natural language, then follow the execution through a web interface. Schedule recurring tasks and review results with logs and recordings.
 
 **English** · [Tiếng Việt](README_VI.md)
-
-Describe a task in natural language, run it on an authorized Android phone or emulator, and follow its execution in the browser. The Python/FastAPI backend runs the automation; the **Next.js/TypeScript frontend with shadcn/ui** provides the interface. Angular has been removed.
-
-Use only devices and accounts you are authorized to control. Tasks may change application data, and configured AI providers may receive task text and device observations. Review instructions before running them.
-
-The following screenshots were captured from the running application at **http://localhost:8009/** on **2026-09-16**, using English and the dark theme. Solid gray areas intentionally hide real task, account and device information; they are not loading placeholders. No task was run and no backend setting was changed to produce these screenshots.
 
 ![Home with the task composer and suggested tasks](docs/assets/screenshots/home.png)
 
@@ -16,75 +10,27 @@ The following screenshots were captured from the running application at **http:/
 
 ![Task schedules with private names, instructions and recipients redacted](docs/assets/screenshots/task-schedule.png)
 
-![New schedule form](docs/assets/screenshots/new-schedule.png)
-
-![Settings showing language, theme and Windows startup preferences](docs/assets/screenshots/settings.png)
-
 ---
 
 ## ⚡ Quick Start
 
-Run the command for your operating system to download ARTEMIS, prepare Python/uv and Node/npm, build the web interface, and start the server.
+Run the command for your operating system:
 
-### Windows — PowerShell
+**Windows (PowerShell):**
 
 ```powershell
 irm https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1 | iex
 ```
 
-### Linux / macOS — Bash
+**Linux / macOS (Bash):**
 
 ```bash
-set -o pipefail
 curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh | bash
 ```
 
-After installation, open the URL printed by the installer (default: **http://localhost:8009/**). Configure your AI provider in **Settings → Models**, then connect an authorized Android phone or emulator in **Settings → Android**.
+Then open **[http://localhost:8009/](http://localhost:8009/)** or the URL printed by the installer.
 
-The default server also accepts LAN connections. Use `-LocalOnly` (PowerShell) or `--local-only` (Bash) to restrict access to this computer.
-
-Git, Python, uv and Node/npm are bootstrapped automatically. Bash still needs
-curl, CA certificates, tar, mktemp and a SHA-256 tool; Windows needs PowerShell
-and ZIP support. Installation defaults to `~/.local/share/artemis` or
-`%LOCALAPPDATA%\Programs\Artemis`. No API key or Android device is needed to
-open the console.
-
-**Release status:** the installation guide records incomplete public publication
-(last checked 2026-10-28). The commands above require the installer and helpers
-to be published together on `nextjs`; clean-machine acceptance remains unverified.
-Use the source setup below while publication is pending.
-
-See [installation options, supported environments, and management commands](docs/installation.md) for details.
-
-### Auto-start on Login (Optional)
-
-On supported Windows installations, enable **Settings → General → Start with Windows**. The Windows system tray integration is platform-specific.
-
-### LAN Access (Optional)
-
-The installer prints local and LAN URLs, normally `http://localhost:8009/` and `http://<host-ip>:8009/`. The host must remain running and reachable from the client. Use `-LocalOnly` (PowerShell) or `--local-only` (Bash) during installation to restrict access to this computer.
-
----
-
-## 📱 Supported Platforms
-
-| Platform | Host | Web client | Install / access |
-| --- | --- | --- | --- |
-| Windows 11 x64 | Installer target | Browser | PowerShell installer or `start.bat` from source |
-| macOS 14 / 15, Intel / Apple Silicon | Installer target | Browser | Bash installer or `bash start.sh` from source |
-| Ubuntu 22.04 / 24.04, x86_64 (glibc) | Installer target | Browser | Bash installer or `bash start.sh` from source |
-| Other browser devices | — | Browser | Open the host's local or LAN URL |
-| Android phone / emulator | Automation target | — | Connect through authorized ADB |
-
-The host rows describe implementation targets, not completed acceptance testing on every OS/device combination. See [installation environments and prerequisites](docs/installation.md#target-environments-and-prerequisites). Android tasks require ADB and an available device; scrcpy/FFmpeg support recording-related capabilities.
-
-| Platform-specific feature | Windows | macOS / Linux |
-| --- | --- | --- |
-| Task schedules | Backend must remain running | Backend must remain running |
-| Start with Windows and system tray | Supported Windows integration | Not applicable |
-| SMTP password storage | Windows DPAPI | Not implemented by the current secret-store backend |
-
-Do not assume email notifications are available on macOS/Linux merely because the Email tab is visible.
+See [installation details and release status](docs/installation.md).
 
 ---
 
@@ -99,52 +45,6 @@ Do not assume email notifications are available on macOS/Linux merely because th
 - 📱 **Android device tools** — local/remote ADB, emulator controls and a Remote Phone page for ordinary UI input.
 - 🔌 **MCP integration** — expose automation capabilities to compatible AI assistants through the inherited ARTEMIS MCP server.
 
-### Feature Details
-
-#### Home — launch a task
-
-Enter a natural-language goal or choose a suggested task.
-
-- **Flash:** reactive execution for straightforward app interactions.
-- **Pro:** planning and verification for more complex workflows, with expected output and tuning controls.
-- Prerequisite checks prevent launching when the required environment is not ready.
-
-#### Workspace — follow execution and replay
-
-The three-column workspace keeps activity, device media and task history together.
-
-- **Left:** readable action cards, activity/results, notes, plan and usage. During execution, Logs follow new content while the header and tabs remain fixed.
-- **Center:** live device view, recorded steps or video replay, with a time slider and playback speed.
-- **Right:** active task queue and previous sessions.
-- Stop/resume controls are available when the selected task state allows them.
-
-#### Task Schedule — recurring automation
-
-Create **interval** schedules in minutes, **daily** schedules, or **weekly** schedules with selected weekdays. Configure time down to seconds and choose a timezone.
-
-- Preview the next five occurrences before saving.
-- Pause/resume a schedule, run it now, inspect history, or delete it using compact icon buttons.
-- Long task descriptions scroll inside fixed-height areas.
-- Where SMTP is configured and supported, send the task summary with a text execution-log attachment.
-
-Schedules require the host computer and ARTEMIS backend to stay running, and the target device must be available. Scheduling does not wake or power on the computer.
-
-#### Settings — appearance, models and devices
-
-- **General:** English/Vietnamese language, light/dark themes, and Start with Windows on supported installations.
-- **Models:** provider, default/fallback model, credentials and custom API URL; save/restart confirmation.
-- **OpenAI ACP:** choose this provider to use the locally installed Codex CLI and its existing login. Run `codex login` on the server computer first, then click **Fetch models**, choose default/fallback models and save/restart. Codex is detected automatically; an optional executable path supports installations outside PATH. No Artemis API key, HTTP proxy or ACP package installation is required. Artemis supplies an ACP stdio bridge to `codex app-server`; this requires a Codex version supporting `account/read`, `model/list`, `thread/start` and `turn/start` (verified with 0.166.0). Text, inline screenshots, tool calls and structured output are supported; responses arrive when complete. Native video/audio and remote image URLs are not supported by this provider. Codex runs hidden on Windows, and Artemis remains responsible for device actions.
-- **Email:** SMTP connection settings and explicit connection/test-email actions.
-- **Android:** local/remote ADB, device selection and installed emulator controls.
-- **Remote Phone:** open `/remote/` to view a connected Android device and send tap, swipe, text, and key input. Control requests are loopback-only by default; set `ARTEMIS_REMOTE_CONTROL_ALLOW_LAN=1` only on a trusted network. MJPEG capture and ADB input are intended for ordinary UI actions, not low-latency games.
-- **System & Environment:** dependency checks and readiness information.
-
-#### IDE integration
-
-The inherited ARTEMIS MCP server can connect automation capabilities to compatible AI assistants. The startup script offers optional installation; use it only if you want to change your IDE configuration. This integration is separate from using the Web UI.
-
-For implementation details, explore [docs](docs/). Report issues for this derivative at [the repository issue tracker](https://github.com/jokerhung/android-automation-studio/issues), with secrets removed from logs and screenshots.
-
 ---
 
 ## 🛡️ Security Architecture
@@ -158,14 +58,6 @@ flowchart LR
     Runtime -->|"Task text and device observations"| AI["Configured AI provider / local ACP bridge"]
     Runtime -->|"Authorized ADB"| Android["Android phone or emulator"]
 ```
-
-- The production frontend and API share one origin; FastAPI serves the static export without a separate Node server.
-- The installer accepts LAN connections by default. Choose local-only installation when access should stay on the host.
-- Remote Phone control requests are loopback-only by default. `ARTEMIS_REMOTE_CONTROL_ALLOW_LAN=1` enables control on a trusted LAN.
-- Model credentials stay in local configuration; configured providers may receive task text and device observations. Windows email passwords use DPAPI; the current SMTP secret-store backend does not implement macOS/Linux storage.
-- Lifecycle scripts use identity-verified Artemis stop/restart commands rather than killing whichever process holds a port.
-
-Use only devices and accounts you are authorized to control. Keep credentials out of commits, logs and screenshots; preserve an existing `.env` during upgrades.
 
 ---
 

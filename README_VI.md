@@ -1,50 +1,96 @@
 # Android Automation Studio
 
-## Cài đặt qua Internet
-
-**Đang chờ phát hành:** các URL `nextjs` trả HTTP 404 trong system test.
-Người phụ trách phát hành cần đưa installer và helper lên cùng revision,
-sau đó chạy đạt `python scripts/check_installer_release.py` trước khi dùng lệnh dưới đây.
-
-Linux/macOS: `curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh | bash`
-
-Windows PowerShell: `irm https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1 | iex`
-
-Tự chuẩn bị runtime, khởi tạo cấu hình, build và chạy nền; sau đó hiển thị URL
-local/LAN. Xem [tham số, môi trường mục tiêu và lệnh quản lý](docs/installation.md).
-Lệnh public cần installer và các helper được phát hành cùng revision lên nhánh `nextjs`.
-
-**Tự động hóa Android bằng AI với giao diện web chạy trên máy của bạn.**
+Android Automation Studio sử dụng AI để tự động hóa tác vụ trên điện thoại Android và trình giả lập. Mô tả việc bạn muốn làm bằng ngôn ngữ tự nhiên, rồi theo dõi quá trình thực hiện qua giao diện web. Lên lịch tác vụ định kỳ và xem lại kết quả qua nhật ký cùng bản ghi màn hình.
 
 [English](README.md) · **Tiếng Việt**
 
-## Giới thiệu
+![Trang chủ với ô nhập tác vụ và các gợi ý](docs/assets/screenshots/home.png)
 
-Android Automation Studio là bản tùy chỉnh được phát triển độc lập, **clone từ [dự án ARTEMIS của Google](https://github.com/google/artemis)**. Mã nguồn và kiến trúc ARTEMIS ban đầu được ghi nhận cho Google cùng các tác giả đóng góp. Repository này không phải bản phát hành chính thức và không tuyên bố được Google bảo trợ.
+![Không gian làm việc ba cột với nội dung phiên cá nhân đã được làm mờ](docs/assets/screenshots/workspace.png)
 
-Bạn mô tả tác vụ bằng ngôn ngữ tự nhiên, chạy trên điện thoại Android hoặc emulator đã được cấp quyền, rồi theo dõi quá trình thực hiện trong trình duyệt. Backend Python/FastAPI xử lý tự động hóa; frontend **Next.js/TypeScript và shadcn/ui** cung cấp giao diện. Bản Angular đã được loại bỏ.
+![Lịch tác vụ với tên, hướng dẫn và người nhận cá nhân đã được làm mờ](docs/assets/screenshots/task-schedule.png)
 
-- **Repository bản tùy chỉnh:** [jokerhung/android-automation-studio](https://github.com/jokerhung/android-automation-studio).
-- **Dự án gốc:** [google/artemis](https://github.com/google/artemis).
-- **Giấy phép:** [Apache 2.0](LICENSE), giữ các thông báo bản quyền upstream. Mã nguồn kế thừa còn có đóng góp từ [Minitap, Inc.](https://github.com/minitap-ai/mobile-use); thành phần bên thứ ba giữ giấy phép riêng.
+---
 
-Chỉ sử dụng trên thiết bị và tài khoản bạn có quyền điều khiển. Task có thể thay đổi dữ liệu ứng dụng; nội dung yêu cầu và quan sát thiết bị có thể được gửi đến nhà cung cấp AI đã cấu hình. Hãy kiểm tra hướng dẫn trước khi chạy.
+## ⚡ Bắt đầu nhanh
 
-## Cách build và run
+Chạy lệnh phù hợp với hệ điều hành của bạn:
 
-### Yêu cầu
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.ps1 | iex
+```
+
+**Linux / macOS (Bash):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jokerhung/android-automation-studio/nextjs/install.sh | bash
+```
+
+Sau đó mở **[http://localhost:8009/](http://localhost:8009/)** hoặc URL mà trình cài đặt hiển thị.
+
+Xem [chi tiết cài đặt và tình trạng phát hành](docs/installation.md).
+
+---
+
+## ✨ 8 tính năng nổi bật
+
+- 🤖 **Tự động hóa Android bằng ngôn ngữ tự nhiên** — mô tả mục tiêu và thực hiện trên điện thoại hoặc trình giả lập đã được cấp quyền.
+- ⚡ **Chế độ Flash và Pro** — thực hiện trực tiếp các tác vụ đơn giản, hoặc lập kế hoạch và kiểm chứng cho quy trình phức tạp.
+- 🖥️ **Theo dõi thực thi trực tiếp** — xem các thẻ hành động, nhật ký, kế hoạch, ghi chú, mức sử dụng và lịch sử tác vụ trong cùng một giao diện.
+- 🎬 **Ghi hình và phát lại** — xem lại hình ảnh thiết bị, các bước đã ghi và video với thanh thời gian cùng tùy chỉnh tốc độ.
+- 📅 **Lịch tác vụ định kỳ** — chạy theo khoảng thời gian, hằng ngày hoặc hằng tuần, với lựa chọn múi giờ, xem trước và lịch sử.
+- 🧠 **Tùy chỉnh nhà cung cấp AI** — chọn mô hình mặc định/dự phòng, khóa API hoặc cầu nối OpenAI ACP cục bộ.
+- 📱 **Công cụ thiết bị Android** — ADB cục bộ/từ xa, điều khiển trình giả lập và trang Remote Phone để thao tác giao diện thông thường.
+- 🔌 **Tích hợp MCP** — cung cấp khả năng tự động hóa cho các trợ lý AI tương thích thông qua máy chủ MCP kế thừa từ ARTEMIS.
+
+---
+
+## 🛡️ Kiến trúc bảo mật
+
+```mermaid
+flowchart LR
+    Browser["Trình duyệt: giao diện Next.js tĩnh"] -->|"HTTP cục bộ hoặc LAN"| API["Backend FastAPI"]
+    MCP["Trợ lý AI tương thích / MCP"] --> Runtime["Bộ thực thi tự động hóa ARTEMIS"]
+    API --> Runtime
+    API --> Config["Cấu hình và thông tin xác thực cục bộ"]
+    Runtime -->|"Nội dung tác vụ và quan sát thiết bị"| AI["Nhà cung cấp AI đã cấu hình / cầu nối ACP cục bộ"]
+    Runtime -->|"ADB đã được cấp quyền"| Android["Điện thoại Android hoặc trình giả lập"]
+```
+
+---
+
+## 📂 Cấu trúc dự án (Monorepo)
+
+| Đường dẫn | Chức năng |
+| --- | --- |
+| `artemis/` | Bộ thực thi tự động hóa Python, các agent, trình điều khiển thiết bị, dịch vụ và CLI |
+| `apps/admin_console/` | Máy chủ web/API FastAPI và các tuyến quản trị |
+| `apps/showcase_next/` | Giao diện web Next.js / TypeScript với shadcn/ui; bản xuất tĩnh trong `out/` |
+| `packages/artemis-client/` | SDK Python cho client, được quản lý dưới dạng gói trong uv workspace |
+| `mcp_server/` | Tích hợp máy chủ MCP cho các trợ lý AI tương thích |
+| `scripts/` | Script khởi tạo, build, quản lý vòng đời và kiểm tra |
+| `config/` | Tài nguyên cấu hình |
+| `docs/` | Hướng dẫn cài đặt, ghi chú triển khai và ảnh chụp màn hình |
+| `tests/` | Kiểm tra tự động cho backend và các tích hợp |
+| `playground/` | Thử nghiệm container và backend |
+
+### Thiết lập môi trường phát triển
+
+#### Yêu cầu
 
 - Git.
 - Python **3.12+**, quản lý bằng [uv](https://docs.astral.sh/uv/).
-- Node.js **20.9+** và npm để build frontend; CI của repository dùng Node **22.22.3**.
-- Điện thoại Android đã bật **USB debugging và cấp quyền kết nối**, hoặc emulator đang chạy.
-- ADB để kết nối thiết bị; scrcpy/FFmpeg cho các chức năng ghi hình.
-- Thông tin xác thực của nhà cung cấp AI muốn sử dụng.
-- Kết nối mạng khi cài dependency lần đầu và khi gọi AI trên cloud.
+- Node.js **20.9+** và npm để build frontend; CI của repository sử dụng Node **22.22.3**.
+- Điện thoại Android đã **bật USB debugging và cấp quyền kết nối**, hoặc trình giả lập Android đang chạy.
+- ADB để kết nối thiết bị; scrcpy/FFmpeg cho các chức năng liên quan đến ghi hình.
+- Thông tin xác thực của nhà cung cấp AI bạn muốn sử dụng.
+- Kết nối Internet để cài đặt dependency lần đầu và gửi yêu cầu đến AI trên đám mây.
 
-Script khởi động tìm hoặc thử cài các công cụ còn thiếu, tạo `.env` nếu chưa có, đồng bộ Python dependencies và build frontend khi cần. Việc cài đặt có thể cần cấp quyền hoặc không thành công trên môi trường chưa hỗ trợ. Đọc kỹ các lời nhắc, kể cả bước tích hợp IDE/MCP không bắt buộc.
+Các script khởi động tìm hoặc thử cài công cụ còn thiếu, tạo `.env` nếu chưa có, đồng bộ dependency Python và build frontend khi cần. Việc cài đặt có thể cần cấp quyền hoặc không thành công trong môi trường chưa hỗ trợ. Đọc các lời nhắc, bao gồm bước cài đặt IDE/MCP tùy chọn.
 
-### Windows — PowerShell
+#### Windows — PowerShell
 
 **Chạy nhanh:**
 
@@ -54,7 +100,7 @@ cd android-automation-studio
 .\start.bat
 ```
 
-**Build và run thủ công**, sau khi đã cài công cụ cần thiết:
+**Build và chạy thủ công** — sau khi cài đủ công cụ cần thiết:
 
 ```powershell
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
@@ -64,33 +110,33 @@ npm.cmd run build --prefix apps/showcase_next
 uv run python -m artemis ui --port 8009 --open
 ```
 
-Đổi port hoặc không tự mở trình duyệt:
+Để dùng cổng khác hoặc không tự mở trình duyệt:
 
 ```powershell
 .\start.bat -Port 8010 -NoOpen
 ```
 
-**Chạy ngầm (background) hoặc dừng server** — `start.bat` chuyển tiếp các tham số sang `scripts/start.ps1`, script này cũng có thể khởi chạy server tách khỏi console (qua `artemis restart --daemon`) và dừng daemon đã xác thực identity trên một port:
+**Chạy nền hoặc dừng máy chủ** — `start.bat` chuyển tiếp tham số đến `scripts/start.ps1`. Script này cũng có thể khởi chạy máy chủ tách khỏi cửa sổ dòng lệnh (qua `artemis restart --daemon`) và dừng daemon trên một cổng sau khi xác minh danh tính:
 
 ```powershell
-.\start.bat -Daemon      # build (nếu cần) + chạy ngầm ở background
-.\start.bat -Stop        # dừng server đang chạy, không build
+.\start.bat -Daemon      # build nếu đã cũ, sau đó chạy nền
+.\start.bat -Stop        # dừng máy chủ đang chạy, không build
 ```
 
-**Build lại frontend rồi khởi động lại** — `scripts/rebuild.ps1` luôn build lại Next.js Showcase UI (khác với `start.bat` chỉ build khi source thay đổi) rồi khởi động lại server API + GUI thống nhất:
+**Build lại frontend và khởi động lại** — `scripts/rebuild.ps1` luôn build lại giao diện Next.js Showcase (khác với `start.bat`, chỉ build lại khi mã nguồn thay đổi), rồi khởi động lại máy chủ API và giao diện dùng chung:
 
 ```powershell
-.\scripts\rebuild.ps1            # build lại + chạy trong console hiện tại (foreground)
-.\scripts\rebuild.ps1 -Daemon    # build lại + chạy ngầm ở background
-.\scripts\rebuild.ps1 -Stop      # dừng server, không build lại
+.\scripts\rebuild.ps1            # build lại và chạy trong cửa sổ hiện tại
+.\scripts\rebuild.ps1 -Daemon    # build lại và chạy nền
+.\scripts\rebuild.ps1 -Stop      # dừng máy chủ, không build lại
 .\scripts\rebuild.ps1 -Port 8010 -NoOpen
 ```
 
-Cả hai script đều dừng/khởi động server qua các lệnh lifecycle chính thức của Artemis (`artemis ui --restart`, `artemis restart --daemon`, `artemis stop`), không bao giờ tự ý kill PID tìm được trên port.
+Cả hai script dừng và khởi động máy chủ bằng các lệnh quản lý vòng đời có xác minh danh tính của Artemis (`artemis ui --restart`, `artemis restart --daemon`, `artemis stop`), không dừng trực tiếp một PID chỉ vì tiến trình đó đang giữ cổng.
 
-### macOS
+#### macOS
 
-Cài các công cụ cần thiết, kết nối thiết bị đã được cấp quyền, rồi chạy:
+Cài đủ công cụ cần thiết, kết nối thiết bị đã cấp quyền, rồi chạy:
 
 ```bash
 git clone https://github.com/jokerhung/android-automation-studio.git
@@ -98,7 +144,7 @@ cd android-automation-studio
 bash start.sh
 ```
 
-Build và run thủ công:
+Để build và chạy thủ công:
 
 ```bash
 [ -f .env ] || cp .env.example .env
@@ -108,11 +154,11 @@ npm run build --prefix apps/showcase_next
 uv run python -m artemis ui --port 8009 --open
 ```
 
-Script có thể dùng Homebrew nếu có sẵn. Khởi động cùng Windows, Windows system tray và kho mật khẩu email Windows DPAPI không áp dụng cho macOS.
+Quá trình thiết lập trên macOS có thể dùng Homebrew nếu có. Các tính năng khởi động khi đăng nhập Windows, khay hệ thống Windows và lưu thông tin xác thực email bằng Windows DPAPI không áp dụng cho macOS.
 
-### Linux
+#### Linux
 
-Cài các công cụ cần thiết, bảo đảm tài khoản hệ điều hành có quyền truy cập thiết bị USB Android, rồi chạy:
+Cài đủ công cụ cần thiết, bảo đảm tài khoản của bạn có quyền truy cập thiết bị Android qua USB, rồi chạy:
 
 ```bash
 git clone https://github.com/jokerhung/android-automation-studio.git
@@ -120,7 +166,7 @@ cd android-automation-studio
 bash start.sh
 ```
 
-Build và run thủ công:
+Để build và chạy thủ công:
 
 ```bash
 [ -f .env ] || cp .env.example .env
@@ -130,35 +176,35 @@ npm run build --prefix apps/showcase_next
 uv run python -m artemis ui --port 8009 --open
 ```
 
-Script có thể dùng trình quản lý gói hoặc phương án cài trong thư mục người dùng nếu được hỗ trợ. Quyền USB/udev có thể cần cấu hình thủ công. Với máy không có giao diện desktop hoặc khi muốn đổi port:
+Thiết lập trên Linux có thể dùng trình quản lý gói sẵn có hoặc phương án cài trong phạm vi người dùng được hỗ trợ. Quyền USB/cấu hình udev có thể cần thiết lập thủ công. Để chạy không mở trình duyệt hoặc dùng cổng khác:
 
 ```bash
 bash start.sh --port 8010 --no-open
 ```
 
-### Mở ứng dụng và cấu hình lần đầu
+#### Mở ứng dụng và cấu hình
 
-Script khởi động mặc định tại **[http://localhost:8009/](http://localhost:8009/)**. Các lệnh CLI quản lý dịch vụ có thể có port mặc định khác; hãy ghi rõ `--port 8009`.
+Các script khởi động mặc định dùng **[http://localhost:8009/](http://localhost:8009/)**. Các lệnh CLI quản lý vòng đời chạy trực tiếp có thể dùng giá trị mặc định khác, vì vậy hãy chỉ định rõ `--port 8009`.
 
-1. Vào **Cài đặt → Mô hình**, nhập provider, model mặc định/dự phòng, API key và custom URL nếu cần. Xem thông báo xác nhận trước khi lưu và restart.
-2. Vào **Cài đặt → Android** để kiểm tra kết nối thiết bị.
-3. Kiểm tra điều kiện chạy trong **Hệ thống & Môi trường**.
-4. Về **Trang chủ**, nhập yêu cầu và chọn **Flash** hoặc **Pro**.
+1. Mở **Settings → Models** và thiết lập nhà cung cấp, mô hình mặc định/dự phòng, khóa API và URL tùy chỉnh nếu cần. Làm theo bước xác nhận trước khi lưu/khởi động lại dịch vụ.
+2. Mở **Settings → Android** và kiểm tra kết nối thiết bị.
+3. Kiểm tra các yêu cầu trong **System & Environment**.
+4. Quay lại **Home**, nhập tác vụ và chọn **Flash** hoặc **Pro**.
 
-Không ghi đè `.env` hiện có khi nâng cấp. Không đưa khóa API hay mật khẩu thật vào Git, ảnh chụp hoặc issue công khai.
+Không ghi đè `.env` hiện có khi nâng cấp. Không commit thông tin xác thực hoặc đưa mật khẩu thật vào ảnh chụp màn hình hay issue công khai.
 
-Frontend production là **static export** tại `apps/showcase_next/out`, được FastAPI phục vụ cùng origin với API. Không cần chạy riêng Next.js/Node server. Sau khi sửa frontend, build lại rồi tải lại trình duyệt bằng **Ctrl + F5** hoặc tải lại bỏ cache tương ứng trên macOS.
+Frontend production là **bản xuất tĩnh** trong `apps/showcase_next/out`, được FastAPI phục vụ cùng nguồn với API. Không cần máy chủ Next.js/Node riêng. Sau khi thay đổi frontend, build lại rồi tải lại trình duyệt và bỏ qua bộ nhớ đệm.
 
-### Build package và chạy kiểm tra
+#### Đóng gói và chạy kiểm tra
 
-Tại thư mục gốc, sau khi đã build frontend:
+Từ thư mục gốc của repository, sau khi build frontend:
 
 ```bash
 uv build --package artemis-client --wheel
 uv build --package artemis --wheel --sdist
 ```
 
-Kết quả nằm trong `dist/`. Package ARTEMIS chứa frontend đã build; đây là gói Python, không phải bộ cài desktop native.
+Các gói được ghi vào `dist/`. Gói ARTEMIS bao gồm frontend đã build; đây là các bản phân phối Python, không phải bộ cài ứng dụng desktop gốc.
 
 ```bash
 npm run lint --prefix apps/showcase_next
@@ -167,80 +213,16 @@ npm test --prefix apps/showcase_next
 npm run budget:check --prefix apps/showcase_next
 ```
 
-Xem [ghi chú chuyển hẳn sang Next.js](docs/nextjs-only-cutover.md) để biết thêm về đóng gói. Hướng dẫn trên mô tả quy trình cho từng nền tảng, không khẳng định mọi tổ hợp hệ điều hành/thiết bị đã được kiểm thử.
+Xem [ghi chú triển khai chỉ dùng Next.js](docs/nextjs-only-cutover.md) để biết chi tiết đóng gói. Các lệnh mô tả quy trình cho từng nền tảng; không có nghĩa là mọi tổ hợp hệ điều hành/thiết bị đã được kiểm chứng.
 
-## Những tính năng cơ bản và màn hình minh họa
+---
 
-Các ảnh dưới đây được chụp từ ứng dụng đang chạy thật tại **http://localhost:8009/** ngày **16/09/2026**, với ngôn ngữ tiếng Anh và theme tối. Các vùng màu xám được che để bảo vệ dữ liệu tác vụ, tài khoản và thiết bị; không phải trạng thái đang tải. Không chạy task hay thay đổi cài đặt backend để tạo ảnh.
+## 📄 Giấy phép
 
-### Trang chủ — khởi chạy tác vụ
+[Apache License 2.0](LICENSE). Được sử dụng, sửa đổi và phân phối tự do, bao gồm mục đích thương mại, theo các điều khoản của giấy phép.
 
-Nhập mục tiêu bằng ngôn ngữ tự nhiên hoặc chọn tác vụ gợi ý.
+Android Automation Studio là bản tùy chỉnh được duy trì độc lập, **clone từ [dự án ARTEMIS của Google](https://github.com/google/artemis)**. Mã nguồn và kiến trúc ARTEMIS ban đầu thuộc công sức của Google cùng các tác giả đóng góp ở dự án gốc. Repository này không phải bản phát hành chính thức của Google và không tuyên bố được Google bảo trợ.
 
-- **Flash:** vòng lặp phản ứng nhanh cho thao tác ứng dụng trực tiếp.
-- **Pro:** lập kế hoạch và xác minh cho luồng phức tạp; có cấu hình kết quả mong đợi và mức kiểm tra.
-- Kiểm tra điều kiện tiên quyết trước khi cho phép chạy.
-
-![Trang chủ với ô nhập tác vụ và các gợi ý](docs/assets/screenshots/home.png)
-
-### Workspace — theo dõi và phát lại
-
-Bố cục ba cột giữ nhật ký, màn hình thiết bị và danh sách task trên cùng một trang.
-
-- **Bên trái:** thẻ thao tác dễ đọc, hoạt động/kết quả, ghi chú, kế hoạch và mức sử dụng. Khi task đang chạy, Logs tự cuộn theo nội dung mới; header và tabs đứng yên.
-- **Ở giữa:** live view, ảnh chụp từng bước hoặc video phát lại, có thanh tua thời gian và tốc độ phát.
-- **Bên phải:** hàng đợi đang hoạt động và lịch sử.
-- Dừng/tiếp tục task khi trạng thái phiên cho phép.
-
-Ảnh dưới là một phiên đã hoàn tất; nội dung cá nhân và màn hình bản ghi đã được che.
-
-![Workspace ba cột, dữ liệu riêng tư đã được che](docs/assets/screenshots/workspace.png)
-
-### Lịch tác vụ — tự động hóa định kỳ
-
-Tạo lịch **theo khoảng phút**, **hằng ngày**, hoặc **hằng tuần** với các ngày được chọn. Cấu hình giờ/phút/giây và múi giờ.
-
-- Xem trước năm lần chạy tiếp theo trước khi lưu.
-- Tạm dừng/tiếp tục, chạy ngay, xem lịch sử hoặc xóa bằng các nút icon gọn.
-- Mô tả dài cuộn trong vùng có chiều cao cố định.
-- Khi SMTP đã cấu hình và nền tảng hỗ trợ, gửi summary sau task cùng tệp nhật ký thực thi dạng văn bản.
-
-Máy tính và backend ARTEMIS phải đang hoạt động; thiết bị đích phải khả dụng. Scheduler không tự đánh thức hoặc bật nguồn máy tính.
-
-![Danh sách lịch tác vụ, tên và thông tin riêng tư đã được che](docs/assets/screenshots/task-schedule.png)
-
-<details>
-<summary>Màn hình tạo lịch mới</summary>
-
-Biểu mẫu được mở để chụp ảnh, không lưu lịch hoặc chạy task.
-
-![Biểu mẫu tạo lịch tác vụ](docs/assets/screenshots/new-schedule.png)
-
-</details>
-
-### Cài đặt — giao diện, mô hình và thiết bị
-
-- **Chung:** tiếng Anh/tiếng Việt, theme sáng/tối, khởi động cùng Windows khi được hỗ trợ.
-- **Mô hình:** provider, model mặc định/dự phòng, thông tin xác thực và custom URL; xác nhận trước khi lưu/restart.
-- **Email:** SMTP, kiểm tra kết nối và gửi email thử khi người dùng yêu cầu.
-- **Android:** ADB cục bộ/từ xa, chọn thiết bị và quản lý emulator đã cài.
-- **Hệ thống & Môi trường:** kiểm tra dependency và trạng thái sẵn sàng.
-
-![Cài đặt ngôn ngữ, theme và khởi động cùng Windows](docs/assets/screenshots/settings.png)
-
-### Khác biệt theo hệ điều hành
-
-| Tính năng | Windows | macOS / Linux |
-| --- | --- | --- |
-| Next.js Web UI và backend Python | Có | Có; cần cấu hình công cụ/thiết bị phù hợp |
-| Lịch tác vụ | Backend phải đang chạy | Backend phải đang chạy |
-| Start with Windows và Windows system tray | Có tích hợp Windows | Không áp dụng |
-| Lưu mật khẩu SMTP | Windows DPAPI | Secret-store hiện chưa triển khai |
-
-Không mặc định email hoạt động trên macOS/Linux chỉ vì giao diện có tab Email.
-
-### Tích hợp IDE
-
-MCP server kế thừa từ ARTEMIS cung cấp khả năng tự động hóa cho trợ lý AI tương thích. Script khởi động có bước cài tích hợp không bắt buộc; chỉ bật nếu bạn muốn thay đổi cấu hình IDE. Không cần tích hợp này để sử dụng Web UI.
-
-Tài liệu kỹ thuật nằm trong [docs](docs/). Báo lỗi của bản tùy chỉnh tại [Issues của repository](https://github.com/jokerhung/android-automation-studio/issues); nhớ loại bỏ thông tin bí mật khỏi log và ảnh chụp.
+- **Repository này:** [jokerhung/android-automation-studio](https://github.com/jokerhung/android-automation-studio)
+- **Dự án gốc:** [google/artemis](https://github.com/google/artemis)
+- **Giấy phép:** [Apache 2.0](LICENSE), giữ nguyên các thông báo từ dự án gốc. Mã nguồn kế thừa cũng bao gồm đóng góp từ [Minitap, Inc.](https://github.com/minitap-ai/mobile-use); các thành phần bên thứ ba giữ giấy phép riêng.

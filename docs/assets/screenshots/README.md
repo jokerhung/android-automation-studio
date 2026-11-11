@@ -1,12 +1,15 @@
 # README screenshots
 
-Captured on 2026-09-16 from the real application at http://localhost:8009/.
-English UI, dark theme, 1440×960 viewport; new-schedule.png is cropped to the dialog.
-Solid slate rectangles redact task text, account/device identifiers and device media.
+Home, Workspace and Task Schedule were captured on 2026-11-11 from the real
+application at http://localhost:8009/. These are the three images displayed in
+the root README. English UI, dark theme, 1440×960 viewport.
+Private task text, session history, device identifiers, email recipients and
+device media are blurred in the disposable browser before capture.
+The older settings.png and new-schedule.png are retained but not displayed.
 Screenshots are not mocked UI or AI-generated images.
 
 The capture script uses an isolated browser profile, only allows read-only API
-requests, selects an existing session, and opens (but does not save) a new schedule.
+requests and selects an existing session for the Workspace screenshot.
 It does not start tasks, send email, change backend settings or modify the user's
 browser preferences. Review every screenshot for sensitive content before publishing.
 
