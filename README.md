@@ -4,19 +4,25 @@
 
 **English** · [Tiếng Việt](README_VI.md)
 
-## Introduction
-
-Android Automation Studio is an independently maintained derivative **cloned from [Google's ARTEMIS project](https://github.com/google/artemis)**. Credit for the original ARTEMIS code and architecture belongs to Google and the upstream contributors. This repository is not an official Google release and does not claim Google endorsement.
-
 Describe a task in natural language, run it on an authorized Android phone or emulator, and follow its execution in the browser. The Python/FastAPI backend runs the automation; the **Next.js/TypeScript frontend with shadcn/ui** provides the interface. Angular has been removed.
-
-- **This repository:** [jokerhung/android-automation-studio](https://github.com/jokerhung/android-automation-studio)
-- **Original project:** [google/artemis](https://github.com/google/artemis)
-- **License:** [Apache 2.0](LICENSE), with upstream notices retained. Inherited code also includes contributions from [Minitap, Inc.](https://github.com/minitap-ai/mobile-use); third-party components retain their own licenses.
 
 Use only devices and accounts you are authorized to control. Tasks may change application data, and configured AI providers may receive task text and device observations. Review instructions before running them.
 
-## Quick Installation
+The following screenshots were captured from the running application at **http://localhost:8009/** on **2026-09-16**, using English and the dark theme. Solid gray areas intentionally hide real task, account and device information; they are not loading placeholders. No task was run and no backend setting was changed to produce these screenshots.
+
+![Home with the task composer and suggested tasks](docs/assets/screenshots/home.png)
+
+![Three-column Workspace with private session content redacted](docs/assets/screenshots/workspace.png)
+
+![Task schedules with private names, instructions and recipients redacted](docs/assets/screenshots/task-schedule.png)
+
+![New schedule form](docs/assets/screenshots/new-schedule.png)
+
+![Settings showing language, theme and Windows startup preferences](docs/assets/screenshots/settings.png)
+
+---
+
+## ⚡ Quick Start
 
 Run the command for your operating system to download ARTEMIS, prepare Python/uv and Node/npm, build the web interface, and start the server.
 
@@ -43,15 +49,144 @@ and ZIP support. Installation defaults to `~/.local/share/artemis` or
 `%LOCALAPPDATA%\Programs\Artemis`. No API key or Android device is needed to
 open the console.
 
-**Verification:** the local installers are implemented; public publication and
-clean-machine acceptance remain unverified. See the release notes in the
-installation guide before using the Internet commands.
+**Release status:** the installation guide records incomplete public publication
+(last checked 2026-10-28). The commands above require the installer and helpers
+to be published together on `nextjs`; clean-machine acceptance remains unverified.
+Use the source setup below while publication is pending.
 
 See [installation options, supported environments, and management commands](docs/installation.md) for details.
 
-## Build and run
+### Auto-start on Login (Optional)
 
-### Prerequisites
+On supported Windows installations, enable **Settings → General → Start with Windows**. The Windows system tray integration is platform-specific.
+
+### LAN Access (Optional)
+
+The installer prints local and LAN URLs, normally `http://localhost:8009/` and `http://<host-ip>:8009/`. The host must remain running and reachable from the client. Use `-LocalOnly` (PowerShell) or `--local-only` (Bash) during installation to restrict access to this computer.
+
+---
+
+## 📱 Supported Platforms
+
+| Platform | Host | Web client | Install / access |
+| --- | --- | --- | --- |
+| Windows 11 x64 | Installer target | Browser | PowerShell installer or `start.bat` from source |
+| macOS 14 / 15, Intel / Apple Silicon | Installer target | Browser | Bash installer or `bash start.sh` from source |
+| Ubuntu 22.04 / 24.04, x86_64 (glibc) | Installer target | Browser | Bash installer or `bash start.sh` from source |
+| Other browser devices | — | Browser | Open the host's local or LAN URL |
+| Android phone / emulator | Automation target | — | Connect through authorized ADB |
+
+The host rows describe implementation targets, not completed acceptance testing on every OS/device combination. See [installation environments and prerequisites](docs/installation.md#target-environments-and-prerequisites). Android tasks require ADB and an available device; scrcpy/FFmpeg support recording-related capabilities.
+
+| Platform-specific feature | Windows | macOS / Linux |
+| --- | --- | --- |
+| Task schedules | Backend must remain running | Backend must remain running |
+| Start with Windows and system tray | Supported Windows integration | Not applicable |
+| SMTP password storage | Windows DPAPI | Not implemented by the current secret-store backend |
+
+Do not assume email notifications are available on macOS/Linux merely because the Email tab is visible.
+
+---
+
+## ✨ 8 Superpowers
+
+- 🤖 **Natural-language Android automation** — describe a goal and execute it on an authorized phone or emulator.
+- ⚡ **Flash and Pro modes** — reactive execution for simple tasks, or planning and verification for complex workflows.
+- 🖥️ **Live execution workspace** — action cards, logs, plans, notes, usage and task history in one view.
+- 🎬 **Recording and replay** — review device media, recorded steps and video with timeline and speed controls.
+- 📅 **Recurring task schedules** — interval, daily and weekly runs with timezone selection, previews and history.
+- 🧠 **Configurable AI providers** — choose default/fallback models, API keys or the local OpenAI ACP bridge described below.
+- 📱 **Android device tools** — local/remote ADB, emulator controls and a Remote Phone page for ordinary UI input.
+- 🔌 **MCP integration** — expose automation capabilities to compatible AI assistants through the inherited ARTEMIS MCP server.
+
+### Feature Details
+
+#### Home — launch a task
+
+Enter a natural-language goal or choose a suggested task.
+
+- **Flash:** reactive execution for straightforward app interactions.
+- **Pro:** planning and verification for more complex workflows, with expected output and tuning controls.
+- Prerequisite checks prevent launching when the required environment is not ready.
+
+#### Workspace — follow execution and replay
+
+The three-column workspace keeps activity, device media and task history together.
+
+- **Left:** readable action cards, activity/results, notes, plan and usage. During execution, Logs follow new content while the header and tabs remain fixed.
+- **Center:** live device view, recorded steps or video replay, with a time slider and playback speed.
+- **Right:** active task queue and previous sessions.
+- Stop/resume controls are available when the selected task state allows them.
+
+#### Task Schedule — recurring automation
+
+Create **interval** schedules in minutes, **daily** schedules, or **weekly** schedules with selected weekdays. Configure time down to seconds and choose a timezone.
+
+- Preview the next five occurrences before saving.
+- Pause/resume a schedule, run it now, inspect history, or delete it using compact icon buttons.
+- Long task descriptions scroll inside fixed-height areas.
+- Where SMTP is configured and supported, send the task summary with a text execution-log attachment.
+
+Schedules require the host computer and ARTEMIS backend to stay running, and the target device must be available. Scheduling does not wake or power on the computer.
+
+#### Settings — appearance, models and devices
+
+- **General:** English/Vietnamese language, light/dark themes, and Start with Windows on supported installations.
+- **Models:** provider, default/fallback model, credentials and custom API URL; save/restart confirmation.
+- **OpenAI ACP:** choose this provider to use the locally installed Codex CLI and its existing login. Run `codex login` on the server computer first, then click **Fetch models**, choose default/fallback models and save/restart. Codex is detected automatically; an optional executable path supports installations outside PATH. No Artemis API key, HTTP proxy or ACP package installation is required. Artemis supplies an ACP stdio bridge to `codex app-server`; this requires a Codex version supporting `account/read`, `model/list`, `thread/start` and `turn/start` (verified with 0.166.0). Text, inline screenshots, tool calls and structured output are supported; responses arrive when complete. Native video/audio and remote image URLs are not supported by this provider. Codex runs hidden on Windows, and Artemis remains responsible for device actions.
+- **Email:** SMTP connection settings and explicit connection/test-email actions.
+- **Android:** local/remote ADB, device selection and installed emulator controls.
+- **Remote Phone:** open `/remote/` to view a connected Android device and send tap, swipe, text, and key input. Control requests are loopback-only by default; set `ARTEMIS_REMOTE_CONTROL_ALLOW_LAN=1` only on a trusted network. MJPEG capture and ADB input are intended for ordinary UI actions, not low-latency games.
+- **System & Environment:** dependency checks and readiness information.
+
+#### IDE integration
+
+The inherited ARTEMIS MCP server can connect automation capabilities to compatible AI assistants. The startup script offers optional installation; use it only if you want to change your IDE configuration. This integration is separate from using the Web UI.
+
+For implementation details, explore [docs](docs/). Report issues for this derivative at [the repository issue tracker](https://github.com/jokerhung/android-automation-studio/issues), with secrets removed from logs and screenshots.
+
+---
+
+## 🛡️ Security Architecture
+
+```mermaid
+flowchart LR
+    Browser["Browser: Next.js static UI"] -->|"Local or LAN HTTP"| API["FastAPI backend"]
+    MCP["Compatible AI assistant / MCP"] --> Runtime["ARTEMIS automation runtime"]
+    API --> Runtime
+    API --> Config["Local settings and credentials"]
+    Runtime -->|"Task text and device observations"| AI["Configured AI provider / local ACP bridge"]
+    Runtime -->|"Authorized ADB"| Android["Android phone or emulator"]
+```
+
+- The production frontend and API share one origin; FastAPI serves the static export without a separate Node server.
+- The installer accepts LAN connections by default. Choose local-only installation when access should stay on the host.
+- Remote Phone control requests are loopback-only by default. `ARTEMIS_REMOTE_CONTROL_ALLOW_LAN=1` enables control on a trusted LAN.
+- Model credentials stay in local configuration; configured providers may receive task text and device observations. Windows email passwords use DPAPI; the current SMTP secret-store backend does not implement macOS/Linux storage.
+- Lifecycle scripts use identity-verified Artemis stop/restart commands rather than killing whichever process holds a port.
+
+Use only devices and accounts you are authorized to control. Keep credentials out of commits, logs and screenshots; preserve an existing `.env` during upgrades.
+
+---
+
+## 📂 Project Structure (Monorepo)
+
+| Path | Purpose |
+| --- | --- |
+| `artemis/` | Python automation runtime, agents, device drivers, services and CLI |
+| `apps/admin_console/` | FastAPI web/API server and administration routes |
+| `apps/showcase_next/` | Next.js / TypeScript web interface with shadcn/ui; static export in `out/` |
+| `packages/artemis-client/` | Python client SDK, managed as a uv workspace package |
+| `mcp_server/` | MCP server integration for compatible AI assistants |
+| `scripts/` | Bootstrap, build, lifecycle and verification helpers |
+| `config/` | Configuration resources |
+| `docs/` | Installation guides, deployment notes and screenshots |
+| `tests/` | Automated checks for the backend and integrations |
+| `playground/` | Container and backend experiments |
+
+### Development Setup
+
+#### Prerequisites
 
 - Git.
 - Python **3.12+**, managed through [uv](https://docs.astral.sh/uv/).
@@ -63,7 +198,7 @@ See [installation options, supported environments, and management commands](docs
 
 The startup scripts try to discover or install missing tools, initialize `.env` if absent, synchronize Python dependencies, and build the frontend when necessary. Installation can require permission or fail on an unsupported environment. Review prompts, including the optional IDE/MCP installation.
 
-### Windows — PowerShell
+#### Windows — PowerShell
 
 **Quick start:**
 
@@ -107,7 +242,7 @@ To use another port or skip opening a browser:
 
 Both scripts stop and start the server through Artemis's own identity-verified lifecycle commands (`artemis ui --restart`, `artemis restart --daemon`, `artemis stop`), never by killing a PID found on the port directly.
 
-### macOS
+#### macOS
 
 Install the prerequisites, connect an authorized device, then:
 
@@ -129,7 +264,7 @@ uv run python -m artemis ui --port 8009 --open
 
 macOS setup can use Homebrew if available. Windows sign-in startup/tray and Windows DPAPI email credential storage do not apply to macOS.
 
-### Linux
+#### Linux
 
 Install the prerequisites, ensure your user has permission to access the Android USB device, then:
 
@@ -155,7 +290,7 @@ Linux setup can use the available package manager or supported user-space fallba
 bash start.sh --port 8010 --no-open
 ```
 
-### Open the application and configure it
+#### Open the application and configure it
 
 The startup scripts default to **[http://localhost:8009/](http://localhost:8009/)**. Direct CLI lifecycle commands may have a different default, so specify `--port 8009` explicitly.
 
@@ -168,7 +303,7 @@ Do not overwrite an existing `.env` when upgrading. Never commit credentials or 
 
 The production frontend is a **static export** in `apps/showcase_next/out`, served by FastAPI on the same origin as the API. It does not require a separate Next.js/Node server. Rebuild after frontend changes, then hard-refresh the browser.
 
-### Build packages and run checks
+#### Build packages and run checks
 
 From the repository root, after building the frontend:
 
@@ -188,80 +323,14 @@ npm run budget:check --prefix apps/showcase_next
 
 See [Next.js-only deployment notes](docs/nextjs-only-cutover.md) for packaging details. The commands describe the platform-specific workflows; they are not a claim that every OS/device combination has been validated.
 
-## Basic features and screenshots
+---
 
-The following screenshots were captured from the running application at **http://localhost:8009/** on **2026-09-16**, using English and the dark theme. Solid gray areas intentionally hide real task, account and device information; they are not loading placeholders. No task was run and no backend setting was changed to produce these screenshots.
+## 📄 License
 
-### Home — launch a task
+[Apache License 2.0](LICENSE). Free to use, modify and distribute, including commercially, subject to the license terms.
 
-Enter a natural-language goal or choose a suggested task.
+Android Automation Studio is an independently maintained derivative **cloned from [Google's ARTEMIS project](https://github.com/google/artemis)**. Credit for the original ARTEMIS code and architecture belongs to Google and the upstream contributors. This repository is not an official Google release and does not claim Google endorsement.
 
-- **Flash:** reactive execution for straightforward app interactions.
-- **Pro:** planning and verification for more complex workflows, with expected output and tuning controls.
-- Prerequisite checks prevent launching when the required environment is not ready.
-
-![Home with the task composer and suggested tasks](docs/assets/screenshots/home.png)
-
-### Workspace — follow execution and replay
-
-The three-column workspace keeps activity, device media and task history together.
-
-- **Left:** readable action cards, activity/results, notes, plan and usage. During execution, Logs follow new content while the header and tabs remain fixed.
-- **Center:** live device view, recorded steps or video replay, with a time slider and playback speed.
-- **Right:** active task queue and previous sessions.
-- Stop/resume controls are available when the selected task state allows them.
-
-The screenshot below shows a completed session; its personal content and device recording are redacted.
-
-![Three-column Workspace with private session content redacted](docs/assets/screenshots/workspace.png)
-
-### Task Schedule — recurring automation
-
-Create **interval** schedules in minutes, **daily** schedules, or **weekly** schedules with selected weekdays. Configure time down to seconds and choose a timezone.
-
-- Preview the next five occurrences before saving.
-- Pause/resume a schedule, run it now, inspect history, or delete it using compact icon buttons.
-- Long task descriptions scroll inside fixed-height areas.
-- Where SMTP is configured and supported, send the task summary with a text execution-log attachment.
-
-Schedules require the host computer and ARTEMIS backend to stay running, and the target device must be available. Scheduling does not wake or power on the computer.
-
-![Task schedules with private names, instructions and recipients redacted](docs/assets/screenshots/task-schedule.png)
-
-<details>
-<summary>Create a new schedule</summary>
-
-The form below was opened without saving or running a task.
-
-![New schedule form](docs/assets/screenshots/new-schedule.png)
-
-</details>
-
-### Settings — appearance, models and devices
-
-- **General:** English/Vietnamese language, light/dark themes, and Start with Windows on supported installations.
-- **Models:** provider, default/fallback model, credentials and custom API URL; save/restart confirmation.
-- **OpenAI ACP:** choose this provider to use the locally installed Codex CLI and its existing login. Run `codex login` on the server computer first, then click **Fetch models**, choose default/fallback models and save/restart. Codex is detected automatically; an optional executable path supports installations outside PATH. No Artemis API key, HTTP proxy or ACP package installation is required. Artemis supplies an ACP stdio bridge to `codex app-server`; this requires a Codex version supporting `account/read`, `model/list`, `thread/start` and `turn/start` (verified with 0.166.0). Text, inline screenshots, tool calls and structured output are supported; responses arrive when complete. Native video/audio and remote image URLs are not supported by this provider. Codex runs hidden on Windows, and Artemis remains responsible for device actions.
-- **Email:** SMTP connection settings and explicit connection/test-email actions.
-- **Android:** local/remote ADB, device selection and installed emulator controls.
-- **Remote Phone:** open `/remote/` to view a connected Android device and send tap, swipe, text, and key input. Control requests are loopback-only by default; set `ARTEMIS_REMOTE_CONTROL_ALLOW_LAN=1` only on a trusted network. MJPEG capture and ADB input are intended for ordinary UI actions, not low-latency games.
-- **System & Environment:** dependency checks and readiness information.
-
-![Settings showing language, theme and Windows startup preferences](docs/assets/screenshots/settings.png)
-
-### Platform-specific features
-
-| Feature | Windows | macOS / Linux |
-| --- | --- | --- |
-| Next.js Web UI and Python backend | Available | Available; local tool/device setup required |
-| Task schedules | Backend must remain running | Backend must remain running |
-| Start with Windows and Windows system tray | Supported Windows integration | Not applicable |
-| SMTP password storage | Windows DPAPI | Not implemented by the current secret-store backend |
-
-Do not assume email notifications are available on macOS/Linux merely because the Email tab is visible.
-
-### IDE integration
-
-The inherited ARTEMIS MCP server can connect automation capabilities to compatible AI assistants. The startup script offers optional installation; use it only if you want to change your IDE configuration. This integration is separate from using the Web UI.
-
-For implementation details, explore [docs](docs/). Report issues for this derivative at [the repository issue tracker](https://github.com/jokerhung/android-automation-studio/issues), with secrets removed from logs and screenshots.
+- **This repository:** [jokerhung/android-automation-studio](https://github.com/jokerhung/android-automation-studio)
+- **Original project:** [google/artemis](https://github.com/google/artemis)
+- **License:** [Apache 2.0](LICENSE), with upstream notices retained. Inherited code also includes contributions from [Minitap, Inc.](https://github.com/minitap-ai/mobile-use); third-party components retain their own licenses.
